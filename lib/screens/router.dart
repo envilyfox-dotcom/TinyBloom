@@ -1,0 +1,170 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_provider.dart';
+import 'auth/login_screen.dart';
+import 'auth/forgot_password_screen.dart';
+import 'dashboard/dashboard_screen.dart';
+import 'logs/logs_screen.dart';
+import 'profile/profile_screen.dart';
+import 'features_screens.dart';
+import 'app_shell.dart';
+import 'onboarding/mum_onboarding_screen.dart';
+import 'specialist/submit_link_screen.dart';
+import 'forum/forum_screen.dart';
+
+final router = GoRouter(
+  initialLocation: '/splash',
+  refreshListenable: authProvider,
+  redirect: (context, state) {
+    final auth = context.read<AuthProvider>();
+    final loc = state.matchedLocation;
+    if (auth.loading) return loc == '/splash' ? null : '/splash';
+    final loggedIn = auth.isLoggedIn;
+    final onAuth = loc == '/login' || loc == '/forgot-password';
+    final onOnboarding = loc == '/onboarding';
+
+    if (!loggedIn && !onAuth) return '/login';
+    if (loggedIn && onAuth) return '/home';
+    if (loggedIn && auth.needsOnboarding && !onOnboarding) return '/onboarding';
+    if (loggedIn && !auth.needsOnboarding && onOnboarding) return '/home';
+    if (loc == '/splash') return loggedIn ? '/home' : '/login';
+    return null;
+  },
+  routes: [
+    // Splash
+    GoRoute(path: '/splash', builder: (_, __) => const _SplashScreen()),
+    // Auth
+    GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+    GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
+    GoRoute(path: '/onboarding', builder: (_, __) => const MumOnboardingScreen()),
+
+    // Shell (bottom nav)
+    ShellRoute(
+      builder: (context, state, child) {
+        final location = state.matchedLocation;
+        int idx = 0;
+        final auth = context.read<AuthProvider>();
+        final isMum = auth.isMum;
+        if (isMum) {
+          if (location.startsWith('/logs'))
+            idx = 1;
+          else if (location.startsWith('/education'))
+            idx = 2;
+          else if (location.startsWith('/forum'))
+            idx = 3;
+          else if (location.startsWith('/profile')) idx = 4;
+        } else {
+          if (location.startsWith('/education'))
+            idx = 1;
+          else if (location.startsWith('/forum'))
+            idx = 2;
+          else if (location.startsWith('/profile')) idx = 3;
+        }
+        return AppShell(child: child, selectedIndex: idx);
+      },
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const DashboardScreen()),
+        GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+        GoRoute(
+            path: '/education', builder: (_, __) => const EducationScreen()),
+        GoRoute(
+          path: '/logs',
+          builder: (_, __) => const LogsScreen(),
+        ),
+        GoRoute(path: '/forum', builder: (_, __) => const ForumScreen()),
+      ],
+    ),
+
+    // Detail screens (no shell)
+    GoRoute(path: '/logs/create', builder: (_, __) => const CreateLogScreen()),
+    GoRoute(
+        path: '/logs/:id',
+        builder: (context, state) =>
+            ViewLogScreen(log: state.extra as Map<String, dynamic>?)),
+    GoRoute(
+        path: '/logs/:id/edit',
+        builder: (context, state) =>
+            CreateLogScreen(existing: state.extra as Map<String, dynamic>?)),
+    GoRoute(
+        path: '/profile/edit',
+        builder: (context, state) =>
+            EditProfileScreen(profile: state.extra as Map<String, dynamic>?)),
+    GoRoute(path: '/faq', builder: (_, __) => const FaqScreen()),
+    GoRoute(path: '/chatbot', builder: (_, __) => const ChatbotScreen()),
+    GoRoute(
+        path: '/consultation', builder: (_, __) => const ConsultationScreen()),
+    GoRoute(
+        path: '/consultation/specialists',
+        builder: (_, __) => const SpecialistsListScreen()),
+    GoRoute(
+        path: '/consultation/volunteers',
+        builder: (_, __) => const VolunteersListScreen()),
+    GoRoute(
+        path: '/consultation/book',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return ConsultationBookingScreen(
+              provider: extra['provider'] as Map<String, dynamic>,
+              type: extra['type'] as String);
+        }),
+    GoRoute(
+        path: '/consultation/confirm',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return ConfirmConsultationScreen(
+              provider: extra['provider'] as Map<String, dynamic>,
+              type: extra['type'] as String,
+              date: extra['date'] as DateTime,
+              time: extra['time'] as String,
+              purpose: extra['purpose'] as String);
+        }),
+    GoRoute(
+        path: '/consultation/detail',
+        builder: (context, state) => ConsultationDetailScreen(
+            consultation: state.extra as Map<String, dynamic>)),
+    GoRoute(
+        path: '/subscription', builder: (_, __) => const SubscriptionScreen()),
+    GoRoute(
+        path: '/education/:id',
+        builder: (context, state) => ArticleDetailScreen(
+            article: (state.extra as Map<String, dynamic>?) ?? {})),
+    GoRoute(
+        path: '/notifications',
+        builder: (_, __) => const _NotificationsScreen()),
+    GoRoute(
+        path: '/baby-development',
+        builder: (_, __) => const BabyDevelopmentScreen()),
+    GoRoute(
+        path: '/milestone-journey',
+        builder: (_, __) => const MilestoneJourneyScreen()),
+    GoRoute(path: '/submit-link', builder: (_, __) => const SubmitLinkScreen()),
+    GoRoute(
+        path: '/forum/post',
+        builder: (context, state) =>
+            PostDetailScreen(post: state.extra as Map<String, dynamic>)),
+  ],
+);
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator(color: Color(0xFFE8A0B4))),
+    );
+  }
+}
+
+class _NotificationsScreen extends StatelessWidget {
+  const _NotificationsScreen();
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: const Center(
+          child: Text('No notifications yet 🔔',
+              style: TextStyle(color: Color(0xFF9B8B86)))),
+    );
+  }
+}
