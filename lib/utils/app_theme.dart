@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
@@ -127,13 +126,9 @@ class AppTheme {
 }
 
 class AppConstants {
-  static late final String supabaseUrl;
-  static late final String supabaseAnonKey;
-
-  static void loadEnv() {
-    supabaseUrl = dotenv.get('SUPABASE_URL', fallback: '');
-    supabaseAnonKey = dotenv.get('SUPABASE_ANON_KEY', fallback: '');
-  }
+  static const String supabaseUrl = 'https://yznzzhecpbhqtgozxpfg.supabase.co';
+  static const String supabaseAnonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6bnp6aGVjcGJocXRnb3p4cGZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NjE4OTYsImV4cCI6MjA5NjMzNzg5Nn0.TYMMyzzcXcvHyB4dxXF2kz_UdK-zA9zqaNCMK7IgSSk';
 
   static const String appName = 'TinyBloom';
   static const String appTagline = 'Your Pregnancy Support Companion';

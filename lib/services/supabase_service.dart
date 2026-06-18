@@ -197,12 +197,11 @@ class SupabaseService {
     int? trimester,
   }) async {
     final user = currentUser;
-    final slug = title
+    final slug = '${title
             .toLowerCase()
             .replaceAll(RegExp(r"[^a-z0-9\s-]"), '')
             .trim()
-            .replaceAll(RegExp(r'\s+'), '-') +
-        '-${DateTime.now().millisecondsSinceEpoch}';
+            .replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
     await client.from('articles').insert({
       'title': title,
       'slug': slug,

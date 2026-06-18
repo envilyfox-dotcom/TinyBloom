@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'services/supabase_service.dart';
 import 'services/auth_provider.dart';
@@ -9,10 +8,6 @@ import 'utils/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Load environment variables from .env
-  await dotenv.load(fileName: '.env');
-  AppConstants.loadEnv();
 
   // Lock to portrait
   await SystemChrome.setPreferredOrientations([
