@@ -4,14 +4,30 @@ import 'package:provider/provider.dart';
 import '../services/auth_provider.dart';
 import 'auth/login_screen.dart';
 import 'auth/forgot_password_screen.dart';
-import 'dashboard/dashboard_screen.dart';
-import 'logs/logs_screen.dart';
-import 'profile/profile_screen.dart';
-import 'features_screens.dart';
+import 'shared/dashboard_screen.dart';
+import 'mum/logs/logs_screen.dart';
+import 'mum/logs/view_log_screen.dart';
+import 'mum/logs/create_log_screen.dart';
+import 'shared/profile_screen.dart';
+import 'shared/edit_profile_screen.dart';
+import 'shared/faq_screen.dart';
+import 'shared/education_screen.dart';
+import 'shared/article_detail_screen.dart';
+import 'shared/baby_development_screen.dart';
+import 'shared/milestone_journey_screen.dart';
+import 'shared/subscription_screen.dart';
+import 'premium/chatbot_screen.dart';
+import 'mum/consultation/consultation_list_screen.dart';
+import 'mum/consultation/consultation_detail_screen.dart';
+import 'mum/consultation/specialists_list_screen.dart';
+import 'mum/consultation/volunteers_list_screen.dart';
+import 'mum/consultation/consultation_booking_screen.dart';
+import 'mum/consultation/confirm_consultation_screen.dart';
 import 'app_shell.dart';
-import 'onboarding/mum_onboarding_screen.dart';
+import 'mum/onboarding/mum_onboarding_screen.dart';
 import 'specialist/submit_link_screen.dart';
-import 'forum/forum_screen.dart';
+import 'mum/forum/forum_screen.dart';
+import 'mum/forum/post_detail_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/splash',
@@ -93,7 +109,7 @@ final router = GoRouter(
     GoRoute(path: '/faq', builder: (_, __) => const FaqScreen()),
     GoRoute(path: '/chatbot', builder: (_, __) => const ChatbotScreen()),
     GoRoute(
-        path: '/consultation', builder: (_, __) => const ConsultationScreen()),
+        path: '/consultation', builder: (_, __) => const ConsultationListScreen()),
     GoRoute(
         path: '/consultation/specialists',
         builder: (_, __) => const SpecialistsListScreen()),

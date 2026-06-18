@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../services/auth_provider.dart';
-import '../../services/supabase_service.dart';
-import '../../utils/app_theme.dart';
+import '../../../services/auth_provider.dart';
+import '../../../services/supabase_service.dart';
+import '../../../utils/app_theme.dart';
 import 'package:intl/intl.dart';
 
 class MumOnboardingScreen extends StatefulWidget {
