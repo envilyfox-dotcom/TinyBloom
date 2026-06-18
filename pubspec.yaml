@@ -15,6 +15,7 @@ dependencies:
   
   # Navigation
   go_router: ^13.0.0
+  flutter_dotenv: ^6.0.0
   
   # UI
   google_fonts: ^6.1.0

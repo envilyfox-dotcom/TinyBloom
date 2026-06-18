@@ -32,3 +32,6 @@ ios/Flutter/Flutter.podspec
 # OS
 .DS_Store
 Thumbs.db
+
+#supabase informations
+.env

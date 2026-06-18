@@ -47,21 +47,21 @@ final router = GoRouter(
         final auth = context.read<AuthProvider>();
         final isMum = auth.isMum;
         if (isMum) {
-          if (location.startsWith('/logs'))
+          if (location.startsWith('/logs')) {
             idx = 1;
-          else if (location.startsWith('/education'))
+          } else if (location.startsWith('/education'))
             idx = 2;
           else if (location.startsWith('/forum'))
             idx = 3;
           else if (location.startsWith('/profile')) idx = 4;
         } else {
-          if (location.startsWith('/education'))
+          if (location.startsWith('/education')) {
             idx = 1;
-          else if (location.startsWith('/forum'))
+          } else if (location.startsWith('/forum'))
             idx = 2;
           else if (location.startsWith('/profile')) idx = 3;
         }
-        return AppShell(child: child, selectedIndex: idx);
+        return AppShell(selectedIndex: idx, child: child);
       },
       routes: [
         GoRoute(path: '/home', builder: (_, __) => const DashboardScreen()),

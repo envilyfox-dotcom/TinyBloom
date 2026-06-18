@@ -453,8 +453,10 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       }
       if (mounted) context.pop();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
     }
     if (mounted) setState(() => _loading = false);
   }

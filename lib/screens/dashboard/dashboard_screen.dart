@@ -75,7 +75,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       } catch (_) {}
     }
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _profile = profile;
         _pregnancyProfile = pp;
@@ -83,6 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _providerNames = providerNames;
         _loading = false;
       });
+    }
   }
 
   int get _currentWeek {
@@ -237,7 +238,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildActiveAlerts(),
 
                     // Upcoming features
-                    TBSectionTitle(
+                    const TBSectionTitle(
                       title: 'Explore',
                       action: '',
                     ),
@@ -312,15 +313,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('🌸  Your Pregnancy',
+              Text('🌸  Your Pregnancy',
                   style: TextStyle(
                       color: AppColors.roseDeep,
                       fontWeight: FontWeight.w700,
                       fontSize: 13)),
-              const Icon(Icons.chevron_right,
+              Icon(Icons.chevron_right,
                   color: AppColors.roseDeep, size: 18),
             ],
           ),

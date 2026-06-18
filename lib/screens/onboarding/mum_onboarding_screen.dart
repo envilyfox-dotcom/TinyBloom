@@ -242,8 +242,8 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
             children: [
               const Text('🌸', style: TextStyle(fontSize: 22)),
               const SizedBox(width: 8),
-              Text('Getting Started',
-                  style: const TextStyle(
+              const Text('Getting Started',
+                  style: TextStyle(
                       color: AppColors.roseDeep,
                       fontWeight: FontWeight.w700,
                       fontSize: 13)),
@@ -509,9 +509,9 @@ class _StepYourPregnancy extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         fontSize: 32)),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   'of your pregnancy',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textMid, fontSize: 14),
                 ),
                 const SizedBox(height: 12),

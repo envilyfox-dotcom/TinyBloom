@@ -52,11 +52,12 @@ class _FaqScreenState extends State<FaqScreen> {
 
   Future<void> _load() async {
     final faqs = await SupabaseService.getFaqs();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _faqs = faqs;
         _loading = false;
       });
+    }
   }
 
   List<String> get _categories {
@@ -172,11 +173,12 @@ class _EducationScreenState extends State<EducationScreen> {
 
   Future<void> _load() async {
     final a = await SupabaseService.getArticles();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _articles = a;
         _loading = false;
       });
+    }
   }
 
   List<String> get _categories {
@@ -420,12 +422,13 @@ class _ConsultationScreenState extends State<ConsultationScreen>
   Future<void> _load() async {
     try {
       final c = await SupabaseService.getConsultations();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _consultations = c;
           _loading = false;
           _error = null;
         });
+      }
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.toString(); });
     }
@@ -462,8 +465,9 @@ class _ConsultationScreenState extends State<ConsultationScreen>
                   ? TBEmptyState(
                       emoji: '👩‍⚕️',
                       title: 'No consultations yet',
-                      subtitle:
-                          'Book a consultation with a specialist or volunteer.',
+                      subtitle: isPremium
+                          ? 'Book a consultation with a specialist or volunteer.'
+                          : 'Book a consultation with a volunteer.',
                       buttonLabel: 'Book Now',
                       onButton: () => _tabs.animateTo(1))
                   : ListView.builder(
@@ -947,7 +951,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     if (q.contains('sleep')) {
       return 'Sleep on your left side for better blood flow to baby. Use a pregnancy pillow for support. Avoid screens before bed, maintain a regular sleep schedule, and try a warm bath to relax. 🌙';
     }
-    return 'That\'s a great question! For personalised advice about "${q.length > 30 ? q.substring(0, 30) + '...' : q}", I recommend discussing with your healthcare provider who knows your specific situation. I\'m here to provide general guidance. Is there anything specific I can help with? 🌸';
+    return 'That\'s a great question! For personalised advice about "${q.length > 30 ? '${q.substring(0, 30)}...' : q}", I recommend discussing with your healthcare provider who knows your specific situation. I\'m here to provide general guidance. Is there anything specific I can help with? 🌸';
   }
 
   void _scrollDown() {
@@ -1619,12 +1623,13 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
   Future<void> _load() async {
     try {
       final data = await SupabaseService.getSpecialists();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _specialists = data;
           _loading = false;
           _error = null;
         });
+      }
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.toString(); });
     }
@@ -1699,12 +1704,13 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
   Future<void> _load() async {
     try {
       final data = await SupabaseService.getVolunteers();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _volunteers = data;
           _loading = false;
           _error = null;
         });
+      }
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.toString(); });
     }
