@@ -27,6 +27,10 @@ import 'mum/consultation/confirm_consultation_screen.dart';
 import 'app_shell.dart';
 import 'mum/onboarding/mum_onboarding_screen.dart';
 import 'specialist/submit_link_screen.dart';
+import 'specialist/specialist_dashboard_screen.dart';
+import 'specialist/specialist_profile_screen.dart';
+import 'specialist/specialist_edit_profile_screen.dart';
+import 'specialist/change_password_screen.dart';
 import 'mum/forum/forum_screen.dart';
 import 'mum/forum/post_detail_screen.dart';
 
@@ -81,8 +85,14 @@ final router = GoRouter(
         return AppShell(selectedIndex: idx, child: child);
       },
       routes: [
-        GoRoute(path: '/home', builder: (_, __) => const DashboardScreen()),
-        GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+        GoRoute(path: '/home', builder: (context, __) {
+          final auth = context.read<AuthProvider>();
+          return auth.isMum ? const DashboardScreen() : const SpecialistDashboardScreen();
+        }),
+        GoRoute(path: '/profile', builder: (context, __) {
+          final auth = context.read<AuthProvider>();
+          return auth.role == 'specialist' ? const SpecialistProfileScreen() : const ProfileScreen();
+        }),
         GoRoute(
             path: '/education', builder: (_, __) => const EducationScreen()),
         GoRoute(
@@ -157,6 +167,11 @@ final router = GoRouter(
         path: '/milestone-journey',
         builder: (_, __) => const MilestoneJourneyScreen()),
     GoRoute(path: '/submit-link', builder: (_, __) => const SubmitLinkScreen()),
+    GoRoute(
+        path: '/specialist/edit-profile',
+        builder: (context, state) => SpecialistEditProfileScreen(
+            specialistProfile: state.extra as Map<String, dynamic>?)),
+    GoRoute(path: '/change-password', builder: (_, __) => const ChangePasswordScreen()),
     GoRoute(
         path: '/forum/post',
         builder: (context, state) =>

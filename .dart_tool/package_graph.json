@@ -19,6 +19,7 @@
         "shared_preferences",
         "shimmer",
         "supabase_flutter",
+        "table_calendar",
         "url_launcher"
       ],
       "devDependencies": [
@@ -1196,6 +1197,22 @@
         "collection",
         "meta",
         "pub_semver"
+      ]
+    },
+    {
+      "name": "table_calendar",
+      "version": "3.1.3",
+      "dependencies": [
+        "flutter",
+        "intl",
+        "simple_gesture_detector"
+      ]
+    },
+    {
+      "name": "simple_gesture_detector",
+      "version": "0.2.1",
+      "dependencies": [
+        "flutter"
       ]
     }
   ],

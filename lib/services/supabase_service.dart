@@ -339,6 +339,52 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Get current specialist's profile (for their own dashboard)
+  static Future<Map<String, dynamic>?> getMySpecialistProfile() async {
+    final user = currentUser;
+    if (user == null) return null;
+    try {
+      final res = await client
+          .from('specialist_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Update specialist profile
+  static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
+  final user = currentUser;
+  if (user == null) return;
+
+  // Check if a row already exists
+  final existing = await client
+      .from('specialist_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+  if (existing != null) {
+    // Row exists — just update the fields we care about
+    await client
+        .from('specialist_profiles')
+        .update(data)
+        .eq('user_id', user.id);
+  } else {
+    // No row yet — insert with required fields defaulted
+    await client
+        .from('specialist_profiles')
+        .insert({
+          'user_id': user.id,
+          'specialization': '',   // satisfies NOT NULL
+          'is_verified': false,
+          ...data,
+        });
+  }
+}
   // Site settings
   static Future<Map<String, String>> getSiteSettings() async {
     final res =

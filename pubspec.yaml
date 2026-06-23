@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  table_calendar: ^3.1.2
   
   # Supabase
   supabase_flutter: ^2.3.0
