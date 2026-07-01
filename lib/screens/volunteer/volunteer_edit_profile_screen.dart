@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 
 class VolunteerEditProfileScreen extends StatefulWidget {
@@ -20,95 +20,137 @@ class _VolunteerEditProfileScreenState
   static const _roseDark = Color(0xFF9B8B86);
   static const _cardBg = Color(0xFFCB9189);
 
-  late TextEditingController _nameCtrl;
-  late TextEditingController _phoneCtrl;
-  late TextEditingController _bioCtrl;
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _expertiseCtrl = TextEditingController();
+  final _certificationCtrl = TextEditingController();
 
-  File? _pickedImage;
+  String _originalEmail = '';
+  String? _photoUrl;
+  bool _photoBusy = false;
   bool _saving = false;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl  = TextEditingController(text: widget.profile?['full_name']  as String? ?? '');
-    _phoneCtrl = TextEditingController(text: widget.profile?['phone']       as String? ?? '');
-    _bioCtrl   = TextEditingController(text: widget.profile?['bio']         as String? ?? '');
+    if (widget.profile != null) {
+      _applyProfile(widget.profile!);
+      _loading = false;
+    } else {
+      // Reached directly (URL navigation/refresh) without the `extra` map
+      // that context.push() normally carries, so fetch the profile ourselves.
+      _loadProfile();
+    }
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await SupabaseService.getProfile();
+      Map<String, dynamic>? volunteerProfile;
+      try {
+        volunteerProfile = await SupabaseService.getMyVolunteerProfile();
+      } catch (_) {}
+      _applyProfile({...?profile, ...?volunteerProfile});
+    } catch (e) {
+      if (mounted) _showSnack('Error loading profile: $e', isError: true);
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _applyProfile(Map<String, dynamic> profile) {
+    _originalEmail = profile['email'] as String? ?? '';
+    _nameCtrl.text = profile['full_name'] as String? ?? '';
+    _emailCtrl.text = _originalEmail;
+    _phoneCtrl.text = profile['phone'] as String? ?? '';
+    _expertiseCtrl.text = profile['expertise'] as String? ?? '';
+    _certificationCtrl.text = profile['certification'] as String? ?? '';
+    _photoUrl = profile['profile_picture_url'] as String?;
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
-    _bioCtrl.dispose();
+    _expertiseCtrl.dispose();
+    _certificationCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 80);
-    if (picked != null) setState(() => _pickedImage = File(picked.path));
+  Future<void> _pickPhoto() async {
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
+    if (picked == null) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final url = await SupabaseService.uploadProfilePicture(
+          bytes, ext.length <= 4 ? ext : 'jpg');
+      if (mounted) setState(() => _photoUrl = url);
+    } catch (e) {
+      if (mounted) _showSnack('Error: $e', isError: true);
+    }
+    if (mounted) setState(() => _photoBusy = false);
   }
 
   Future<void> _save() async {
-    if (_nameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Full name cannot be empty.')),
-      );
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+
+    if (name.isEmpty) {
+      _showSnack('Full name cannot be empty.');
+      return;
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      _showSnack('Please enter a valid email address.');
       return;
     }
 
     setState(() => _saving = true);
     try {
-      String? avatarUrl = widget.profile?['avatar_url'] as String?;
+      await SupabaseService.updateProfile({
+        'full_name': name,
+        'email': email,
+        'phone': _phoneCtrl.text.trim(),
+      });
 
-      // Upload new avatar if picked
-      if (_pickedImage != null) {
-        final userId = SupabaseService.currentUser!.id;
-        final filePath = 'avatars/$userId.jpg';
-        final bytes = await _pickedImage!.readAsBytes();
-        // Try update first (file exists), fall back to upload (new file)
-        try {
-          await SupabaseService.client.storage
-              .from('avatars')
-              .updateBinary(filePath, bytes);
-        } catch (_) {
-          await SupabaseService.client.storage
-              .from('avatars')
-              .uploadBinary(filePath, bytes);
-        }
-        // Add cache-busting timestamp so the UI refreshes the image
-        avatarUrl = '${SupabaseService.client.storage.from('avatars').getPublicUrl(filePath)}?t=${DateTime.now().millisecondsSinceEpoch}';
+      await SupabaseService.updateVolunteerProfile({
+        'expertise': _expertiseCtrl.text.trim(),
+        'certification': _certificationCtrl.text.trim(),
+      });
+
+      String message = 'Profile updated!';
+      if (email != _originalEmail) {
+        await SupabaseService.client.auth
+            .updateUser(UserAttributes(email: email));
+        message = 'Profile updated! Check your new email to confirm the change.';
       }
 
-      // Update profiles table
-      await SupabaseService.client.from('profiles').update({
-        'full_name': _nameCtrl.text.trim(),
-        'phone':     _phoneCtrl.text.trim(),
-        'bio':       _bioCtrl.text.trim(),
-        if (avatarUrl != null) 'avatar_url': avatarUrl,
-      }).eq('id', SupabaseService.currentUser!.id);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated!')),
-        );
-        context.pop();
-      }
+      if (!mounted) return;
+      context.pop();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+      _showSnack('Error: $e', isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  void _showSnack(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : _roseDark,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final existingAvatar = widget.profile?['avatar_url'] as String?;
-
     return Scaffold(
       backgroundColor: const Color(0xFFFFF5F7),
       appBar: AppBar(
@@ -126,7 +168,9 @@ class _VolunteerEditProfileScreenState
                 color: const Color(0xFF6B4A46))),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: _pink))
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -134,22 +178,21 @@ class _VolunteerEditProfileScreenState
 
             // ── Avatar picker ─────────────────────────────────────
             GestureDetector(
-              onTap: _pickImage,
+              onTap: _photoBusy ? null : _pickPhoto,
               child: Stack(
                 alignment: Alignment.bottomRight,
                 children: [
                   CircleAvatar(
                     radius: 52,
                     backgroundColor: _pink.withValues(alpha: 0.2),
-                    backgroundImage: _pickedImage != null
-                        ? FileImage(_pickedImage!) as ImageProvider
-                        : (existingAvatar != null && existingAvatar.isNotEmpty
-                            ? NetworkImage(existingAvatar)
-                            : null),
-                    child: (_pickedImage == null &&
-                            (existingAvatar == null || existingAvatar.isEmpty))
-                        ? const Icon(Icons.person, size: 52, color: _pink)
+                    backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty
+                        ? NetworkImage(_photoUrl!)
                         : null,
+                    child: _photoBusy
+                        ? const CircularProgressIndicator(color: _pink)
+                        : (_photoUrl == null || _photoUrl!.isEmpty
+                            ? const Icon(Icons.person, size: 52, color: _pink)
+                            : null),
                   ),
                   Container(
                     padding: const EdgeInsets.all(6),
@@ -170,7 +213,8 @@ class _VolunteerEditProfileScreenState
                     fontSize: 12, color: _roseDark)),
             const SizedBox(height: 24),
 
-            // ── Form card ─────────────────────────────────────────
+            // ── Form card — mirrors the Personal Information card
+            // shown on the account details screen ─────────────────
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
@@ -191,10 +235,15 @@ class _VolunteerEditProfileScreenState
                   const SizedBox(height: 20),
                   _field('Full name', _nameCtrl),
                   const SizedBox(height: 12),
+                  _field('Email', _emailCtrl,
+                      keyboardType: TextInputType.emailAddress),
+                  const SizedBox(height: 12),
                   _field('Phone number', _phoneCtrl,
                       keyboardType: TextInputType.phone),
                   const SizedBox(height: 12),
-                  _field('Bio', _bioCtrl, maxLines: 3),
+                  _field('Area of Expertise', _expertiseCtrl),
+                  const SizedBox(height: 12),
+                  _field('Certification/License', _certificationCtrl),
                   const SizedBox(height: 20),
 
                   // ── Save button ───────────────────────────────

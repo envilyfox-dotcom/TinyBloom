@@ -19,6 +19,7 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
   static const _cardBg = Color(0xFFCB9189);
 
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _volunteerProfile;
   bool _loading = true;
 
   @override
@@ -30,7 +31,17 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
   Future<void> _load() async {
     try {
       final p = await SupabaseService.getProfile();
-      if (mounted) setState(() { _profile = p; _loading = false; });
+      Map<String, dynamic>? vp;
+      try {
+        vp = await SupabaseService.getMyVolunteerProfile();
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _profile = p;
+          _volunteerProfile = vp;
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -128,8 +139,8 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
         'Volunteer';
     final email = auth.user?.email ?? '';
     final phone = _profile?['phone'] as String? ?? '';
-    final specialization = _profile?['specialization'] as String? ?? '';
-    final licenseNo = _profile?['license_no'] as String? ?? '';
+    final expertise = _volunteerProfile?['expertise'] as String? ?? '';
+    final certification = _volunteerProfile?['certification'] as String? ?? '';
     final avatarUrl = _profile?['profile_picture_url'] as String?;
 
     return Scaffold(
@@ -209,10 +220,10 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
                           _infoRow('Email:', email),
                           if (phone.isNotEmpty)
                             _infoRow('Phone number:', phone),
-                          if (specialization.isNotEmpty)
-                            _infoRow('Specialization:', specialization),
-                          if (licenseNo.isNotEmpty)
-                            _infoRow('License No:', licenseNo),
+                          if (expertise.isNotEmpty)
+                            _infoRow('Area of Expertise:', expertise),
+                          if (certification.isNotEmpty)
+                            _infoRow('Certification/License:', certification),
                           const SizedBox(height: 16),
 
                           // ── Edit / Change Password ────────────
@@ -222,7 +233,8 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
                                 child: OutlinedButton(
                                   onPressed: () => context.push(
                                       '/volunteer/edit-profile',
-                                      extra: _profile),
+                                      extra: {...?_profile, ...?_volunteerProfile}
+                                  ).then((_) => _load()),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.white,
                                     side: const BorderSide(color: Colors.white),

@@ -578,6 +578,51 @@ class SupabaseService {
     }
   }
 
+  // Get current volunteer's profile (for their own dashboard)
+  static Future<Map<String, dynamic>?> getMyVolunteerProfile() async {
+    final user = currentUser;
+    if (user == null) return null;
+    try {
+      final res = await client
+          .from('volunteer_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      return res;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Update volunteer profile
+  static Future<void> updateVolunteerProfile(Map<String, dynamic> data) async {
+    final user = currentUser;
+    if (user == null) return;
+
+    // Check if a row already exists
+    final existing = await client
+        .from('volunteer_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (existing != null) {
+      // Row exists — just update the fields we care about
+      await client
+          .from('volunteer_profiles')
+          .update(data)
+          .eq('user_id', user.id);
+    } else {
+      // No row yet — insert with required fields defaulted
+      await client.from('volunteer_profiles').insert({
+        'user_id': user.id,
+        'expertise': '', // satisfies NOT NULL
+        'is_verified': false,
+        ...data,
+      });
+    }
+  }
+
   // Update specialist profile
   static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
     final user = currentUser;

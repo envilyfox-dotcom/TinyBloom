@@ -9,7 +9,9 @@ import 'volunteer/volunteer_dashboard_screen.dart';
 import 'volunteer/volunteer_services_screen.dart';
 import 'volunteer/volunteer_sessions_screen.dart';
 import 'volunteer/volunteer_requests_screen.dart';
+import 'volunteer/volunteer_mums_helped_screen.dart';
 import 'volunteer/volunteer_more_screen.dart';
+import 'volunteer/volunteer_edit_profile_screen.dart';
 import 'next_of_kin/next_of_kin_dashboard_screen.dart';
 import 'next_of_kin/link_to_mum_screen.dart';
 import 'next_of_kin/gift_subscription_screen.dart';
@@ -89,24 +91,35 @@ final router = GoRouter(
 
         if (isVolunteer) {
           // Home(0) | Services(1) | Consultation(2) | Request(3) | More(4)
-          if (location.startsWith('/volunteer/services'))      idx = 1;
-          else if (location.startsWith('/volunteer/sessions')) idx = 2;
-          else if (location.startsWith('/volunteer/requests')) idx = 3;
-          else if (location.startsWith('/volunteer/more'))     idx = 4;
+          if (location.startsWith('/volunteer/services'))
+            idx = 1;
+          else if (location.startsWith('/volunteer/sessions'))
+            idx = 2;
+          else if (location.startsWith('/volunteer/requests'))
+            idx = 3;
+          else if (location.startsWith('/volunteer/more')) idx = 4;
         } else if (isNextOfKin) {
           // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4)
-          if (location.startsWith('/logs'))           idx = 1;
-          else if (location.startsWith('/consultation')) idx = 2;
-          else if (location.startsWith('/chatbot'))   idx = 3;
+          if (location.startsWith('/logs'))
+            idx = 1;
+          else if (location.startsWith('/consultation'))
+            idx = 2;
+          else if (location.startsWith('/chatbot'))
+            idx = 3;
           else if (location.startsWith('/education')) idx = 4;
         } else if (isMum) {
-          if (location.startsWith('/logs'))           idx = 1;
-          else if (location.startsWith('/education')) idx = 2;
-          else if (location.startsWith('/forum'))     idx = 3;
-          else if (location.startsWith('/profile'))   idx = 4;
+          if (location.startsWith('/logs'))
+            idx = 1;
+          else if (location.startsWith('/education'))
+            idx = 2;
+          else if (location.startsWith('/forum'))
+            idx = 3;
+          else if (location.startsWith('/profile')) idx = 4;
         } else {
-          if (location.startsWith('/education'))    idx = 1;
-          else if (location.startsWith('/forum'))   idx = 2;
+          if (location.startsWith('/education'))
+            idx = 1;
+          else if (location.startsWith('/forum'))
+            idx = 2;
           else if (location.startsWith('/profile')) idx = 3;
         }
 
@@ -114,23 +127,29 @@ final router = GoRouter(
       },
       routes: [
         // ── Shared home (role-based) ───────────────────────────
-        GoRoute(path: '/home', builder: (context, __) {
-          final auth = context.read<AuthProvider>();
-          if (auth.isMum) return const DashboardScreen();
-          if (auth.isVolunteer) return const VolunteerDashboardScreen();
-          if (auth.isNextOfKin) return const NextOfKinDashboardScreen();
-          return const SpecialistDashboardScreen();
-        }),
+        GoRoute(
+            path: '/home',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              if (auth.isMum) return const DashboardScreen();
+              if (auth.isVolunteer) return const VolunteerDashboardScreen();
+              if (auth.isNextOfKin) return const NextOfKinDashboardScreen();
+              return const SpecialistDashboardScreen();
+            }),
 
         // ── Mum / Specialist tabs ──────────────────────────────
-        GoRoute(path: '/profile', builder: (context, __) {
-          final auth = context.read<AuthProvider>();
-          if (auth.role == 'specialist') return const SpecialistProfileScreen();
-          return const ProfileScreen();
-        }),
-        GoRoute(path: '/education', builder: (_, __) => const EducationScreen()),
-        GoRoute(path: '/logs',      builder: (_, __) => const LogsScreen()),
-        GoRoute(path: '/forum',     builder: (_, __) => const ForumScreen()),
+        GoRoute(
+            path: '/profile',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              if (auth.role == 'specialist')
+                return const SpecialistProfileScreen();
+              return const ProfileScreen();
+            }),
+        GoRoute(
+            path: '/education', builder: (_, __) => const EducationScreen()),
+        GoRoute(path: '/logs', builder: (_, __) => const LogsScreen()),
+        GoRoute(path: '/forum', builder: (_, __) => const ForumScreen()),
 
         // ── Volunteer main tabs (INSIDE ShellRoute so back works) ──
         GoRoute(
@@ -140,13 +159,21 @@ final router = GoRouter(
             // Sub-screens pushed on top — back arrow works automatically
             GoRoute(
               path: 'new',
-              builder: (_, __) => const ServiceFormScreen(mode: ServiceMode.create),
+              builder: (_, __) =>
+                  const ServiceFormScreen(mode: ServiceMode.create),
             ),
           ],
         ),
         GoRoute(
           path: '/volunteer/sessions',
-          builder: (_, __) => const VolunteerSessionsScreen(),
+          builder: (_, state) {
+            final extra = state.extra;
+            final completedOnly =
+                extra is Map && extra['completedOnly'] == true;
+            final initialTab = extra is int ? extra : 0;
+            return VolunteerSessionsScreen(
+                initialTab: initialTab, completedOnly: completedOnly);
+          },
           routes: [
             GoRoute(
               path: 'new',
@@ -157,6 +184,10 @@ final router = GoRouter(
         GoRoute(
           path: '/volunteer/requests',
           builder: (_, __) => const VolunteerRequestsScreen(),
+        ),
+        GoRoute(
+          path: '/volunteer/mums-helped',
+          builder: (_, __) => const VolunteerMumsHelpedScreen(),
         ),
         GoRoute(
           path: '/volunteer/more',
@@ -179,7 +210,7 @@ final router = GoRouter(
         path: '/profile/edit',
         builder: (context, state) =>
             EditProfileScreen(profile: state.extra as Map<String, dynamic>?)),
-    GoRoute(path: '/faq',     builder: (_, __) => const FaqScreen()),
+    GoRoute(path: '/faq', builder: (_, __) => const FaqScreen()),
     GoRoute(path: '/chatbot', builder: (_, __) => const ChatbotScreen()),
 
     GoRoute(
@@ -222,7 +253,8 @@ final router = GoRouter(
           }
           return ConsultationDetailScreen(consultation: consultation);
         }),
-    GoRoute(path: '/subscription', builder: (_, __) => const SubscriptionScreen()),
+    GoRoute(
+        path: '/subscription', builder: (_, __) => const SubscriptionScreen()),
     GoRoute(
         path: '/education/:id',
         builder: (context, state) => ArticleDetailScreen(
@@ -237,17 +269,24 @@ final router = GoRouter(
     GoRoute(path: '/submit-link', builder: (_, __) => const SubmitLinkScreen()),
 
     GoRoute(
-    path: '/specialist/edit-profile',
-    builder: (context, state) => SpecialistEditProfileScreen(
-        specialistProfile: state.extra as Map<String, dynamic>?)),
-    GoRoute(
-        path: '/volunteer/edit-profile',
+        path: '/specialist/edit-profile',
         builder: (context, state) => SpecialistEditProfileScreen(
             specialistProfile: state.extra as Map<String, dynamic>?)),
-    GoRoute(path: '/change-password', builder: (_, __) => const ChangePasswordScreen()),
-    GoRoute(path: '/next-of-kin/link', builder: (_, __) => const LinkToMumScreen()),
-    GoRoute(path: '/next-of-kin/gift-subscription', builder: (_, __) => const GiftSubscriptionScreen()),
-    GoRoute(path: '/next-of-kin/faq', builder: (_, __) => const NextOfKinFaqScreen()),
+    GoRoute(
+        path: '/volunteer/edit-profile',
+        builder: (context, state) => VolunteerEditProfileScreen(
+            profile: state.extra as Map<String, dynamic>?)),
+    GoRoute(
+        path: '/change-password',
+        builder: (_, __) => const ChangePasswordScreen()),
+    GoRoute(
+        path: '/next-of-kin/link', builder: (_, __) => const LinkToMumScreen()),
+    GoRoute(
+        path: '/next-of-kin/gift-subscription',
+        builder: (_, __) => const GiftSubscriptionScreen()),
+    GoRoute(
+        path: '/next-of-kin/faq',
+        builder: (_, __) => const NextOfKinFaqScreen()),
     GoRoute(
         path: '/forum/post',
         builder: (context, state) =>

@@ -5,7 +5,10 @@ import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 
 class VolunteerSessionsScreen extends StatefulWidget {
-  const VolunteerSessionsScreen({super.key});
+  final int initialTab;
+  final bool completedOnly;
+  const VolunteerSessionsScreen(
+      {super.key, this.initialTab = 0, this.completedOnly = false});
 
   @override
   State<VolunteerSessionsScreen> createState() =>
@@ -25,7 +28,8 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs =
+        TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
     _load();
   }
 
@@ -40,8 +44,8 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
       final data = await SupabaseService.client
           .from('consultations')
           .select()
-          .eq('provider_id', SupabaseService.currentUser!.id)
-          .order('date');
+          .eq('specialist_id', SupabaseService.currentUser!.id)
+          .order('scheduled_date');
       if (mounted) {
         setState(() {
           _sessions = List<Map<String, dynamic>>.from(data);
@@ -54,14 +58,30 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
   }
 
   List<Map<String, dynamic>> get _upcoming => _sessions.where((s) {
-        final d = DateTime.tryParse(s['date']?.toString() ?? '');
+        final d = DateTime.tryParse(s['scheduled_date']?.toString() ?? '');
         return d != null && d.isAfter(DateTime.now());
       }).toList();
 
   List<Map<String, dynamic>> get _past => _sessions.where((s) {
-        final d = DateTime.tryParse(s['date']?.toString() ?? '');
+        final d = DateTime.tryParse(s['scheduled_date']?.toString() ?? '');
         return d != null && d.isBefore(DateTime.now());
       }).toList();
+
+  List<Map<String, dynamic>> get _completed => _sessions
+      .where((s) => (s['status'] as String? ?? '') == 'completed')
+      .toList();
+
+  Future<void> _markCompleted(String id) async {
+    try {
+      await SupabaseService.updateConsultationStatus(id, 'completed');
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,38 +100,56 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
             }
           },
         ),
-        title: Text('My Sessions',
+        title: Text(widget.completedOnly ? 'Completed Sessions' : 'My Sessions',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: const Color(0xFF6B4A46))),
         centerTitle: true,
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: _pink,
-          labelColor: _pink,
-          unselectedLabelColor: _roseDark,
-          labelStyle: GoogleFonts.poppins(fontSize: 13),
-          tabs: const [Tab(text: 'Upcoming'), Tab(text: 'Past')],
-        ),
+        bottom: widget.completedOnly
+            ? null
+            : TabBar(
+                controller: _tabs,
+                indicatorColor: _pink,
+                labelColor: _pink,
+                unselectedLabelColor: _roseDark,
+                labelStyle: GoogleFonts.poppins(fontSize: 13),
+                tabs: const [
+                  Tab(text: 'Upcoming'),
+                  Tab(text: 'Past'),
+                  Tab(text: 'Completed'),
+                ],
+              ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _pink,
-        onPressed: () async {
-          await context.push('/volunteer/sessions/new');
-          _load();
-        },
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: widget.completedOnly
+          ? null
+          : FloatingActionButton(
+              backgroundColor: _pink,
+              onPressed: () async {
+                await context.push('/volunteer/sessions/new');
+                _load();
+              },
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _pink))
-          : TabBarView(
-              controller: _tabs,
-              children: [
-                _SessionList(
-                    sessions: _upcoming, cardBg: _cardBg, onRefresh: _load),
-                _SessionList(
-                    sessions: _past, cardBg: _cardBg, onRefresh: _load),
-              ],
-            ),
+          : widget.completedOnly
+              ? _SessionList(
+                  sessions: _completed, cardBg: _cardBg, onRefresh: _load)
+              : TabBarView(
+                  controller: _tabs,
+                  children: [
+                    _SessionList(
+                        sessions: _upcoming, cardBg: _cardBg, onRefresh: _load),
+                    _SessionList(
+                        sessions: _past,
+                        cardBg: _cardBg,
+                        onRefresh: _load,
+                        onMarkCompleted: _markCompleted),
+                    _SessionList(
+                        sessions: _completed,
+                        cardBg: _cardBg,
+                        onRefresh: _load),
+                  ],
+                ),
     );
   }
 }
@@ -120,9 +158,13 @@ class _SessionList extends StatelessWidget {
   final List<Map<String, dynamic>> sessions;
   final Color cardBg;
   final Future<void> Function() onRefresh;
+  final void Function(String id)? onMarkCompleted;
 
   const _SessionList(
-      {required this.sessions, required this.cardBg, required this.onRefresh});
+      {required this.sessions,
+      required this.cardBg,
+      required this.onRefresh,
+      this.onMarkCompleted});
 
   @override
   Widget build(BuildContext context) {
@@ -140,8 +182,10 @@ class _SessionList extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         itemCount: sessions.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (ctx, i) =>
-            _SessionCard(session: sessions[i], cardBg: cardBg),
+        itemBuilder: (ctx, i) => _SessionCard(
+            session: sessions[i],
+            cardBg: cardBg,
+            onMarkCompleted: onMarkCompleted),
       ),
     );
   }
@@ -150,12 +194,14 @@ class _SessionList extends StatelessWidget {
 class _SessionCard extends StatelessWidget {
   final Map<String, dynamic> session;
   final Color cardBg;
+  final void Function(String id)? onMarkCompleted;
 
-  const _SessionCard({required this.session, required this.cardBg});
+  const _SessionCard(
+      {required this.session, required this.cardBg, this.onMarkCompleted});
 
   @override
   Widget build(BuildContext context) {
-    final date = DateTime.tryParse(session['date']?.toString() ?? '');
+    final date = DateTime.tryParse(session['scheduled_date']?.toString() ?? '');
     final dateStr =
         date != null ? DateFormat('d MMM yyyy').format(date) : 'TBD';
 
@@ -168,7 +214,7 @@ class _SessionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(session['topic'] ?? 'Session',
+          Text(session['purpose'] ?? 'Session',
               style: GoogleFonts.poppins(
                   color: Colors.white,
                   fontSize: 14,
@@ -184,16 +230,36 @@ class _SessionCard extends StatelessWidget {
             const SizedBox(width: 12),
             const Icon(Icons.access_time, size: 13, color: Colors.white70),
             const SizedBox(width: 4),
-            Text(session['time'] ?? '',
+            Text(session['scheduled_time'] ?? '',
                 style:
                     GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
           ]),
-          if (session['remarks'] != null &&
-              session['remarks'].toString().isNotEmpty) ...[
+          if (session['meeting_link'] != null &&
+              session['meeting_link'].toString().isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(session['remarks'],
+            Text(session['meeting_link'],
                 style:
                     GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+          ],
+          if (onMarkCompleted != null &&
+              (session['status'] as String? ?? '') != 'completed') ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: () => onMarkCompleted!(session['id'] as String),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text('Mark as Completed',
+                    style: GoogleFonts.poppins(fontSize: 12)),
+              ),
+            ),
           ],
         ],
       ),
@@ -255,13 +321,13 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
     setState(() => _saving = true);
     try {
       await SupabaseService.client.from('consultations').insert({
-        'provider_id': SupabaseService.currentUser!.id,
-        'provider_type': 'volunteer',
-        'topic': _topicCtrl.text.trim(),
-        'date': _date!.toIso8601String(),
-        'time': _timeCtrl.text.trim(),
-        'remarks': _remarksCtrl.text.trim(),
-        'status': 'available',
+        'specialist_id': SupabaseService.currentUser!.id,
+        'consultation_type': 'volunteer',
+        'purpose': _topicCtrl.text.trim(),
+        'scheduled_date': _date!.toIso8601String().split('T').first,
+        'scheduled_time': _timeCtrl.text.trim(),
+        'meeting_link': _remarksCtrl.text.trim(),
+        'status': 'pending',
       });
       if (mounted) {
         ScaffoldMessenger.of(context)

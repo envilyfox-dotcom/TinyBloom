@@ -22,6 +22,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _upcomingSessions = [];
   List<Map<String, dynamic>> _pendingRequests = [];
+  int _completedSessionsCount = 0;
+  int _mumsHelpedCount = 0;
   bool _loading = true;
 
   @override
@@ -31,31 +33,62 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   }
 
   Future<void> _loadData() async {
+    Map<String, dynamic>? profile;
+    List<Map<String, dynamic>> sessions = [];
+    List<Map<String, dynamic>> requests = [];
+
     try {
-      final profile = await SupabaseService.getProfile();
-      final sessions = await SupabaseService.client
+      profile = await SupabaseService.getProfile();
+    } catch (_) {}
+
+    try {
+      final data = await SupabaseService.client
           .from('consultations')
           .select()
-          .eq('provider_id', SupabaseService.currentUser!.id)
-          .gte('date', DateTime.now().toIso8601String())
-          .order('date')
+          .eq('specialist_id', SupabaseService.currentUser!.id)
+          .gte('scheduled_date',
+              DateTime.now().toIso8601String().split('T').first)
+          .order('scheduled_date')
           .limit(5);
-      final requests = await SupabaseService.client
+      sessions = List<Map<String, dynamic>>.from(data);
+    } catch (_) {}
+
+    try {
+      final data = await SupabaseService.client
           .from('volunteer_requests')
           .select('*, profiles(full_name)')
           .eq('volunteer_id', SupabaseService.currentUser!.id)
           .eq('status', 'pending')
           .limit(5);
-      if (mounted) {
-        setState(() {
-          _profile = profile;
-          _upcomingSessions = List<Map<String, dynamic>>.from(sessions);
-          _pendingRequests = List<Map<String, dynamic>>.from(requests);
-          _loading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      requests = List<Map<String, dynamic>>.from(data);
+    } catch (_) {}
+
+    int completedCount = 0;
+    int mumsHelpedCount = 0;
+    try {
+      final data = await SupabaseService.client
+          .from('consultations')
+          .select('patient_id')
+          .eq('specialist_id', SupabaseService.currentUser!.id)
+          .eq('status', 'completed');
+      final rows = List<Map<String, dynamic>>.from(data);
+      completedCount = rows.length;
+      mumsHelpedCount = rows
+          .map((r) => r['patient_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .length;
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+        _upcomingSessions = sessions;
+        _pendingRequests = requests;
+        _completedSessionsCount = completedCount;
+        _mumsHelpedCount = mumsHelpedCount;
+        _loading = false;
+      });
     }
   }
 
@@ -71,8 +104,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.poppins(color: _roseDark)),
+            child: Text('Cancel', style: GoogleFonts.poppins(color: _roseDark)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -84,8 +116,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text('Logout',
-                style: GoogleFonts.poppins(color: Colors.white)),
+            child:
+                Text('Logout', style: GoogleFonts.poppins(color: Colors.white)),
           ),
         ],
       ),
@@ -110,8 +142,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                 onRefresh: _loadData,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -157,9 +189,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           child: Text(
             'Logout',
             style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: _roseDark,
-                fontWeight: FontWeight.w500),
+                fontSize: 13, color: _roseDark, fontWeight: FontWeight.w500),
           ),
         ),
       ],
@@ -184,43 +214,53 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   Widget _buildStatsRow() {
     return Row(
       children: [
-        _statCard('Sessions\nCompleted', '12', Icons.check_circle_outline),
+        _statCard('Sessions\nCompleted', '$_completedSessionsCount',
+            Icons.check_circle_outline,
+            onTap: () => context
+                .push('/volunteer/sessions', extra: {'completedOnly': true})),
         const SizedBox(width: 12),
-        _statCard('Mums\nHelped', '28', Icons.favorite_outline),
+        _statCard('Mums\nHelped', '$_mumsHelpedCount', Icons.favorite_outline,
+            onTap: () => context.push('/volunteer/mums-helped')),
         const SizedBox(width: 12),
         _statCard('Pending\nRequests', '${_pendingRequests.length}',
-            Icons.inbox_outlined),
+            Icons.inbox_outlined,
+            onTap: () => context.push('/volunteer/requests')),
       ],
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon) {
+  Widget _statCard(String label, String value, IconData icon,
+      {VoidCallback? onTap}) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-                color: _pink.withValues(alpha: 0.12),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: _pink, size: 22),
-            const SizedBox(height: 6),
-            Text(value,
-                style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF6B4A46))),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(fontSize: 10, color: _roseDark)),
-          ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: _pink.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: _pink, size: 22),
+              const SizedBox(height: 6),
+              Text(value,
+                  style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF6B4A46))),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(fontSize: 10, color: _roseDark)),
+            ],
+          ),
         ),
       ),
     );
@@ -238,11 +278,11 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            _actionButton(context, 'My Sessions',
-                Icons.calendar_today_outlined, '/volunteer/sessions'),
+            _actionButton(context, 'My Sessions', Icons.calendar_today_outlined,
+                '/volunteer/sessions'),
             const SizedBox(width: 12),
-            _actionButton(
-                context, 'Requests', Icons.inbox_outlined, '/volunteer/requests'),
+            _actionButton(context, 'Requests', Icons.inbox_outlined,
+                '/volunteer/requests'),
             const SizedBox(width: 12),
             _actionButton(context, 'Forum', Icons.forum_outlined, '/forum'),
           ],
@@ -323,8 +363,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   }
 
   Widget _sessionCard(Map<String, dynamic> session) {
-    final date = session['date'] != null
-        ? DateTime.tryParse(session['date'].toString())
+    final date = session['scheduled_date'] != null
+        ? DateTime.tryParse(session['scheduled_date'].toString())
         : null;
     final dateStr =
         date != null ? '${date.day}/${date.month}/${date.year}' : 'TBD';
@@ -356,14 +396,13 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(session['topic'] ?? 'Consultation',
+                Text(session['purpose'] ?? 'Consultation',
                     style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                         color: const Color(0xFF6B4A46))),
-                Text('$dateStr · ${session['time'] ?? ''}',
-                    style:
-                        GoogleFonts.poppins(fontSize: 11, color: _roseDark)),
+                Text('$dateStr · ${session['scheduled_time'] ?? ''}',
+                    style: GoogleFonts.poppins(fontSize: 11, color: _roseDark)),
               ],
             ),
           ),
