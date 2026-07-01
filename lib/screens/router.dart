@@ -10,6 +10,7 @@ import 'volunteer/volunteer_services_screen.dart';
 import 'volunteer/volunteer_sessions_screen.dart';
 import 'volunteer/volunteer_requests_screen.dart';
 import 'volunteer/volunteer_more_screen.dart';
+import 'next_of_kin/next_of_kin_dashboard_screen.dart';
 
 import 'shared/dashboard_screen.dart';
 import 'mum/logs/logs_screen.dart';
@@ -75,6 +76,7 @@ final router = GoRouter(
         final auth = context.read<AuthProvider>();
         final isMum = auth.isMum;
         final isVolunteer = auth.isVolunteer;
+        final isNextOfKin = auth.isNextOfKin;
 
         if (isVolunteer) {
           // Home(0) | Services(1) | Consultation(2) | Request(3) | More(4)
@@ -82,6 +84,12 @@ final router = GoRouter(
           else if (location.startsWith('/volunteer/sessions')) idx = 2;
           else if (location.startsWith('/volunteer/requests')) idx = 3;
           else if (location.startsWith('/volunteer/more'))     idx = 4;
+        } else if (isNextOfKin) {
+          // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4)
+          if (location.startsWith('/logs'))           idx = 1;
+          else if (location.startsWith('/consultation')) idx = 2;
+          else if (location.startsWith('/chatbot'))   idx = 3;
+          else if (location.startsWith('/education')) idx = 4;
         } else if (isMum) {
           if (location.startsWith('/logs'))           idx = 1;
           else if (location.startsWith('/education')) idx = 2;
@@ -101,6 +109,7 @@ final router = GoRouter(
           final auth = context.read<AuthProvider>();
           if (auth.isMum) return const DashboardScreen();
           if (auth.isVolunteer) return const VolunteerDashboardScreen();
+          if (auth.isNextOfKin) return const NextOfKinDashboardScreen();
           return const SpecialistDashboardScreen();
         }),
 

@@ -22,11 +22,55 @@ class AppShell extends StatelessWidget {
   static const _tabsVolunteer = [
     '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/more'];
 
+  // Next-of-kin tabs — Home | Logs | Consultation | AI Chatbot | Articles
+  static const _tabsNextOfKin = [
+    '/home', '/logs', '/consultation', '/chatbot', '/education'];
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final isMum = auth.isMum;
     final isVolunteer = auth.isVolunteer;
+    final isNextOfKin = auth.isNextOfKin;
+
+    // ── Next-of-kin bottom nav ─────────────────────────────────────
+    if (isNextOfKin) {
+      return Scaffold(
+        body: child,
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          onTap: (i) => context.go(_tabsNextOfKin[i]),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.description_outlined),
+              activeIcon: Icon(Icons.description),
+              label: 'Logs',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people),
+              label: 'Consultation',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.smart_toy_outlined),
+              activeIcon: Icon(Icons.smart_toy),
+              label: 'AI Chatbot',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_book_outlined),
+              activeIcon: Icon(Icons.menu_book),
+              label: 'Articles',
+            ),
+          ],
+        ),
+      );
+    }
 
     // ── Volunteer bottom nav ──────────────────────────────────────
     if (isVolunteer) {

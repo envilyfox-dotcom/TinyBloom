@@ -23,6 +23,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isMum => role == 'free_user' || role == 'premium_user';
   bool get isAdmin => role == 'admin';
   bool get isVolunteer => role == 'volunteer';
+  bool get isNextOfKin => role == 'next_of_kin';
 
   AuthProvider() {
     _init();
