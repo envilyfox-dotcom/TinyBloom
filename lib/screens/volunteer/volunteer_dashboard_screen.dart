@@ -203,7 +203,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: _pink.withOpacity(0.12),
+                color: _pink.withValues(alpha: 0.12),
                 blurRadius: 8,
                 offset: const Offset(0, 2))
           ],
@@ -336,7 +336,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-              color: _pink.withOpacity(0.08),
+              color: _pink.withValues(alpha: 0.08),
               blurRadius: 6,
               offset: const Offset(0, 2))
         ],
@@ -346,7 +346,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _pink.withOpacity(0.15),
+              color: _pink.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.video_call_outlined, color: _pink),
@@ -443,7 +443,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _pink.withOpacity(0.2)),
+        border: Border.all(color: _pink.withValues(alpha: 0.2)),
       ),
       child: Text(message,
           textAlign: TextAlign.center,
