@@ -22,6 +22,7 @@ class AuthProvider extends ChangeNotifier {
   String? get subscriptionPlan => _profile?['subscription_plan'] as String?;
   bool get isMum => role == 'free_user' || role == 'premium_user';
   bool get isAdmin => role == 'admin';
+  bool get isVolunteer => role == 'volunteer';
 
   AuthProvider() {
     _init();
