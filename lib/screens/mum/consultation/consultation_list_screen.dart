@@ -40,7 +40,11 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
     }
   }
 
@@ -70,71 +74,93 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                       title: 'Couldn\'t load consultations',
                       subtitle: _error!,
                       buttonLabel: 'Retry',
-                      onButton: () { setState(() => _loading = true); _load(); })
+                      onButton: () {
+                        setState(() => _loading = true);
+                        _load();
+                      })
                   : _consultations.isEmpty
-                  ? TBEmptyState(
-                      emoji: '👩‍⚕️',
-                      title: 'No consultations yet',
-                      subtitle: isPremium
-                          ? 'Book a consultation with a specialist or volunteer.'
-                          : 'Book a consultation with a volunteer.',
-                      buttonLabel: 'Book Now',
-                      onButton: () => _tabs.animateTo(1))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _consultations.length,
-                      itemBuilder: (ctx, i) {
-                        final c = _consultations[i];
-                        final status = c['status'] ?? 'pending';
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: TBCard(
-                            onTap: () async {
-                              await context.push('/consultation/detail', extra: c);
-                              _load();
-                            },
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                      color: statusColor(status)
-                                          .withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(10)),
-                                  child: Center(
-                                      child: Text(statusEmoji(status),
-                                          style:
-                                              const TextStyle(fontSize: 20))),
+                      ? TBEmptyState(
+                          emoji: '👩‍⚕️',
+                          title: 'No consultations yet',
+                          subtitle: isPremium
+                              ? 'Book a consultation with a specialist or volunteer.'
+                              : 'Book a consultation with a volunteer.',
+                          buttonLabel: 'Book Now',
+                          onButton: () => _tabs.animateTo(1))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _consultations.length,
+                          itemBuilder: (ctx, i) {
+                            final c = _consultations[i];
+                            final status = c['status'] ?? 'pending';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: TBCard(
+                                onTap: () async {
+                                  await context.push('/consultation/detail',
+                                      extra: c);
+                                  _load();
+                                },
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                          color: statusColor(status)
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      child: Center(
+                                          child: Text(statusEmoji(status),
+                                              style: const TextStyle(
+                                                  fontSize: 20))),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                              consultationTypeLabel(
+                                                  c['consultation_type']
+                                                      as String?),
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14)),
+                                          Text(status.toUpperCase(),
+                                              style: TextStyle(
+                                                  color: statusColor(status),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700)),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: const [
+                                              Icon(Icons.video_call,
+                                                  color: AppColors.teal,
+                                                  size: 15),
+                                              SizedBox(width: 4),
+                                              Text('Zoom Meeting',
+                                                  style: TextStyle(
+                                                      color: AppColors.teal,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right,
+                                        color: AppColors.textLight, size: 18),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                          consultationTypeLabel(
-                                              c['consultation_type'] as String?),
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14)),
-                                      Text(status.toUpperCase(),
-                                          style: TextStyle(
-                                              color: statusColor(status),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700)),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right,
-                                    color: AppColors.textLight, size: 18),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ),
+                            );
+                          },
+                        ),
 
           // Tab 2: Book new — everyone can reach volunteers; specialists are premium-only.
           _buildBookTab(isPremium),
@@ -170,12 +196,14 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                         Align(
                           alignment: Alignment.centerRight,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.gold.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Icon(Icons.star, color: AppColors.gold, size: 12),
+                            child: const Icon(Icons.star,
+                                color: AppColors.gold, size: 12),
                           ),
                         ),
                       const Text('👩‍⚕️', style: TextStyle(fontSize: 36)),
@@ -215,5 +243,4 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       ),
     );
   }
-
 }

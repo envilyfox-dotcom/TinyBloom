@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../../services/supabase_service.dart';
-import '../../services/auth_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -10,32 +8,110 @@ import '../../widgets/common_widgets.dart';
 // Curated "big moments" timeline (as opposed to BabyDevelopmentScreen's
 // week-by-week data), grouped by trimester.
 const _milestoneJourney = [
-  {'week': 4, 'title': 'Week 4', 'trimester': 1,
-    'items': ['Fertilized egg successfully implanted', 'Pregnancy confirmed']},
-  {'week': 6, 'title': 'Week 6 — Heartbeat Detected', 'trimester': 1,
-    'items': ['Baby\'s heartbeat detected', 'First ultrasound completed']},
-  {'week': 8, 'title': 'Week 8 — Early Development', 'trimester': 1,
-    'items': ['Facial features starting to form', 'Tiny arm and leg movements begin']},
-  {'week': 10, 'title': 'Week 10 — Organ Development', 'trimester': 1,
-    'items': ['Major organs developing', 'Baby begins small body movements']},
-  {'week': 12, 'title': 'Week 12 — End of 1st Trimester', 'trimester': 1,
-    'items': ['Nuchal scan completed', 'Lower miscarriage risk', 'Baby fully formed']},
-  {'week': 16, 'title': 'Week 16 — Growth Milestone', 'trimester': 2,
-    'items': ['Baby can hear sounds', 'Facial expressions developing']},
-  {'week': 20, 'title': 'Week 20 — Anatomy Scan', 'trimester': 2,
-    'items': ['Full anatomy scan completed', 'Baby movements stronger', 'Gender may be visible']},
-  {'week': 24, 'title': 'Week 24 — Viability Milestone', 'trimester': 2,
-    'items': ['Baby may survive outside womb with medical support', 'Heartbeat developing well', 'Baby responding to sounds']},
-  {'week': 28, 'title': 'Week 28 — Brain & Lung Development', 'trimester': 2,
-    'items': ['Brain developing rapidly', 'Eyes can open and close', 'Glucose test scheduled']},
-  {'week': 32, 'title': 'Week 32 — Rapid Growth', 'trimester': 3,
-    'items': ['Baby gaining weight quickly', 'Stronger kicks and movements']},
-  {'week': 36, 'title': 'Week 36 — Full Term Preparation', 'trimester': 3,
-    'items': ['Baby moving into birth position', 'Hospital preparation checklist']},
-  {'week': 38, 'title': 'Week 38 — Final Development', 'trimester': 3,
-    'items': ['Baby lungs nearly mature', 'Frequent contractions may occur']},
-  {'week': 40, 'title': 'Week 40 — Estimated Delivery Week', 'trimester': 3,
-    'items': ['🎉 Full Term Reached', 'Baby ready for delivery', 'Labour may begin anytime']},
+  {
+    'week': 4,
+    'title': 'Week 4',
+    'trimester': 1,
+    'items': ['Fertilized egg successfully implanted', 'Pregnancy confirmed']
+  },
+  {
+    'week': 6,
+    'title': 'Week 6 — Heartbeat Detected',
+    'trimester': 1,
+    'items': ['Baby\'s heartbeat detected', 'First ultrasound completed']
+  },
+  {
+    'week': 8,
+    'title': 'Week 8 — Early Development',
+    'trimester': 1,
+    'items': [
+      'Facial features starting to form',
+      'Tiny arm and leg movements begin'
+    ]
+  },
+  {
+    'week': 10,
+    'title': 'Week 10 — Organ Development',
+    'trimester': 1,
+    'items': ['Major organs developing', 'Baby begins small body movements']
+  },
+  {
+    'week': 12,
+    'title': 'Week 12 — End of 1st Trimester',
+    'trimester': 1,
+    'items': [
+      'Nuchal scan completed',
+      'Lower miscarriage risk',
+      'Baby fully formed'
+    ]
+  },
+  {
+    'week': 16,
+    'title': 'Week 16 — Growth Milestone',
+    'trimester': 2,
+    'items': ['Baby can hear sounds', 'Facial expressions developing']
+  },
+  {
+    'week': 20,
+    'title': 'Week 20 — Anatomy Scan',
+    'trimester': 2,
+    'items': [
+      'Full anatomy scan completed',
+      'Baby movements stronger',
+      'Gender may be visible'
+    ]
+  },
+  {
+    'week': 24,
+    'title': 'Week 24 — Viability Milestone',
+    'trimester': 2,
+    'items': [
+      'Baby may survive outside womb with medical support',
+      'Heartbeat developing well',
+      'Baby responding to sounds'
+    ]
+  },
+  {
+    'week': 28,
+    'title': 'Week 28 — Brain & Lung Development',
+    'trimester': 2,
+    'items': [
+      'Brain developing rapidly',
+      'Eyes can open and close',
+      'Glucose test scheduled'
+    ]
+  },
+  {
+    'week': 32,
+    'title': 'Week 32 — Rapid Growth',
+    'trimester': 3,
+    'items': ['Baby gaining weight quickly', 'Stronger kicks and movements']
+  },
+  {
+    'week': 36,
+    'title': 'Week 36 — Full Term Preparation',
+    'trimester': 3,
+    'items': [
+      'Baby moving into birth position',
+      'Hospital preparation checklist'
+    ]
+  },
+  {
+    'week': 38,
+    'title': 'Week 38 — Final Development',
+    'trimester': 3,
+    'items': ['Baby lungs nearly mature', 'Frequent contractions may occur']
+  },
+  {
+    'week': 40,
+    'title': 'Week 40 — Estimated Delivery Week',
+    'trimester': 3,
+    'items': [
+      '🎉 Full Term Reached',
+      'Baby ready for delivery',
+      'Labour may begin anytime'
+    ]
+  },
 ];
 
 class MilestoneJourneyScreen extends StatefulWidget {
@@ -56,22 +132,33 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
   Future<void> _load() async {
     final week = await SupabaseService.getCurrentPregnancyWeek();
-    if (mounted) setState(() { _currentWeek = week; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _currentWeek = week;
+        _loading = false;
+      });
+    }
   }
 
   Color _trimesterColor(int t) {
     switch (t) {
-      case 1: return AppColors.sage;
-      case 2: return AppColors.teal;
-      default: return AppColors.gold;
+      case 1:
+        return AppColors.sage;
+      case 2:
+        return AppColors.teal;
+      default:
+        return AppColors.gold;
     }
   }
 
   String _trimesterLabel(int t) {
     switch (t) {
-      case 1: return '1st Trimester';
-      case 2: return '2nd Trimester';
-      default: return '3rd Trimester';
+      case 1:
+        return '1st Trimester';
+      case 2:
+        return '2nd Trimester';
+      default:
+        return '3rd Trimester';
     }
   }
 
@@ -80,28 +167,68 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
     // The most recently reached milestone week, so far.
     int? currentMilestoneWeek;
     for (final m in _milestoneJourney) {
-      if ((m['week'] as int) <= _currentWeek) currentMilestoneWeek = m['week'] as int;
+      if ((m['week'] as int) <= _currentWeek)
+        currentMilestoneWeek = m['week'] as int;
     }
-    final progress = _currentWeek > 0 ? (_currentWeek / 40).clamp(0.0, 1.0) : 0.0;
-    final isPremium = context.watch<AuthProvider>().isPremium;
-
+    final progress =
+        _currentWeek > 0 ? (_currentWeek / 40).clamp(0.0, 1.0) : 0.0;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Milestone Journey')),
-      body: !isPremium
-          ? Padding(
-              padding: const EdgeInsets.all(20),
-              child: PremiumGate(
-                  feature: 'Milestone Journey',
-                  onUpgrade: () => context.push('/subscription')),
-            )
-          : _loading
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text(
+          'Milestone Journey',
+          style: TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      body: _loading
           ? const TBLoading()
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.blush,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppColors.rose.withValues(alpha: 0.18)),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Your pregnancy milestones',
+                          style: TextStyle(
+                            color: AppColors.roseDeep,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Track key baby development moments from early pregnancy to delivery week.',
+                          style: TextStyle(
+                            color: AppColors.textMid,
+                            fontSize: 13,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -156,7 +283,8 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
       if (trimester != lastTrimester) {
         widgets.add(Padding(
-          padding: EdgeInsets.only(top: lastTrimester == null ? 0 : 8, bottom: 12),
+          padding:
+              EdgeInsets.only(top: lastTrimester == null ? 0 : 8, bottom: 12),
           child: Text(_trimesterLabel(trimester),
               style: const TextStyle(
                   fontWeight: FontWeight.w700,
@@ -176,7 +304,8 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: _trimesterColor(trimester)),
+                      shape: BoxShape.circle,
+                      color: _trimesterColor(trimester)),
                 ),
                 if (!isLast)
                   Expanded(

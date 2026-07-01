@@ -39,6 +39,7 @@ import 'specialist/specialist_edit_profile_screen.dart';
 import 'specialist/change_password_screen.dart';
 import 'mum/forum/forum_screen.dart';
 import 'mum/forum/post_detail_screen.dart';
+import 'shared/notifications_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/splash',
@@ -64,8 +65,11 @@ final router = GoRouter(
 
     // ── Auth ──────────────────────────────────────────────────────
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-    GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
-    GoRoute(path: '/onboarding',      builder: (_, __) => const MumOnboardingScreen()),
+    GoRoute(
+        path: '/forgot-password',
+        builder: (_, __) => const ForgotPasswordScreen()),
+    GoRoute(
+        path: '/onboarding', builder: (_, __) => const MumOnboardingScreen()),
 
     // ── Shell (bottom nav) ────────────────────────────────────────
     ShellRoute(
@@ -96,25 +100,22 @@ final router = GoRouter(
         return AppShell(selectedIndex: idx, child: child);
       },
       routes: [
-        // ── Shared home (role-based) ───────────────────────────
-        GoRoute(path: '/home', builder: (context, __) {
-          final auth = context.read<AuthProvider>();
-          if (auth.isMum) return const DashboardScreen();
-          if (auth.isVolunteer) return const VolunteerDashboardScreen();
-          return const SpecialistDashboardScreen();
-        }),
-
-        // ── Mum / Specialist tabs ──────────────────────────────
-        GoRoute(path: '/profile', builder: (context, __) {
-          final auth = context.read<AuthProvider>();
-          if (auth.role == 'specialist') return const SpecialistProfileScreen();
-          return const ProfileScreen();
-        }),
-        GoRoute(path: '/education', builder: (_, __) => const EducationScreen()),
-        GoRoute(path: '/logs',      builder: (_, __) => const LogsScreen()),
-        GoRoute(path: '/forum',     builder: (_, __) => const ForumScreen()),
-
-        // ── Volunteer main tabs (INSIDE ShellRoute so back works) ──
+        GoRoute(
+            path: '/home',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              return auth.isMum
+                  ? const DashboardScreen()
+                  : const SpecialistDashboardScreen();
+            }),
+        GoRoute(
+            path: '/profile',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              return auth.role == 'specialist'
+                  ? const SpecialistProfileScreen()
+                  : const ProfileScreen();
+            }),
         GoRoute(
           path: '/volunteer/services',
           builder: (_, __) => const VolunteerServicesScreen(),
@@ -163,9 +164,17 @@ final router = GoRouter(
             EditProfileScreen(profile: state.extra as Map<String, dynamic>?)),
     GoRoute(path: '/faq',     builder: (_, __) => const FaqScreen()),
     GoRoute(path: '/chatbot', builder: (_, __) => const ChatbotScreen()),
-    GoRoute(path: '/consultation', builder: (_, __) => const ConsultationListScreen()),
-    GoRoute(path: '/consultation/specialists', builder: (_, __) => const SpecialistsListScreen()),
-    GoRoute(path: '/consultation/volunteers',  builder: (_, __) => const VolunteersListScreen()),
+
+    GoRoute(
+        path: '/consultation',
+        builder: (_, __) => const ConsultationListScreen()),
+    GoRoute(
+        path: '/consultation/specialists',
+        builder: (_, __) => const SpecialistsListScreen()),
+    GoRoute(
+        path: '/consultation/volunteers',
+        builder: (_, __) => const VolunteersListScreen()),
+
     GoRoute(
         path: '/consultation/book',
         builder: (context, state) {
@@ -194,23 +203,30 @@ final router = GoRouter(
         path: '/education/:id',
         builder: (context, state) => ArticleDetailScreen(
             article: (state.extra as Map<String, dynamic>?) ?? {})),
-    GoRoute(path: '/notifications',   builder: (_, __) => const _NotificationsScreen()),
-    GoRoute(path: '/baby-development', builder: (_, __) => const BabyDevelopmentScreen()),
-    GoRoute(path: '/milestone-journey', builder: (_, __) => const MilestoneJourneyScreen()),
-    GoRoute(path: '/submit-link',     builder: (_, __) => const SubmitLinkScreen()),
+
+    GoRoute(
+        path: '/baby-development',
+        builder: (_, __) => const BabyDevelopmentScreen()),
+    GoRoute(
+        path: '/milestone-journey',
+        builder: (_, __) => const MilestoneJourneyScreen()),
+    GoRoute(path: '/submit-link', builder: (_, __) => const SubmitLinkScreen()),
+
     GoRoute(
         path: '/specialist/edit-profile',
         builder: (context, state) => SpecialistEditProfileScreen(
             specialistProfile: state.extra as Map<String, dynamic>?)),
     GoRoute(
-        path: '/volunteer/edit-profile',
-        builder: (context, state) => SpecialistEditProfileScreen(
-            specialistProfile: state.extra as Map<String, dynamic>?)),
-    GoRoute(path: '/change-password', builder: (_, __) => const ChangePasswordScreen()),
+        path: '/change-password',
+        builder: (_, __) => const ChangePasswordScreen()),
     GoRoute(
         path: '/forum/post',
         builder: (context, state) =>
             PostDetailScreen(post: state.extra as Map<String, dynamic>)),
+    GoRoute(
+      path: '/notifications',
+      builder: (_, __) => const NotificationsScreen(),
+    ),
   ],
 );
 
@@ -220,19 +236,6 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(child: CircularProgressIndicator(color: Color(0xFFE8A0B4))),
-    );
-  }
-}
-
-class _NotificationsScreen extends StatelessWidget {
-  const _NotificationsScreen();
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
-      body: const Center(
-          child: Text('No notifications yet 🔔',
-              style: TextStyle(color: Color(0xFF9B8B86)))),
     );
   }
 }

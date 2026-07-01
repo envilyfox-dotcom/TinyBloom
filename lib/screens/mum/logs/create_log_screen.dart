@@ -9,6 +9,7 @@ import 'logs_shared.dart';
 class CreateLogScreen extends StatefulWidget {
   final Map<String, dynamic>? existing;
   const CreateLogScreen({super.key, this.existing});
+
   @override
   State<CreateLogScreen> createState() => _CreateLogScreenState();
 }
@@ -19,14 +20,95 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
 
   final _weightCtrl = TextEditingController();
   final _kickCtrl = TextEditingController();
+  final _systolicCtrl = TextEditingController();
+  final _diastolicCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
-  final List<String> _allSymptoms = ['Nausea', 'Backache', 'Headache', 'Fatigue', 'Swollen Feet', 'Mood Swings', 'Heartburn', 'Dizziness', 'Insomnia'];
+  final List<String> _allSymptoms = const [
+    'Morning sickness',
+    'Nausea',
+    'Vomiting',
+    'Fatigue',
+    'Headache',
+    'Back pain',
+    'Pelvic pain',
+    'Round ligament pain',
+    'Leg cramps',
+    'Swollen feet',
+    'Swollen hands',
+    'Heartburn',
+    'Indigestion',
+    'Constipation',
+    'Diarrhoea',
+    'Bloating',
+    'Frequent urination',
+    'Breast tenderness',
+    'Braxton Hicks contractions',
+    'Baby kicking',
+    'Reduced baby movement',
+    'Dizziness',
+    'Shortness of breath',
+    'Nasal congestion',
+    'Insomnia',
+    'Mood swings',
+    'Food cravings',
+    'Food aversions',
+    'Acne',
+    'Stretch marks',
+    'Itchy skin',
+    'Bleeding gums',
+    'Varicose veins',
+    'Haemorrhoids',
+    'Vaginal discharge',
+    'Water retention',
+    'Hot flashes',
+    'Chills',
+    'Fever',
+    'No symptoms',
+  ];
+
   final Set<String> _selectedSymptoms = {};
 
   String _selectedMood = '';
 
-  final List<String> _allMilestones = ['First Kick', 'Increased Movement', 'Doctor Visit', 'Ultrasound Scan', 'Baby Shower', 'Nursery Ready'];
+  final List<String> _allMilestones = const [
+    'Positive pregnancy test',
+    'Heartbeat detected',
+    'First ultrasound',
+    'Dating scan',
+    'NT scan',
+    'NIPT completed',
+    'Baby heartbeat heard',
+    'Baby started moving',
+    'First kick felt',
+    'Partner felt baby kick',
+    '20-week anatomy scan',
+    'Baby responds to sound',
+    'Gender revealed',
+    'Baby hiccups',
+    'Third trimester begins',
+    'Hospital tour completed',
+    'Birth plan completed',
+    'Hospital bag packed',
+    'Car seat installed',
+    'Baby shower',
+    'Nursery completed',
+    'Maternity leave begins',
+    'Breastfeeding class completed',
+    'Parenting class completed',
+    'Baby dropped',
+    'Cervix dilating',
+    'Labour contractions started',
+    'Water broke',
+    'Delivery day',
+    'Baby born',
+    'Skin-to-skin completed',
+    'First breastfeed',
+    'Discharged home',
+    'First paediatric visit',
+    'Postpartum check-up',
+  ];
+
   final Set<String> _selectedMilestones = {};
 
   @override
@@ -36,6 +118,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       final log = widget.existing!;
       _weightCtrl.text = log['weight_kg']?.toString() ?? '';
       _kickCtrl.text = log['kick_count']?.toString() ?? '';
+      _systolicCtrl.text = log['blood_pressure_systolic']?.toString() ?? '';
+      _diastolicCtrl.text = log['blood_pressure_diastolic']?.toString() ?? '';
       _notesCtrl.text = log['notes'] ?? '';
       _selectedMood = log['mood'] ?? '';
       _selectedSymptoms.addAll(asStringList(log['symptoms']));
@@ -46,34 +130,46 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
 
   @override
   void dispose() {
-    _weightCtrl.dispose(); _kickCtrl.dispose(); _notesCtrl.dispose();
+    _weightCtrl.dispose();
+    _kickCtrl.dispose();
+    _systolicCtrl.dispose();
+    _diastolicCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
-      context: context, initialDate: _date,
+      context: context,
+      initialDate: _date,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.rose)),
-        child: child!),
+          colorScheme: const ColorScheme.light(primary: AppColors.rose),
+        ),
+        child: child!,
+      ),
     );
     if (picked != null) setState(() => _date = picked);
   }
 
   Future<void> _save() async {
     setState(() => _loading = true);
+
     final data = <String, dynamic>{
       'log_type': 'symptoms',
       'notes': _notesCtrl.text.trim(),
       'mood': _selectedMood.isEmpty ? null : _selectedMood,
       'symptoms': _selectedSymptoms.isEmpty ? null : _selectedSymptoms.toList(),
-      'milestones': _selectedMilestones.isEmpty ? null : _selectedMilestones.toList(),
+      'milestones':
+          _selectedMilestones.isEmpty ? null : _selectedMilestones.join(', '),
       'logged_at': _date.toIso8601String(),
       'weight_kg': double.tryParse(_weightCtrl.text),
       'kick_count': int.tryParse(_kickCtrl.text),
+      'blood_pressure_systolic': int.tryParse(_systolicCtrl.text),
+      'blood_pressure_diastolic': int.tryParse(_diastolicCtrl.text),
+      'log_date': DateFormat('yyyy-MM-dd').format(_date),
     };
 
     try {
@@ -86,152 +182,289 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
       }
     }
+
     if (mounted) setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
+
     return Scaffold(
-      appBar: AppBar(title: Text(isEdit ? 'Edit Log' : 'Symptoms & Milestones')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(isEdit ? 'Edit Log' : 'Symptoms & Milestones'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-          // Symptoms
-          _sectionCard('🤒 Symptoms', [
-            Wrap(spacing: 8, runSpacing: 4,
-              children: _allSymptoms.map((s) {
-                final sel = _selectedSymptoms.contains(s);
-                return FilterChip(
-                  label: Text(s, style: TextStyle(fontSize: 12,
-                    color: sel ? AppColors.roseDeep : AppColors.textMid,
-                    fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
-                  selected: sel,
-                  onSelected: (_) => setState(() => sel ? _selectedSymptoms.remove(s) : _selectedSymptoms.add(s)),
-                  selectedColor: AppColors.blush,
-                  checkmarkColor: AppColors.roseDeep,
-                  backgroundColor: AppColors.white,
-                  side: BorderSide(color: sel ? AppColors.rose : AppColors.textLight.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                );
-              }).toList()),
-          ]),
-
-          // Weight
-          _sectionCard('⚖️ Weight', [
-            TextFormField(controller: _weightCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Weight (kg)', suffixText: 'kg')),
-          ]),
-
-          // Baby Movement
-          _sectionCard('👶 Baby Movement', [
-            TextFormField(controller: _kickCtrl, keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Number of kicks / movements')),
-          ]),
-
-          // Baby Milestones
-          _sectionCard('🌟 Baby Milestones', [
-            Wrap(spacing: 8, runSpacing: 4,
-              children: _allMilestones.map((m) {
-                final sel = _selectedMilestones.contains(m);
-                return FilterChip(
-                  label: Text(m, style: TextStyle(fontSize: 12,
-                    color: sel ? AppColors.teal : AppColors.textMid,
-                    fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
-                  selected: sel,
-                  onSelected: (_) => setState(() => sel ? _selectedMilestones.remove(m) : _selectedMilestones.add(m)),
-                  selectedColor: AppColors.tealLight,
-                  checkmarkColor: AppColors.teal,
-                  backgroundColor: AppColors.white,
-                  side: BorderSide(color: sel ? AppColors.teal : AppColors.textLight.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                );
-              }).toList()),
-          ]),
-
-          // Mood
-          _sectionCard('😊 Mood', [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: moodOptions.map((m) {
-                final label = m['label'] as String;
-                final sel = _selectedMood == label;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedMood = sel ? '' : label),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: sel ? AppColors.blush : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: sel ? AppColors.rose : Colors.transparent, width: 1.5)),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text(m['emoji'] as String, style: const TextStyle(fontSize: 26)),
-                      const SizedBox(height: 2),
-                      Text(label,
-                        style: TextStyle(fontSize: 9, color: sel ? AppColors.roseDeep : AppColors.textLight,
-                          fontWeight: sel ? FontWeight.w700 : FontWeight.normal)),
-                    ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionCard('😊 Mood', [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: moodOptions.map((m) {
+                  final label = m['label'] as String;
+                  final sel = _selectedMood == label;
+                  return _moodChip(
+                    emoji: m['emoji'] as String,
+                    label: label,
+                    selected: sel,
+                    onTap: () =>
+                        setState(() => _selectedMood = sel ? '' : label),
+                  );
+                }).toList(),
+              ),
+            ]),
+            _sectionCard('🤒 Symptoms', [
+              _chipWrap(
+                items: _allSymptoms,
+                selectedItems: _selectedSymptoms,
+                selectedColor: AppColors.blush,
+                selectedTextColor: AppColors.roseDeep,
+                selectedBorderColor: AppColors.rose,
+              ),
+            ]),
+            _sectionCard('🩺 Health Measurements', [
+              TextFormField(
+                controller: _weightCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Weight',
+                  suffixText: 'kg',
+                  hintText: 'e.g. 58.5',
+                  prefixIcon: Icon(Icons.monitor_weight_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _systolicCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Systolic',
+                        hintText: 'e.g. 120',
+                        suffixText: 'mmHg',
+                        prefixIcon: Icon(Icons.favorite_border),
+                      ),
+                    ),
                   ),
-                );
-              }).toList()),
-          ]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _diastolicCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Diastolic',
+                        hintText: 'e.g. 80',
+                        suffixText: 'mmHg',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Blood pressure of 140/90 or above should be monitored and discussed with your healthcare provider.',
+                style: TextStyle(
+                    color: AppColors.textLight, fontSize: 11, height: 1.35),
+              ),
+            ]),
+            _sectionCard('👶 Baby Movement', [
+              TextFormField(
+                controller: _kickCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Number of kicks / movements',
+                  hintText: 'e.g. 10',
+                  prefixIcon: Icon(Icons.child_care_outlined),
+                ),
+              ),
+            ]),
+            _sectionCard('🌟 Baby Milestones', [
+              _chipWrap(
+                items: _allMilestones,
+                selectedItems: _selectedMilestones,
+                selectedColor: AppColors.tealLight,
+                selectedTextColor: AppColors.teal,
+                selectedBorderColor: AppColors.teal,
+              ),
+            ]),
+            _sectionCard('📅 Date', [
+              GestureDetector(
+                onTap: _pickDate,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.textLight.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined,
+                          color: AppColors.textLight, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          DateFormat('d MMMM yyyy').format(_date),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right,
+                          color: AppColors.textLight, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+            ]),
+            _sectionCard('📝 Notes (Optional)', [
+              TextFormField(
+                controller: _notesCtrl,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Add any additional notes...',
+                  border: InputBorder.none,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: _loading ? null : _save,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Save Log',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
 
-          // Date
-          _sectionCard('📅 Date', [
-            GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.textLight.withValues(alpha: 0.3))),
-                child: Row(children: [
-                  const Icon(Icons.calendar_today_outlined, color: AppColors.textLight, size: 18),
-                  const SizedBox(width: 10),
-                  Text(DateFormat('d MMMM yyyy').format(_date),
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
-                ]),
+  Widget _chipWrap({
+    required List<String> items,
+    required Set<String> selectedItems,
+    required Color selectedColor,
+    required Color selectedTextColor,
+    required Color selectedBorderColor,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: items.map((item) {
+        final sel = selectedItems.contains(item);
+        return FilterChip(
+          label: Text(
+            item,
+            style: TextStyle(
+              fontSize: 12,
+              color: sel ? selectedTextColor : AppColors.textMid,
+              fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          selected: sel,
+          onSelected: (_) => setState(
+            () => sel ? selectedItems.remove(item) : selectedItems.add(item),
+          ),
+          selectedColor: selectedColor,
+          checkmarkColor: selectedTextColor,
+          backgroundColor: AppColors.white,
+          side: BorderSide(
+            color: sel
+                ? selectedBorderColor
+                : AppColors.textLight.withValues(alpha: 0.3),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _moodChip({
+    required String emoji,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 82,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.blush : AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? AppColors.rose
+                : AppColors.textLight.withValues(alpha: 0.25),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: selected ? AppColors.roseDeep : AppColors.textLight,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
-          ]),
-
-          // Notes
-          _sectionCard('📝 Notes (Optional)', [
-            TextFormField(
-              controller: _notesCtrl, maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'Add any additional notes...',
-                border: InputBorder.none)),
-          ]),
-
-          const SizedBox(height: 20),
-
-          Row(children: [
-            Expanded(child: OutlinedButton(
-              onPressed: () => context.pop(),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14)),
-              child: const Text('Cancel'))),
-            const SizedBox(width: 12),
-            Expanded(flex: 2, child: ElevatedButton(
-              onPressed: _loading ? null : _save,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14)),
-              child: _loading
-                ? const SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('Save Log', style: TextStyle(fontWeight: FontWeight.w700)))),
-          ]),
-          const SizedBox(height: 16),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -243,15 +476,29 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(
-          color: AppColors.textDark.withValues(alpha: 0.05),
-          blurRadius: 8, offset: const Offset(0, 2))]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(
-          fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textDark)),
-        const SizedBox(height: 10),
-        ...children,
-      ]),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textDark.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
     );
   }
 }

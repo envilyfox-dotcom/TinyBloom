@@ -105,7 +105,8 @@ class SupabaseService {
     final user = currentUser;
     if (user == null) return;
     final conception = data['due_date'] != null
-        ? DateTime.tryParse(data['due_date'])?.subtract(const Duration(days: 280))
+        ? DateTime.tryParse(data['due_date'])
+            ?.subtract(const Duration(days: 280))
         : null;
     final week = conception != null
         ? DateTime.now().difference(conception).inDays ~/ 7
@@ -157,7 +158,9 @@ class SupabaseService {
     await client.from('health_logs').insert({
       ...data,
       'user_id': user.id,
-      'logged_at': DateTime.now().toIso8601String(),
+      'logged_at': data['logged_at'] ?? DateTime.now().toIso8601String(),
+      'log_date':
+          data['log_date'] ?? DateTime.now().toIso8601String().split('T').first,
     });
   }
 
@@ -197,18 +200,16 @@ class SupabaseService {
     int? trimester,
   }) async {
     final user = currentUser;
-    final slug = '${title
-            .toLowerCase()
-            .replaceAll(RegExp(r"[^a-z0-9\s-]"), '')
-            .trim()
-            .replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
+    final slug =
+        '${title.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s-]"), '').trim().replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
     await client.from('articles').insert({
       'title': title,
       'slug': slug,
       'url': url,
       'category': category,
       'trimester': trimester,
-      'content': 'This is an external article shared by a specialist. Tap "Open Article" to read it.',
+      'content':
+          'This is an external article shared by a specialist. Tap "Open Article" to read it.',
       'status': 'published',
       'published_at': DateTime.now().toIso8601String(),
       'created_by': user?.id,
@@ -229,7 +230,11 @@ class SupabaseService {
   static Future<void> deleteArticleLink(String id) async {
     final user = currentUser;
     if (user == null) return;
-    await client.from('articles').delete().eq('id', id).eq('created_by', user.id);
+    await client
+        .from('articles')
+        .delete()
+        .eq('id', id)
+        .eq('created_by', user.id);
   }
 
   // Articles
@@ -293,7 +298,8 @@ class SupabaseService {
   // default, it just silently affects zero rows, which would otherwise
   // look like a successful cancel that didn't actually happen.
   static Future<void> cancelConsultation(String id) async {
-    final res = await client.from('consultations').delete().eq('id', id).select();
+    final res =
+        await client.from('consultations').delete().eq('id', id).select();
     if (res.isEmpty) {
       throw Exception(
           'Could not cancel this consultation — you may not have permission to.');
@@ -357,34 +363,33 @@ class SupabaseService {
 
   // Update specialist profile
   static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
-  final user = currentUser;
-  if (user == null) return;
+    final user = currentUser;
+    if (user == null) return;
 
-  // Check if a row already exists
-  final existing = await client
-      .from('specialist_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // Check if a row already exists
+    final existing = await client
+        .from('specialist_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-  if (existing != null) {
-    // Row exists — just update the fields we care about
-    await client
-        .from('specialist_profiles')
-        .update(data)
-        .eq('user_id', user.id);
-  } else {
-    // No row yet — insert with required fields defaulted
-    await client
-        .from('specialist_profiles')
-        .insert({
-          'user_id': user.id,
-          'specialization': '',   // satisfies NOT NULL
-          'is_verified': false,
-          ...data,
-        });
+    if (existing != null) {
+      // Row exists — just update the fields we care about
+      await client
+          .from('specialist_profiles')
+          .update(data)
+          .eq('user_id', user.id);
+    } else {
+      // No row yet — insert with required fields defaulted
+      await client.from('specialist_profiles').insert({
+        'user_id': user.id,
+        'specialization': '', // satisfies NOT NULL
+        'is_verified': false,
+        ...data,
+      });
+    }
   }
-}
+
   // Site settings
   static Future<Map<String, String>> getSiteSettings() async {
     final res =
@@ -403,7 +408,8 @@ class SupabaseService {
         // profiles!forum_posts_author_id_fkey disambiguates from the other
         // path PostgREST finds via forum_likes (which also references both
         // forum_posts and profiles, looking like a many-to-many join).
-        .select('*, profiles!forum_posts_author_id_fkey(full_name), forum_comments(count), forum_likes(count)')
+        .select(
+            '*, profiles!forum_posts_author_id_fkey(full_name), forum_comments(count), forum_likes(count)')
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(res);
   }
@@ -436,7 +442,9 @@ class SupabaseService {
   static Future<void> likeForumPost(String postId) async {
     final user = currentUser;
     if (user == null) return;
-    await client.from('forum_likes').insert({'post_id': postId, 'user_id': user.id});
+    await client
+        .from('forum_likes')
+        .insert({'post_id': postId, 'user_id': user.id});
   }
 
   static Future<void> unlikeForumPost(String postId) async {
@@ -449,7 +457,8 @@ class SupabaseService {
         .eq('user_id', user.id);
   }
 
-  static Future<List<Map<String, dynamic>>> getForumComments(String postId) async {
+  static Future<List<Map<String, dynamic>>> getForumComments(
+      String postId) async {
     final res = await client
         .from('forum_comments')
         .select('*, profiles(full_name)')

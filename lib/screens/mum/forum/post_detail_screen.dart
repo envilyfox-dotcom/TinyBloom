@@ -31,8 +31,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _load() async {
-    final comments = await SupabaseService.getForumComments(widget.post['id'] as String);
-    if (mounted) setState(() { _comments = comments; _loading = false; });
+    final comments =
+        await SupabaseService.getForumComments(widget.post['id'] as String);
+    if (mounted)
+      setState(() {
+        _comments = comments;
+        _loading = false;
+      });
   }
 
   Future<void> _send() async {
@@ -40,7 +45,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     try {
-      await SupabaseService.createForumComment(widget.post['id'] as String, text);
+      await SupabaseService.createForumComment(
+          widget.post['id'] as String, text);
       _commentCtrl.clear();
       await _load();
     } catch (e) {
@@ -82,29 +88,40 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Row(children: [
                         CircleAvatar(
                             radius: 18,
-                            backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                            child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            backgroundColor:
+                                AppColors.rose.withValues(alpha: 0.15),
+                            child: Text(
+                                name.isNotEmpty ? name[0].toUpperCase() : '?',
                                 style: const TextStyle(
-                                    color: AppColors.roseDeep, fontWeight: FontWeight.w700))),
+                                    color: AppColors.roseDeep,
+                                    fontWeight: FontWeight.w700))),
                         const SizedBox(width: 10),
                         Expanded(
                             child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            Text(name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 14)),
                             Text(createdAt != null ? timeAgo(createdAt) : '',
-                                style: const TextStyle(color: AppColors.textLight, fontSize: 11)),
+                                style: const TextStyle(
+                                    color: AppColors.textLight, fontSize: 11)),
                           ],
                         )),
                       ]),
                       const SizedBox(height: 12),
                       Text(content,
-                          style: const TextStyle(color: AppColors.textDark, fontSize: 15, height: 1.5)),
+                          style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 15,
+                              height: 1.5)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text('Comments', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const Text('Comments',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                 const SizedBox(height: 12),
                 if (_loading)
                   const TBLoading()
@@ -126,7 +143,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               boxShadow: [
                 BoxShadow(
                     color: AppColors.textDark.withValues(alpha: 0.06),
-                    blurRadius: 8, offset: const Offset(0, -2))
+                    blurRadius: 8,
+                    offset: const Offset(0, -2))
               ],
             ),
             child: SafeArea(
@@ -141,7 +159,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 IconButton(
                   icon: _sending
                       ? const SizedBox(
-                          width: 20, height: 20,
+                          width: 20,
+                          height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.send, color: AppColors.rose),
                   onPressed: _sending ? null : _send,
@@ -169,27 +188,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               backgroundColor: AppColors.tealLight,
               child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: const TextStyle(
-                      color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 11))),
+                      color: AppColors.teal,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11))),
           const SizedBox(width: 10),
           Expanded(
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                Text(name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(width: 6),
                 Text(createdAt != null ? timeAgo(createdAt) : '',
-                    style: const TextStyle(color: AppColors.textLight, fontSize: 11)),
+                    style: const TextStyle(
+                        color: AppColors.textLight, fontSize: 11)),
               ]),
               const SizedBox(height: 2),
               Text(c['content'] as String? ?? '',
-                  style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 13)),
             ],
           )),
           if (isMine)
             GestureDetector(
               onTap: () => _deleteComment(c['id'] as String),
-              child: const Icon(Icons.close, size: 16, color: AppColors.textLight),
+              child:
+                  const Icon(Icons.close, size: 16, color: AppColors.textLight),
             ),
         ],
       ),
