@@ -28,6 +28,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _loading = false;
   String? _photoUrl;
   bool _photoBusy = false;
+  bool _showPassword = false;
 
   @override
   void initState() {
@@ -84,6 +85,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
     if (mounted) setState(() => _photoBusy = false);
   }
+
+  bool _isStrongPassword(String password) => password.length >= 8;
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();

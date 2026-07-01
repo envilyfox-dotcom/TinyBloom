@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_provider.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/common_widgets.dart';
 
 // ── Subscription Screen ───────────────────────────────────────────
 class SubscriptionScreen extends StatefulWidget {
@@ -211,60 +212,70 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Text('Manage Subscription',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
+              _comparisonTable(),
+              const SizedBox(height: 16),
               TBCard(
                 padding: EdgeInsets.zero,
                 child: Column(
                   children: [
-                    const Text(
-                      '✓',
-                      style: TextStyle(
-                        color: AppColors.teal,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+                    ListTile(
+                      leading:
+                          const Icon(Icons.swap_horiz, color: AppColors.teal),
+                      title: const Text('Change Plan'),
+                      trailing: const Icon(Icons.chevron_right,
+                          color: AppColors.textLight),
+                      onTap: _busy ? null : () => _showChangePlan(currentPlan),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        features[index],
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textDark,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
-                      ),
+                    const Divider(height: 1, indent: 56),
+                    ListTile(
+                      leading:
+                          const Icon(Icons.cancel_outlined, color: Colors.red),
+                      title: const Text('Cancel Subscription',
+                          style: TextStyle(color: Colors.red)),
+                      trailing: const Icon(Icons.chevron_right,
+                          color: AppColors.textLight),
+                      onTap: _busy ? null : () => _confirmCancel(),
                     ),
                   ],
                 ),
               ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _planTile(String key, String name, String price,
+      {bool isCurrent = false, required VoidCallback? onSelect}) {
+    return TBCard(
+      color: AppColors.tealLight,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(price,
+                    style:
+                        const TextStyle(color: AppColors.teal, fontSize: 13)),
+              ],
             ),
           ),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onPressed,
+          if (isCurrent)
+            _currentPill()
+          else
+            ElevatedButton(
+              onPressed: onSelect,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal,
-                foregroundColor: AppColors.white,
-                disabledBackgroundColor: AppColors.teal.withValues(alpha: 0.55),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-              child: Text(
-                buttonText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
+                  backgroundColor: AppColors.teal,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10)),
+              child: const Text('Select', style: TextStyle(fontSize: 13)),
             ),
-          ),
         ],
       ),
     );
