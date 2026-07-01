@@ -120,6 +120,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   : 'Not linked to a pregnant user yet',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15)),
+                            if (_linkedMum?['relationship'] != null) ...[
+                              const SizedBox(height: 2),
+                              Text(_linkedMum!['relationship'] as String,
+                                style: const TextStyle(
+                                  color: AppColors.textMid, fontSize: 12)),
+                            ],
                           ],
                         ),
                       ),

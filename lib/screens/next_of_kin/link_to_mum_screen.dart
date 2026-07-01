@@ -4,9 +4,8 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
 // ── Link to Pregnant User (Next of Kin) ──────────────────────────────
-// Lets a next-of-kin account send a link request to a mum by email.
-// Sending a request isn't wired up yet (no request/approval table), but the
-// "Currently Linked" section reads the real link from next_of_kin_profiles.
+// Lets a next-of-kin account link straight to a mum by her user code — no
+// email verification or mum-side approval yet, linking is immediate.
 class LinkToMumScreen extends StatefulWidget {
   const LinkToMumScreen({super.key});
   @override
@@ -14,11 +13,20 @@ class LinkToMumScreen extends StatefulWidget {
 }
 
 class _LinkToMumScreenState extends State<LinkToMumScreen> {
+  static const _relationshipOptions = [
+    'Husband / Partner', 'Mother', 'Father', 'Sister', 'Brother', 'Friend', 'Other',
+  ];
+
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
+  final _userCodeCtrl = TextEditingController();
+  String? _relationship;
   bool _sending = false;
   bool _loadingLinked = true;
   Map<String, dynamic>? _linkedMum;
+
+  bool _verifying = false;
+  String? _verifiedMumName;
+  String? _verifyError;
 
   @override
   void initState() {
@@ -33,29 +41,68 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _userCodeCtrl.dispose();
     super.dispose();
   }
 
-  String? _validateEmail(String? value) {
+  String? _validateUserCode(String? value) {
     final v = value?.trim() ?? '';
-    if (v.isEmpty) return 'Please enter an email address';
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)) {
-      return 'Enter a valid email address';
-    }
+    if (v.isEmpty) return 'Please enter a user code';
     return null;
   }
 
-  Future<void> _sendRequest() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _sending = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      setState(() => _sending = false);
-      _emailCtrl.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Link request sent!')));
+  // Clears any previous verification result whenever the code is edited, so
+  // the Link button can't stay enabled for a code that's since changed.
+  void _onUserCodeEdited(String _) {
+    if (_verifiedMumName != null || _verifyError != null) {
+      setState(() { _verifiedMumName = null; _verifyError = null; });
     }
+  }
+
+  Future<void> _verify() async {
+    final code = _userCodeCtrl.text.trim().toUpperCase();
+    if (code.isEmpty) {
+      setState(() {
+        _verifiedMumName = null;
+        _verifyError = 'Please enter a user code';
+      });
+      return;
+    }
+    setState(() { _verifying = true; _verifiedMumName = null; _verifyError = null; });
+    try {
+      final mum = await SupabaseService.verifyMumUserCode(code);
+      if (mounted) {
+        setState(() => _verifiedMumName = mum['full_name'] as String? ?? 'Mum');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() =>
+            _verifyError = e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+    if (mounted) setState(() => _verifying = false);
+  }
+
+  Future<void> _link() async {
+    if (!_formKey.currentState!.validate() || _verifiedMumName == null) return;
+    setState(() => _sending = true);
+    try {
+      final mumName = await SupabaseService.linkToMum(
+          _userCodeCtrl.text.trim().toUpperCase(), _relationship!);
+      _userCodeCtrl.clear();
+      setState(() { _relationship = null; _verifiedMumName = null; });
+      await _loadLinkedMum();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Linked to $mumName!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+    if (mounted) setState(() => _sending = false);
   }
 
   @override
@@ -77,25 +124,79 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                           fontWeight: FontWeight.w700, fontSize: 16)),
                   const SizedBox(height: 4),
                   const Text(
-                      "Enter the email of the pregnant user to send a link request.",
+                      "Enter the user code of the pregnant user to link to her.",
                       style: TextStyle(color: AppColors.textMid, fontSize: 13)),
                   const SizedBox(height: 16),
                   Form(
                     key: _formKey,
-                    child: TextFormField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                          labelText: 'Email address',
-                          hintText: 'Enter email address'),
-                      validator: _validateEmail,
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _userCodeCtrl,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                    labelText: 'User code',
+                                    hintText: "Enter the mum's user code"),
+                                validator: _validateUserCode,
+                                onChanged: _onUserCodeEdited,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              height: 56,
+                              child: OutlinedButton(
+                                onPressed: _verifying ? null : _verify,
+                                child: _verifying
+                                    ? const SizedBox(
+                                        width: 16, height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Text('Verify'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_verifiedMumName != null || _verifyError != null) ...[
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _verifiedMumName != null
+                                ? Text('✓ Linked to: $_verifiedMumName',
+                                    style: const TextStyle(
+                                        color: AppColors.sage,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600))
+                                : Text('✗ $_verifyError',
+                                    style: const TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: _relationship,
+                          decoration: const InputDecoration(
+                              labelText: 'Relationship to Expectant Mother'),
+                          hint: const Text('Select relationship'),
+                          items: _relationshipOptions
+                              .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _relationship = v),
+                          validator: (v) =>
+                              v == null ? 'Please select a relationship' : null,
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
                   TBButton(
-                      label: 'Send Link Request',
+                      label: 'Link',
                       loading: _sending,
-                      onPressed: _sendRequest),
+                      onPressed: _verifiedMumName == null ? null : _link),
                 ],
               ),
             ),
@@ -109,7 +210,7 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
               const TBEmptyState(
                   emoji: '🔗',
                   title: 'Not linked yet',
-                  subtitle: 'Send a link request above to connect to a pregnant user.')
+                  subtitle: 'Enter a user code above to link to a pregnant user.')
             else
               _buildLinkedMumCard(_linkedMum!),
           ],
@@ -120,6 +221,7 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
 
   Widget _buildLinkedMumCard(Map<String, dynamic> mum) {
     final name = mum['full_name'] as String? ?? 'Unnamed';
+    final relationship = mum['relationship'] as String?;
     final week = mum['current_week'] as int?;
     final email = mum['email'] as String? ?? '';
     final initials = name
@@ -153,6 +255,12 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                 Text(name,
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 14)),
+                if (relationship != null) ...[
+                  const SizedBox(height: 2),
+                  Text(relationship,
+                      style: const TextStyle(
+                          color: AppColors.textMid, fontSize: 12)),
+                ],
                 if (subtitle.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(subtitle,

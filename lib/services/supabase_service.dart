@@ -371,6 +371,49 @@ class SupabaseService {
     }
   }
 
+  // Shared lookup for the user_code linking flow — throws a user-facing
+  // message if the code doesn't exist or doesn't belong to a mum account.
+  static Future<Map<String, dynamic>> _findMumByUserCode(String userCode) async {
+    final mum = await client
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('user_code', userCode)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 6));
+    if (mum == null) throw Exception('User code not found.');
+
+    final role = mum['role'] as String?;
+    if (role != 'free_user' && role != 'premium_user') {
+      throw Exception('This code does not belong to a registered mum.');
+    }
+    return mum;
+  }
+
+  // Verifies a user_code belongs to a registered mum, without linking — used
+  // to enable the Link button only once the code checks out.
+  static Future<Map<String, dynamic>> verifyMumUserCode(String userCode) {
+    return _findMumByUserCode(userCode);
+  }
+
+  // Looks up a mum by her user_code and links this next-of-kin account to
+  // her, replacing any previous link. Throws a user-facing message if the
+  // code doesn't exist or doesn't belong to a mum account.
+  static Future<String> linkToMum(String userCode, String relationship) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+
+    final mum = await _findMumByUserCode(userCode);
+
+    await client.from('next_of_kin_profiles').delete().eq('user_id', user.id);
+    await client.from('next_of_kin_profiles').insert({
+      'user_id': user.id,
+      'linked_pregnant_user_id': mum['id'],
+      'relationship': relationship,
+    });
+
+    return mum['full_name'] as String? ?? 'Mum';
+  }
+
   // Specialists & volunteers
   static Future<List<Map<String, dynamic>>> getSpecialists() async {
     final res = await client
