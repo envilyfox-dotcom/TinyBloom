@@ -18,8 +18,12 @@ class ConsultationDetailScreen extends StatefulWidget {
 
 class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   Map<String, dynamic>? _provider;
+  Map<String, dynamic>? _patientProfile;
+  Map<String, dynamic>? _patientPregnancy;
+  int _patientCurrentWeek = 0;
   bool _loading = true;
   bool _cancelling = false;
+  bool _approving = false;
 
   String _meetingLink() {
     final link = widget.consultation['meeting_link']?.toString().trim() ?? '';
@@ -69,14 +73,34 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     _load();
   }
 
+  String _trimesterLabel(int week) {
+    if (week >= 1 && week <= 12) return 'First Trimester';
+    if (week >= 13 && week <= 27) return 'Second Trimester';
+    if (week >= 28) return 'Third Trimester';
+    return 'Unknown Trimester';
+  }
+
   Future<void> _load() async {
     final specialistId = widget.consultation['specialist_id'] as String?;
+    final patientId = widget.consultation['patient_id'] as String?;
     final provider = specialistId != null
         ? await SupabaseService.getProviderProfile(specialistId)
         : null;
+    final patientProfile = patientId != null
+        ? await SupabaseService.getProfileById(patientId)
+        : null;
+    final patientPregnancy = patientId != null
+        ? await SupabaseService.getPregnancyProfileByUserId(patientId)
+        : null;
+    final patientCurrentWeek = patientId != null
+        ? await SupabaseService.getCurrentPregnancyWeekByUserId(patientId)
+        : 0;
     if (mounted)
       setState(() {
         _provider = provider;
+        _patientProfile = patientProfile;
+        _patientPregnancy = patientPregnancy;
+        _patientCurrentWeek = patientCurrentWeek;
         _loading = false;
       });
   }
@@ -124,6 +148,24 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     }
   }
 
+  Future<void> _approve() async {
+    setState(() => _approving = true);
+    try {
+      await SupabaseService.updateConsultationStatus(
+          widget.consultation['id'], 'approved');
+      if (mounted) {
+        widget.consultation['status'] = 'approved';
+        setState(() => _approving = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _approving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
   Widget _detailRow(String label, Widget value) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -145,11 +187,14 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   Widget build(BuildContext context) {
     final c = widget.consultation;
     final status = (c['status'] as String?) ?? 'pending';
-    final profile = _provider?['profiles'] as Map<String, dynamic>? ?? {};
-    final name = profile['full_name'] as String? ?? 'Provider';
-    final role = _provider?['provider_type'] == 'specialist'
-        ? (_provider?['specialization'] as String? ?? 'Specialist')
-        : (_provider?['expertise'] as String? ?? 'Volunteer');
+    final patientName = _patientProfile?['full_name'] as String? ??
+        c['patient_name'] as String? ?? 'Patient';
+    final patientAge = (_patientPregnancy?['age'] as num?)?.toString() ??
+        _patientProfile?['age']?.toString() ??
+        '—';
+    final patientCurrentWeek =
+        (_patientPregnancy?['current_week'] as num?)?.toInt() ?? 0;
+    final trimester = _trimesterLabel(patientCurrentWeek);
     final dateStr = c['scheduled_date'] != null
         ? DateFormat('d MMMM yyyy (EEE)')
             .format(DateTime.parse(c['scheduled_date']))
@@ -187,33 +232,46 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(16),
-                          child: Row(children: [
-                            CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.blush,
-                                child: Text(
-                                    name.isNotEmpty
-                                        ? name[0].toUpperCase()
-                                        : '?',
-                                    style: const TextStyle(
-                                        color: AppColors.roseDeep,
-                                        fontWeight: FontWeight.w700))),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15)),
-                                Text(role,
-                                    style: const TextStyle(
-                                        color: AppColors.textMid,
-                                        fontSize: 12)),
-                              ],
-                            )),
-                          ]),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Patient Details',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15)),
+                              const SizedBox(height: 12),
+                              _detailRow(
+                                  'Name',
+                                  Text(patientName,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13))),
+                              const Divider(height: 1, color: AppColors.blush),
+                              _detailRow(
+                                  'Age',
+                                  Text(patientAge,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13))),
+                              const Divider(height: 1, color: AppColors.blush),
+                              _detailRow(
+                                  'Current Week',
+                                  Text(
+                                      patientCurrentWeek > 0
+                                          ? '$patientCurrentWeek'
+                                          : '—',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13))),
+                              const Divider(height: 1, color: AppColors.blush),
+                              _detailRow(
+                                  'Trimester',
+                                  Text(trimester,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13))),
+                            ],
+                          ),
                         ),
                         const Divider(height: 1, color: AppColors.blush),
                         _detailRow(

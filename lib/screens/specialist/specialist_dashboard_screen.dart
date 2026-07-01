@@ -51,6 +51,27 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
 
     try {
       consultations = await SupabaseService.getConsultations();
+      final patientIds = consultations
+          .map((c) => c['patient_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      if (patientIds.isNotEmpty) {
+        final patientNameMap = <String, String>{};
+        await Future.wait(patientIds.map((id) async {
+          final patient = await SupabaseService.getProfileById(id);
+          final fullName = patient?['full_name'] as String?;
+          if (fullName != null) {
+            patientNameMap[id] = fullName;
+          }
+        }));
+        for (final consultation in consultations) {
+          final patientId = consultation['patient_id'] as String?;
+          if (patientId != null && patientNameMap.containsKey(patientId)) {
+            consultation['patient_name'] = patientNameMap[patientId];
+          }
+        }
+      }
     } catch (_) {}
 
     try {
@@ -119,8 +140,11 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
 
   // Build consultation card
   Widget _consultationCard(Map<String, dynamic> consultation) {
-    final patientId = consultation['patient_id'] as String?;
-    final patientName = consultation['patient_name'] as String? ?? 'Patient';
+    final patientName = consultation['patient_name'] as String? ??
+        (consultation['patient'] is Map<String, dynamic>
+            ? (consultation['patient']['full_name'] as String?)
+            : null) ??
+        'Patient';
     final scheduledDate = consultation['scheduled_date'] as String?;
     final scheduledTime = consultation['scheduled_time'] as String?;
     final purpose = consultation['purpose'] as String? ?? 'Consultation';

@@ -54,6 +54,15 @@ class SupabaseService {
     return res;
   }
 
+  static Future<Map<String, dynamic>?> getProfileById(String userId) async {
+    final res = await client
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+    return res;
+  }
+
   static Future<void> updateProfile(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
@@ -80,6 +89,44 @@ class SupabaseService {
         .maybeSingle()
         .timeout(const Duration(seconds: 6));
     return res;
+  }
+
+  static Future<Map<String, dynamic>?> getPregnancyProfileByUserId(
+      String userId) async {
+    final res = await client
+        .from('pregnancy_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 6));
+    return res;
+  }
+
+  static int pregnancyWeekFromProfile(Map<String, dynamic>? data) {
+    if (data == null) return 0;
+    if (data['due_date'] != null) {
+      final dueDate = DateTime.tryParse(data['due_date']);
+      if (dueDate != null) {
+        final daysUntilDue = dueDate.difference(DateTime.now()).inDays;
+        return ((280 - daysUntilDue) / 7).floor().clamp(1, 40);
+      }
+    }
+    if (data['current_week'] != null) {
+      return (data['current_week'] as num).toInt().clamp(1, 42);
+    }
+    if (data['pregnancy_week'] != null) {
+      return (data['pregnancy_week'] as num).toInt().clamp(1, 42);
+    }
+    return 0;
+  }
+
+  static Future<int> getCurrentPregnancyWeekByUserId(String userId) async {
+    try {
+      final data = await getPregnancyProfileByUserId(userId);
+      return pregnancyWeekFromProfile(data);
+    } catch (_) {
+      return 0;
+    }
   }
 
   // Current pregnancy week, derived from due_date (preferred) or the stored
@@ -303,6 +350,18 @@ class SupabaseService {
     if (res.isEmpty) {
       throw Exception(
           'Could not cancel this consultation — you may not have permission to.');
+    }
+  }
+
+  static Future<void> updateConsultationStatus(
+      String id, String status) async {
+    final res = await client
+        .from('consultations')
+        .update({'status': status})
+        .eq('id', id)
+        .select();
+    if (res.isEmpty) {
+      throw Exception('Could not update consultation status.');
     }
   }
 
