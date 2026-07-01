@@ -36,10 +36,19 @@ class _ForumScreenState extends State<ForumScreen> {
       final ids = posts.map((p) => p['id'] as String).toList();
       final liked = await SupabaseService.getLikedPostIds(ids);
       if (mounted) {
-        setState(() { _posts = posts; _likedIds = liked; _loading = false; _error = null; });
+        setState(() {
+          _posts = posts;
+          _likedIds = liked;
+          _loading = false;
+          _error = null;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
     }
   }
 
@@ -54,7 +63,9 @@ class _ForumScreenState extends State<ForumScreen> {
         _likedIds.add(id);
       }
       final current = _embeddedCount(post, 'forum_likes');
-      post['forum_likes'] = [{'count': wasLiked ? (current - 1).clamp(0, 1 << 30) : current + 1}];
+      post['forum_likes'] = [
+        {'count': wasLiked ? (current - 1).clamp(0, 1 << 30) : current + 1}
+      ];
     });
     try {
       if (wasLiked) {
@@ -77,7 +88,9 @@ class _ForumScreenState extends State<ForumScreen> {
       builder: (_) => Padding(
         padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 20, right: 20, top: 20),
+            left: 20,
+            right: 20,
+            top: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,12 +132,14 @@ class _ForumScreenState extends State<ForumScreen> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           Row(children: [
-            Expanded(child: OutlinedButton(
+            Expanded(
+                child: OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Keep Post'),
             )),
             const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
+            Expanded(
+                child: ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textDark,
@@ -161,7 +176,10 @@ class _ForumScreenState extends State<ForumScreen> {
                   title: 'Couldn\'t load the forum',
                   subtitle: _error!,
                   buttonLabel: 'Retry',
-                  onButton: () { setState(() => _loading = true); _load(); })
+                  onButton: () {
+                    setState(() => _loading = true);
+                    _load();
+                  })
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.rose,
@@ -171,7 +189,8 @@ class _ForumScreenState extends State<ForumScreen> {
                           TBEmptyState(
                               emoji: '💬',
                               title: 'No posts yet',
-                              subtitle: 'Be the first to share something with the community.'),
+                              subtitle:
+                                  'Be the first to share something with the community.'),
                         ])
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
@@ -209,42 +228,55 @@ class _ForumScreenState extends State<ForumScreen> {
                   backgroundColor: AppColors.rose.withValues(alpha: 0.15),
                   child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                       style: const TextStyle(
-                          color: AppColors.roseDeep, fontWeight: FontWeight.w700))),
+                          color: AppColors.roseDeep,
+                          fontWeight: FontWeight.w700))),
               const SizedBox(width: 10),
               Expanded(
                   child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
                   Text(createdAt != null ? timeAgo(createdAt) : '',
-                      style: const TextStyle(color: AppColors.textLight, fontSize: 11)),
+                      style: const TextStyle(
+                          color: AppColors.textLight, fontSize: 11)),
                 ],
               )),
               if (isMine)
                 GestureDetector(
                   onTap: () => _delete(id),
-                  child: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                  child: const Icon(Icons.delete_outline,
+                      color: Colors.red, size: 20),
                 ),
             ]),
             const SizedBox(height: 10),
             Text(content,
-                maxLines: 5, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.textDark, fontSize: 14, height: 1.4)),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: AppColors.textDark, fontSize: 14, height: 1.4)),
             const SizedBox(height: 10),
             Row(children: [
               GestureDetector(
                 onTap: () => _toggleLike(post),
                 child: Row(children: [
                   Icon(isLiked ? Icons.favorite : Icons.favorite_border,
-                      color: isLiked ? AppColors.rose : AppColors.textLight, size: 18),
+                      color: isLiked ? AppColors.rose : AppColors.textLight,
+                      size: 18),
                   const SizedBox(width: 4),
-                  Text('$likeCount', style: const TextStyle(color: AppColors.textMid, fontSize: 12)),
+                  Text('$likeCount',
+                      style: const TextStyle(
+                          color: AppColors.textMid, fontSize: 12)),
                 ]),
               ),
               const SizedBox(width: 20),
-              const Icon(Icons.chat_bubble_outline, color: AppColors.textLight, size: 16),
+              const Icon(Icons.chat_bubble_outline,
+                  color: AppColors.textLight, size: 16),
               const SizedBox(width: 4),
-              Text('$commentCount', style: const TextStyle(color: AppColors.textMid, fontSize: 12)),
+              Text('$commentCount',
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 12)),
             ]),
           ],
         ),

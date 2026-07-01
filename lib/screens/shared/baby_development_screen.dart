@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
-import '../../services/auth_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
@@ -91,7 +89,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
       final all = await SupabaseService.getArticles();
 
       // 1st choice: articles a specialist tagged for the mum's current trimester.
-      final byTrimester = all.where((a) => a['trimester'] == _trimester).toList();
+      final byTrimester =
+          all.where((a) => a['trimester'] == _trimester).toList();
       if (byTrimester.isNotEmpty) {
         if (mounted) setState(() => _articles = byTrimester.take(3).toList());
         return;
@@ -100,12 +99,15 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
       // 2nd choice: untagged but pregnancy/baby-development related articles.
       final relevant = all.where((a) {
         final cat = (a['category'] as String? ?? '').toLowerCase();
-        return cat.contains('pregnan') || cat.contains('baby') || cat.contains('develop');
+        return cat.contains('pregnant') ||
+            cat.contains('baby') ||
+            cat.contains('develop');
       }).toList();
 
       // 3rd choice: whatever is published, newest first.
       if (mounted) {
-        setState(() => _articles = (relevant.isNotEmpty ? relevant : all).take(3).toList());
+        setState(() => _articles =
+            (relevant.isNotEmpty ? relevant : all).take(3).toList());
       }
     } catch (_) {}
   }
@@ -132,11 +134,13 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   color: AppColors.textLight,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: color)),
+          Text(
+            value,
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w800, color: color),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -144,7 +148,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isPremium = context.watch<AuthProvider>().isPremium;
     final week = pregnancyWeekData[_currentWeek] ?? pregnancyWeekData[24]!;
     final trimester = _trimesterInfo[_trimester]!;
     final trimesterColor = Color(trimester['color'] as int);
@@ -152,18 +155,21 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Baby Development'),
-        backgroundColor: AppColors.blush,
+        backgroundColor: AppColors.background,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text(
+          'Baby Development',
+          style: TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
-      body: !isPremium
-          ? Padding(
-              padding: const EdgeInsets.all(20),
-              child: PremiumGate(
-                  feature: 'Detailed Baby Development Insights',
-                  onUpgrade: () => context.push('/subscription')),
-            )
-          : _loading
+      body: _loading
           ? const TBLoading()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -188,8 +194,10 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   ),
                   if (_dueDate != null) ...[
                     const SizedBox(height: 6),
-                    Text('Based on due date: ${DateFormat('d MMM yyyy').format(_dueDate!)}',
-                      style: const TextStyle(color: AppColors.textLight, fontSize: 12)),
+                    Text(
+                        'Based on due date: ${DateFormat('d MMM yyyy').format(_dueDate!)}',
+                        style: const TextStyle(
+                            color: AppColors.textLight, fontSize: 12)),
                   ],
                   const SizedBox(height: 20),
 
@@ -228,7 +236,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                         // Progress bar
                         LinearProgressIndicator(
                           value: _currentWeek / 40,
-                          backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                          backgroundColor:
+                              AppColors.rose.withValues(alpha: 0.15),
                           valueColor: const AlwaysStoppedAnimation<Color>(
                               AppColors.rose),
                           minHeight: 8,
@@ -246,17 +255,25 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   // Baby Information — stats grid
                   Row(
                     children: [
-                      Expanded(child: _statCard('Length', week['length'] as String, AppColors.roseDeep)),
+                      Expanded(
+                          child: _statCard('Length', week['length'] as String,
+                              AppColors.roseDeep)),
                       const SizedBox(width: 12),
-                      Expanded(child: _statCard('Approx. Weight', week['weight'] as String, AppColors.roseDeep)),
+                      Expanded(
+                          child: _statCard('Approx. Weight',
+                              week['weight'] as String, AppColors.roseDeep)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: _statCard('Weeks Remaining', '${40 - _currentWeek} weeks', AppColors.teal)),
+                      Expanded(
+                          child: _statCard('Weeks Remaining',
+                              '${40 - _currentWeek} weeks', AppColors.teal)),
                       const SizedBox(width: 12),
-                      Expanded(child: _statCard('Trimester', 'Trimester $_trimester', AppColors.teal)),
+                      Expanded(
+                          child: _statCard('Trimester', 'Trimester $_trimester',
+                              AppColors.teal)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -287,14 +304,16 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.teal)),
                               const SizedBox(height: 6),
-                              ..._milestones(week['highlight'] as String).map((m) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text('•  $m',
-                                    style: const TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.textMid,
-                                        height: 1.4)),
-                              )),
+                              ..._milestones(week['highlight'] as String)
+                                  .map((m) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 4),
+                                        child: Text('•  $m',
+                                            style: const TextStyle(
+                                                fontSize: 14,
+                                                color: AppColors.textMid,
+                                                height: 1.4)),
+                                      )),
                             ],
                           ),
                         ),
@@ -331,26 +350,29 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                           ),
                           const SizedBox(height: 12),
                           ..._articles.map((a) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: GestureDetector(
-                              onTap: () => openArticle(context, a),
-                              child: Row(
-                                children: [
-                                  const Text('•  ', style: TextStyle(color: AppColors.textMid)),
-                                  Expanded(
-                                    child: Text(a['title'] ?? '',
-                                        style: const TextStyle(
-                                            color: AppColors.textMid,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: GestureDetector(
+                                  onTap: () => openArticle(context, a),
+                                  child: Row(
+                                    children: [
+                                      const Text('•  ',
+                                          style: TextStyle(
+                                              color: AppColors.textMid)),
+                                      Expanded(
+                                        child: Text(a['title'] ?? '',
+                                            style: const TextStyle(
+                                                color: AppColors.textMid,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis),
+                                      ),
+                                      const Icon(Icons.chevron_right,
+                                          color: AppColors.textLight, size: 16),
+                                    ],
                                   ),
-                                  const Icon(Icons.chevron_right, color: AppColors.textLight, size: 16),
-                                ],
-                              ),
-                            ),
-                          )),
+                                ),
+                              )),
                           const SizedBox(height: 4),
                           GestureDetector(
                             // `go`, not `push` — `/education` lives inside the bottom-nav
@@ -363,8 +385,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: AppColors.blush,
-                                borderRadius: BorderRadius.circular(20)),
+                                  color: AppColors.blush,
+                                  borderRadius: BorderRadius.circular(20)),
                               child: const Text('Read More',
                                   style: TextStyle(
                                       color: AppColors.roseDeep,

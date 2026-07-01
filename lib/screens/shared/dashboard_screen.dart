@@ -19,6 +19,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _pregnancyProfile;
   List<Map<String, dynamic>> _consultations = [];
+  List<Map<String, dynamic>> _notifications = [];
   Map<String, String> _providerNames = {};
   bool _loading = true;
   DateTime? _lastNavTime;
@@ -43,6 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Map<String, dynamic>? profile;
     Map<String, dynamic>? pp;
     List<Map<String, dynamic>> consultations = [];
+    List<Map<String, dynamic>> notifications = [];
     try {
       profile = await SupabaseService.getProfile();
     } catch (_) {}
@@ -60,17 +62,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
       consultations = await SupabaseService.getConsultations();
     } catch (_) {}
 
+    // Load latest notifications for the dashboard preview. AI tips are only
+    // shown to premium users; all other notification types are visible to mums.
+    try {
+      final userId = SupabaseService.currentUser?.id;
+      final isPremiumUser =
+          (profile?['subscription_plan']?.toString().toLowerCase() ==
+                  'premium') ||
+              (profile?['role']?.toString().toLowerCase() == 'premium_user');
+
+      if (userId != null) {
+        final data = await SupabaseService.client
+            .from('notifications')
+            .select()
+            .eq('user_id', userId)
+            .order('created_at', ascending: false)
+            .limit(6);
+
+        notifications = List<Map<String, dynamic>>.from(data).where((n) {
+          final type = (n['type'] ?? '').toString().toLowerCase();
+          if (type == 'ai' && !isPremiumUser) return false;
+          return true;
+        }).toList();
+      }
+    } catch (_) {}
+
     // Look up provider names for whichever consultations the Active Alerts
     // card will actually show, so it can read "2:00 PM - Nur Aisyah".
-    final activeSpecialistIds = consultations.where((c) {
-      final status = (c['status'] as String? ?? '').toLowerCase();
-      return status == 'pending' || status == 'confirmed';
-    }).take(2).map((c) => c['specialist_id'] as String?).whereType<String>().toSet();
+    final activeSpecialistIds = consultations
+        .where((c) {
+          final status = (c['status'] as String? ?? '').toLowerCase();
+          return status == 'pending' || status == 'confirmed';
+        })
+        .take(2)
+        .map((c) => c['specialist_id'] as String?)
+        .whereType<String>()
+        .toSet();
     final providerNames = <String, String>{};
     for (final id in activeSpecialistIds) {
       try {
         final p = await SupabaseService.getProviderProfile(id);
-        final name = (p?['profiles'] as Map<String, dynamic>?)?['full_name'] as String?;
+        final name =
+            (p?['profiles'] as Map<String, dynamic>?)?['full_name'] as String?;
         if (name != null) providerNames[id] = name;
       } catch (_) {}
     }
@@ -80,6 +113,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _profile = profile;
         _pregnancyProfile = pp;
         _consultations = consultations;
+        _notifications = notifications;
         _providerNames = providerNames;
         _loading = false;
       });
@@ -99,7 +133,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
     // Fallback: use the stored week snapshot.
-    final stored = _pregnancyProfile!['current_week'] ?? _pregnancyProfile!['pregnancy_week'];
+    final stored = _pregnancyProfile!['current_week'] ??
+        _pregnancyProfile!['pregnancy_week'];
     if (stored != null) return (stored as num).toInt().clamp(1, 42);
     return 0;
   }
@@ -199,7 +234,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             onTap: () => context.push('/profile'),
                             child: CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                              backgroundColor:
+                                  AppColors.rose.withValues(alpha: 0.15),
                               child: Text(
                                   _firstName.isNotEmpty
                                       ? _firstName[0].toUpperCase()
@@ -302,104 +338,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final week = _currentWeek;
     final hasDate = week > 0;
     return GestureDetector(
-      onTap: () { if (_canNav()) context.push('/baby-development'); },
+      onTap: () {
+        if (_canNav()) context.push('/baby-development');
+      },
       child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('🌸  Your Pregnancy',
-                  style: TextStyle(
-                      color: AppColors.roseDeep,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13)),
-              Icon(Icons.chevron_right,
-                  color: AppColors.roseDeep, size: 18),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (hasDate) ...[
-            const Text('Current week',
-                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
-            Text('Week $week',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontSize: 28, color: AppColors.rose)),
-            const SizedBox(height: 2),
-            Text('${_milestoneLabel(week)} ✦',
-                style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
-            const SizedBox(height: 16),
-            const Text('Trimester progress',
-                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
-            const SizedBox(height: 4),
-            Row(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(_trimesterLabel,
-                    style: const TextStyle(
-                        color: AppColors.textDark,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600)),
-                Text('${(_trimesterProgress.clamp(0.0, 1.0) * 100).round()}%',
-                    style: const TextStyle(
-                        color: AppColors.rose,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700)),
+                Text('🌸  Your Pregnancy',
+                    style: TextStyle(
+                        color: AppColors.roseDeep,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
+                Icon(Icons.chevron_right, color: AppColors.roseDeep, size: 18),
               ],
             ),
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: _trimesterProgress.clamp(0.0, 1.0),
-              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.rose),
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            const SizedBox(height: 6),
-            Text(
-                'Week ${_trimesterWeekOverview.$1} of ${_trimesterWeekOverview.$2} this trimester',
-                style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
-          ] else ...[
-            const SizedBox(height: 4),
-            const Text('When is your baby due?',
-                style: TextStyle(color: AppColors.textMid, fontSize: 13)),
             const SizedBox(height: 12),
-            GestureDetector(
-              onTap: _pickAndSaveDueDate,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.rose,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.calendar_today_outlined,
-                        color: Colors.white, size: 15),
-                    SizedBox(width: 6),
-                    Text('Set Due Date',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13)),
-                  ],
+            if (hasDate) ...[
+              const Text('Current week',
+                  style: TextStyle(color: AppColors.textLight, fontSize: 12)),
+              Text('Week $week',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontSize: 28, color: AppColors.rose)),
+              const SizedBox(height: 2),
+              Text('${_milestoneLabel(week)} ✦',
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 13)),
+              const SizedBox(height: 16),
+              const Text('Trimester progress',
+                  style: TextStyle(color: AppColors.textLight, fontSize: 12)),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_trimesterLabel,
+                      style: const TextStyle(
+                          color: AppColors.textDark,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  Text('${(_trimesterProgress.clamp(0.0, 1.0) * 100).round()}%',
+                      style: const TextStyle(
+                          color: AppColors.rose,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              LinearProgressIndicator(
+                value: _trimesterProgress.clamp(0.0, 1.0),
+                backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.rose),
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                  'Week ${_trimesterWeekOverview.$1} of ${_trimesterWeekOverview.$2} this trimester',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textLight)),
+            ] else ...[
+              const SizedBox(height: 4),
+              const Text('When is your baby due?',
+                  style: TextStyle(color: AppColors.textMid, fontSize: 13)),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: _pickAndSaveDueDate,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.rose,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_today_outlined,
+                          color: Colors.white, size: 15),
+                      SizedBox(width: 6),
+                      Text('Set Due Date',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13)),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -408,52 +447,316 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final week = _currentWeek;
     final auth = context.read<AuthProvider>();
 
-    // Consultations that still need attention (not finished/cancelled).
     final activeConsultations = _consultations.where((c) {
       final status = (c['status'] as String? ?? '').toLowerCase();
       return status == 'pending' || status == 'confirmed';
     }).toList();
 
-    final alerts = <Widget>[
-      if (auth.isMum && week > 0)
+    final cards = <Widget>[];
+
+    // 1) Show real notifications first.
+    for (final n in _notifications.take(3)) {
+      final type = (n['type'] ?? 'general').toString().toLowerCase();
+
+      cards.add(
+        _notificationPreviewCard(
+          title: (n['title'] ?? 'Notification').toString(),
+          message: (n['message'] ?? '').toString(),
+          type: type,
+          isRead: n['is_read'] == true,
+          onTap: () => _openNotificationTarget(type),
+        ),
+      );
+    }
+
+    // 2) Add dashboard-generated alerts if there are not enough DB notifications.
+    if (cards.length < 3 && auth.isMum && week > 0) {
+      cards.add(
         _alertCard(
           icon: Icons.auto_awesome,
           iconBg: AppColors.rose.withValues(alpha: 0.15),
           iconColor: AppColors.roseDeep,
           title: 'New Milestone',
-          subtitle: 'Baby now weighs ~${_babyWeight(week) ?? '—'} — Size of ${_babySize(week)}',
-          onTap: () { if (_canNav()) context.push('/milestone-journey'); },
+          subtitle:
+              'Baby now weighs ~${_babyWeight(week) ?? '—'} — Size of ${_babySize(week)}',
+          onTap: () {
+            if (_canNav()) context.push('/milestone-journey');
+          },
         ),
-      for (final c in activeConsultations.take(2))
-        _alertCard(
-          icon: Icons.calendar_today_outlined,
-          iconBg: AppColors.sage.withValues(alpha: 0.15),
-          iconColor: AppColors.sage,
-          title: _appointmentDateLabel(c['scheduled_date'] as String?),
-          subtitle: _appointmentSubtitle(c),
-          onTap: () { if (_canNav()) context.push('/consultation'); },
-        ),
-    ];
+      );
+    }
 
-    if (alerts.isEmpty) return const SizedBox.shrink();
+    if (cards.length < 3) {
+      for (final c in activeConsultations.take(3 - cards.length)) {
+        cards.add(
+          _alertCard(
+            icon: Icons.calendar_today_outlined,
+            iconBg: AppColors.sage.withValues(alpha: 0.15),
+            iconColor: AppColors.sage,
+            title: _appointmentDateLabel(
+              c['scheduled_date'] as String?,
+              c['status'] as String?,
+            ),
+            subtitle: _appointmentSubtitle(c),
+            onTap: () {
+              if (_canNav()) context.push('/consultation');
+            },
+          ),
+        );
+      }
+    }
+
+    if (cards.isEmpty) {
+      cards.add(
+        _emptyAlertCard(),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TBSectionTitle(
-          title: 'Active Alerts & Notifications',
-          action: 'View All',
-          onAction: () { if (_canNav()) context.push('/notifications'); },
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Active Alerts & Notifications',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () {
+                if (_canNav()) context.push('/notifications');
+              },
+              child: const Text(
+                'View All',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        ...alerts,
+        ...cards,
         const SizedBox(height: 20),
       ],
     );
   }
 
-  String _appointmentDateLabel(String? scheduledDate) {
-    final date = scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
+  Widget _emptyAlertCard() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TBCard(
+        onTap: () {
+          if (_canNav()) context.push('/notifications');
+        },
+        padding: const EdgeInsets.all(14),
+        child: const Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: AppColors.blush,
+              child: Icon(Icons.notifications_none_outlined,
+                  color: AppColors.roseDeep),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No new alerts today. Tap View All to open the Notifications Centre.',
+                style: TextStyle(
+                  color: AppColors.textMid,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openNotificationTarget(String type) {
+    if (!_canNav()) return;
+
+    switch (type) {
+      case 'appointment':
+        context.push('/consultation');
+        break;
+      case 'milestone':
+        context.push('/milestone-journey');
+        break;
+      case 'education':
+        context.push('/education');
+        break;
+      case 'reminder':
+        context.push('/logs/create');
+        break;
+      case 'ai':
+        context.push('/chatbot');
+        break;
+      case 'emergency':
+      default:
+        context.push('/notifications');
+    }
+  }
+
+  IconData _notificationIcon(String type) {
+    switch (type) {
+      case 'emergency':
+        return Icons.warning_amber_rounded;
+      case 'milestone':
+        return Icons.auto_awesome;
+      case 'appointment':
+        return Icons.calendar_today_outlined;
+      case 'education':
+        return Icons.menu_book_outlined;
+      case 'ai':
+        return Icons.smart_toy_outlined;
+      case 'reminder':
+        return Icons.water_drop_outlined;
+      default:
+        return Icons.notifications_none_outlined;
+    }
+  }
+
+  Color _notificationColor(String type) {
+    switch (type) {
+      case 'emergency':
+        return Colors.redAccent;
+      case 'milestone':
+        return AppColors.rose;
+      case 'appointment':
+        return AppColors.sage;
+      case 'education':
+        return AppColors.teal;
+      case 'ai':
+        return Colors.purpleAccent;
+      case 'reminder':
+        return AppColors.roseDeep;
+      default:
+        return AppColors.textMid;
+    }
+  }
+
+  Widget _notificationPreviewCard({
+    required String title,
+    required String message,
+    required String type,
+    required bool isRead,
+    required VoidCallback onTap,
+  }) {
+    final color = _notificationColor(type);
+    final isEmergency = type == 'emergency';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TBCard(
+        onTap: onTap,
+        // Smaller padding prevents the alert row from being a few pixels too wide
+        // on smaller Android screens.
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(_notificationIcon(type), color: color, size: 20),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                      fontSize: 13,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  if (isEmergency) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Urgent',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    message.isEmpty ? 'Tap to view more details.' : message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 2),
+            const SizedBox(
+              width: 14,
+              child: Icon(
+                Icons.chevron_right,
+                color: AppColors.textLight,
+                size: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _appointmentDateLabel(String? scheduledDate, String? status) {
+    final normalisedStatus = (status ?? '').toLowerCase();
+    if (normalisedStatus == 'pending') return 'Appointment Pending Approval';
+
+    final date =
+        scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
     if (date == null) return 'Upcoming Appointment';
     final today = DateTime.now();
     final diff = DateTime(date.year, date.month, date.day)
@@ -465,13 +768,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return 'Appointment on ${DateFormat('d MMM').format(date)}';
   }
 
+  String _dashboardTimeOnly(String? value) {
+    if (value == null || value.trim().isEmpty) return '';
+    var time = value.trim();
+
+    if (time.toLowerCase().startsWith('today')) {
+      time = time.substring(5).trim();
+    }
+
+    if (time.contains('-')) {
+      time = time.split('-').first.trim();
+    }
+
+    return time;
+  }
+
   String _appointmentSubtitle(Map<String, dynamic> c) {
     final type = (c['consultation_type'] as String? ?? 'specialist');
-    final typeLabel = '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
-    final time = c['scheduled_time'] as String?;
+    final typeLabel =
+        '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
+    final time = _dashboardTimeOnly(c['scheduled_time'] as String?);
     final providerName = _providerNames[c['specialist_id']];
-    if (time == null && providerName == null) return typeLabel;
-    final timeProvider = [time, providerName].whereType<String>().join(' - ');
+    if (time.isEmpty && providerName == null) return typeLabel;
+    final timeProvider = [if (time.isNotEmpty) time, providerName]
+        .whereType<String>()
+        .join(' - ');
     return '$typeLabel\n$timeProvider';
   }
 
@@ -490,8 +811,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                   color: iconBg, borderRadius: BorderRadius.circular(12)),
               child: Icon(icon, color: iconColor, size: 20),
@@ -526,76 +847,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {
         'emoji': '🤖',
         'title': 'AI Assistant',
-        'desc': 'Get personalised advice',
+        'desc': 'Get pregnancy guidance',
         'route': '/chatbot',
-        'premium': true
+        'premium': false,
       },
       {
-        // Not premium-locked: free users can still book volunteers — only
-        // the specialist option inside Consultations itself requires Premium.
         'emoji': '👩‍⚕️',
         'title': 'Consultations',
-        'desc': 'Connect with a volunteer or specialist',
+        'desc': 'Book volunteer or specialist support',
         'route': '/consultation',
-        'premium': false
+        'premium': false,
       },
     ];
 
-    // Just two cards — a plain Row keeps them tight against the section
-    // title above, instead of GridView's sliver sizing leaving extra space.
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (int i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
-          Expanded(child: _exploreCard(context, items[i], isPremium)),
-        ],
-      ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.25,
+      ),
+      itemBuilder: (context, index) =>
+          _exploreCard(context, items[index], isPremium),
     );
   }
 
   Widget _exploreCard(
       BuildContext context, Map<String, Object> item, bool isPremium) {
-    final locked = (item['premium'] as bool) && !isPremium;
     return GestureDetector(
-      onTap: () { if (_canNav()) context.push(item['route'] as String); },
+      onTap: () {
+        if (_canNav()) context.push(item['route'] as String);
+      },
       child: TBCard(
         padding: const EdgeInsets.all(14),
-        child: Stack(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(item['emoji'] as String,
-                    style: const TextStyle(fontSize: 24)),
-                const SizedBox(height: 6),
-                Text(item['title'] as String,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14)),
-                const SizedBox(height: 2),
-                Text(item['desc'] as String,
-                    style: const TextStyle(
-                        color: AppColors.textLight, fontSize: 11),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-              ],
+            Text(item['emoji'] as String, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 8),
+            Text(
+              item['title'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
             ),
-            if (locked)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Icon(Icons.star,
-                      color: AppColors.gold, size: 12),
+            const SizedBox(height: 4),
+            Expanded(
+              child: Text(
+                item['desc'] as String,
+                style: const TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 11,
+                  height: 1.25,
                 ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
           ],
         ),
       ),

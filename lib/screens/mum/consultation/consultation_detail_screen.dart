@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
@@ -20,6 +21,48 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   bool _loading = true;
   bool _cancelling = false;
 
+  String _meetingLink() {
+    final link = widget.consultation['meeting_link']?.toString().trim() ?? '';
+    return link;
+  }
+
+  bool _canJoinMeeting(String status) {
+    final normalised = status.toLowerCase();
+    return normalised == 'confirmed' || normalised == 'approved';
+  }
+
+  Future<void> _joinMeeting() async {
+    final link = _meetingLink();
+
+    if (link.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Zoom meeting link is not available yet.'),
+        ),
+      );
+      return;
+    }
+
+    final uri = Uri.tryParse(link);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid Zoom meeting link.')),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open Zoom meeting link.')),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -31,7 +74,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     final provider = specialistId != null
         ? await SupabaseService.getProviderProfile(specialistId)
         : null;
-    if (mounted) setState(() { _provider = provider; _loading = false; });
+    if (mounted)
+      setState(() {
+        _provider = provider;
+        _loading = false;
+      });
   }
 
   Future<void> _cancel() async {
@@ -39,16 +86,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Cancel Consultation'),
-        content: const Text('Are you sure you want to cancel this consultation?'),
+        content:
+            const Text('Are you sure you want to cancel this consultation?'),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           Row(children: [
-            Expanded(child: OutlinedButton(
+            Expanded(
+                child: OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Keep Appointment'),
             )),
             const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
+            Expanded(
+                child: ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textDark,
@@ -101,7 +151,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         ? (_provider?['specialization'] as String? ?? 'Specialist')
         : (_provider?['expertise'] as String? ?? 'Volunteer');
     final dateStr = c['scheduled_date'] != null
-        ? DateFormat('d MMMM yyyy (EEE)').format(DateTime.parse(c['scheduled_date']))
+        ? DateFormat('d MMMM yyyy (EEE)')
+            .format(DateTime.parse(c['scheduled_date']))
         : '—';
     final timeStr = c['scheduled_time'] as String? ?? '—';
     final purpose = c['purpose'] as String? ?? '';
@@ -141,7 +192,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                                 radius: 22,
                                 backgroundColor: AppColors.blush,
                                 child: Text(
-                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                    name.isNotEmpty
+                                        ? name[0].toUpperCase()
+                                        : '?',
                                     style: const TextStyle(
                                         color: AppColors.roseDeep,
                                         fontWeight: FontWeight.w700))),
@@ -152,35 +205,68 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                               children: [
                                 Text(name,
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.w700, fontSize: 15)),
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15)),
                                 Text(role,
                                     style: const TextStyle(
-                                        color: AppColors.textMid, fontSize: 12)),
+                                        color: AppColors.textMid,
+                                        fontSize: 12)),
                               ],
                             )),
                           ]),
                         ),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Date', Text(dateStr,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                        _detailRow(
+                            'Date',
+                            Text(dateStr,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Time', Text(timeStr,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                        _detailRow(
+                            'Time',
+                            Text(timeStr,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Platform', Text(c['platform'] as String? ?? 'Zoom Meeting',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                        _detailRow(
+                            'Platform',
+                            Text(c['platform'] as String? ?? 'Zoom Meeting',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Status', Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: statusColor(status).withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(20)),
-                          child: Text(statusLabel(status),
-                              style: TextStyle(
-                                  color: statusColor(status),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12)),
-                        )),
+                        _detailRow(
+                            'Meeting Link',
+                            Expanded(
+                              child: Text(
+                                _meetingLink().isEmpty
+                                    ? 'Available after confirmation'
+                                    : _meetingLink(),
+                                textAlign: TextAlign.right,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                            )),
+                        const Divider(height: 1, color: AppColors.blush),
+                        _detailRow(
+                            'Status',
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                  color: statusColor(status)
+                                      .withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(20)),
+                              child: Text(statusLabel(status),
+                                  style: TextStyle(
+                                      color: statusColor(status),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12)),
+                            )),
                         const Divider(height: 1, color: AppColors.blush),
                         Padding(
                           padding: const EdgeInsets.all(16),
@@ -189,9 +275,13 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             children: [
                               const Text('Consultation Purpose',
                                   style: TextStyle(
-                                      fontWeight: FontWeight.w700, fontSize: 13)),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13)),
                               const SizedBox(height: 6),
-                              Text(purpose.isEmpty ? 'No purpose specified.' : purpose,
+                              Text(
+                                  purpose.isEmpty
+                                      ? 'No purpose specified.'
+                                      : purpose,
                                   style: const TextStyle(
                                       color: AppColors.textMid, fontSize: 13)),
                             ],
@@ -201,7 +291,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if (status == 'confirmed')
+                  if (_canJoinMeeting(status))
                     Row(children: [
                       Expanded(
                           child: OutlinedButton(
@@ -212,15 +302,15 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       )),
                       const SizedBox(width: 12),
                       Expanded(
-                          child: ElevatedButton(
-                        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text(
-                                    'The session link will be shared closer to your appointment.'))),
-                        style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14)),
-                        child: const Text('Join Session',
+                          child: ElevatedButton.icon(
+                        onPressed: _joinMeeting,
+                        icon: const Icon(Icons.video_call),
+                        label: const Text('Join Zoom',
                             style: TextStyle(fontWeight: FontWeight.w700)),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.teal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14)),
                       )),
                     ])
                   else if (status == 'pending')
@@ -234,7 +324,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2))
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
                             : const Text('Cancel Consultation Request'),
                       ),
                     ),

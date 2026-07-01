@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 
 Color statusColor(String status) {
-  switch (status) {
+  switch (status.toLowerCase()) {
     case 'confirmed':
       return AppColors.sage;
     case 'completed':
@@ -17,7 +19,7 @@ Color statusColor(String status) {
 }
 
 String statusEmoji(String status) {
-  switch (status) {
+  switch (status.toLowerCase()) {
     case 'confirmed':
       return '✅';
     case 'completed':
@@ -30,7 +32,7 @@ String statusEmoji(String status) {
 }
 
 String statusLabel(String status) {
-  switch (status) {
+  switch (status.toLowerCase()) {
     case 'confirmed':
       return 'Confirmed';
     case 'completed':
@@ -43,8 +45,210 @@ String statusLabel(String status) {
 }
 
 String consultationTypeLabel(String? type) {
-  if (type == null || type.isEmpty) return 'Consultation 1-1';
-  return '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
+  if (type == null || type.isEmpty) return 'Consultation';
+  return '${type[0].toUpperCase()}${type.substring(1)} Consultation';
+}
+
+const List<String> defaultConsultationTimes = [
+  '9:00 AM',
+  '10:00 AM',
+  '11:00 AM',
+  '12:00 PM',
+  '1:00 PM',
+  '2:00 PM',
+  '3:00 PM',
+  '4:00 PM',
+  '5:00 PM',
+  '6:00 PM',
+];
+
+String timeOnly(dynamic value) {
+  if (value == null) return '';
+  var text = value.toString().trim();
+
+  if (text.isEmpty) return '';
+
+  if (text.toLowerCase().startsWith('today')) {
+    text = text.substring(5).trim();
+  }
+
+  if (text.contains('-')) {
+    text = text.split('-').first.trim();
+  }
+
+  return _normaliseTime(text);
+}
+
+String _normaliseTime(String value) {
+  var text = value.trim().replaceAll('.', '').toUpperCase();
+  text = text.replaceAll(RegExp(r'\s+'), ' ');
+
+  final formats = <DateFormat>[
+    DateFormat('h:mm a'),
+    DateFormat('h a'),
+    DateFormat('HH:mm'),
+    DateFormat('H:mm'),
+  ];
+
+  for (final format in formats) {
+    try {
+      final parsed = format.parseStrict(text);
+      return DateFormat('h:mm a').format(parsed);
+    } catch (_) {}
+  }
+
+  // Handle compact values such as 2PM / 9AM.
+  final compact = RegExp(r'^(\d{1,2})(AM|PM)$', caseSensitive: false);
+  final match = compact.firstMatch(text.replaceAll(' ', ''));
+  if (match != null) {
+    final hour = match.group(1);
+    final period = match.group(2);
+    return '$hour:00 ${period!.toUpperCase()}';
+  }
+
+  return value.trim();
+}
+
+DateTime? _slotDateTime(DateTime date, String time) {
+  final clean = timeOnly(time).toUpperCase().replaceAll('.', '').trim();
+
+  final formats = <DateFormat>[
+    DateFormat('h:mm a'),
+    DateFormat('h a'),
+    DateFormat('HH:mm'),
+    DateFormat('H:mm'),
+  ];
+
+  for (final format in formats) {
+    try {
+      final parsed = format.parseStrict(clean);
+      return DateTime(
+        date.year,
+        date.month,
+        date.day,
+        parsed.hour,
+        parsed.minute,
+      );
+    } catch (_) {}
+  }
+  return null;
+}
+
+bool _isSameDay(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+List<String> availableTimesOnly(dynamic value) {
+  final parsed = <String>[];
+
+  if (value is List) {
+    parsed.addAll(value.map(timeOnly).where((t) => t.isNotEmpty));
+  } else if (value is String && value.trim().isNotEmpty) {
+    var text = value.trim();
+
+    // JSON/Postgres array string formats: ["9:00 AM"] or {9:00 AM,10:00 AM}
+    if ((text.startsWith('[') && text.endsWith(']')) ||
+        (text.startsWith('{') && text.endsWith('}'))) {
+      text = text.substring(1, text.length - 1);
+    }
+
+    parsed.addAll(text
+        .split(',')
+        .map((e) => timeOnly(e.replaceAll('"', '').replaceAll("'", '')))
+        .where((t) => t.isNotEmpty));
+  }
+
+  // Keep only the standard 9 AM to 6 PM slots.
+  final normalised = parsed.toSet();
+  return defaultConsultationTimes
+      .where((time) => normalised.isEmpty || normalised.contains(time))
+      .toList();
+}
+
+List<String> futureTimesForDate(List<String> times, DateTime date) {
+  final now = DateTime.now();
+
+  // If selected date is not today, all standard unbooked slots can be shown.
+  if (!_isSameDay(date, now)) return times;
+
+  return times.where((time) {
+    final slot = _slotDateTime(date, time);
+    if (slot == null) return true;
+    return slot.isAfter(now);
+  }).toList();
+}
+
+Future<Map<String, Set<String>>> _bookedTimesForToday(
+    Iterable<String> providerUserIds) async {
+  final ids = providerUserIds.where((id) => id.isNotEmpty).toSet();
+  if (ids.isEmpty) return {};
+
+  final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+  try {
+    final rows = await SupabaseService.client
+        .from('consultations')
+        .select('specialist_id, scheduled_time, status, scheduled_date')
+        .eq('scheduled_date', today)
+        .inFilter('specialist_id', ids.toList());
+
+    final booked = <String, Set<String>>{};
+
+    for (final row in List<Map<String, dynamic>>.from(rows)) {
+      final status = (row['status'] as String? ?? '').toLowerCase();
+
+      // Pending approval also blocks the slot because another user already requested it.
+      if (status != 'pending' && status != 'confirmed') continue;
+
+      final providerId = row['specialist_id']?.toString();
+      final time = timeOnly(row['scheduled_time']);
+
+      if (providerId == null || providerId.isEmpty || time.isEmpty) continue;
+
+      booked.putIfAbsent(providerId, () => <String>{}).add(time);
+    }
+
+    return booked;
+  } catch (_) {
+    // If RLS blocks reading other bookings, at least keep the UI from crashing.
+    return {};
+  }
+}
+
+/// Adds `available_today` to each provider using:
+/// 1. Standard slots from 9 AM to 6 PM.
+/// 2. Slots that have not passed today.
+/// 3. Slots that are not already pending/confirmed for the same provider today.
+Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
+    List<Map<String, dynamic>> providers) async {
+  final today = DateTime.now();
+  final providerIds = providers
+      .map((p) => p['user_id']?.toString())
+      .whereType<String>()
+      .toSet();
+
+  final bookedByProvider = await _bookedTimesForToday(providerIds);
+
+  return providers.map((provider) {
+    final providerId = provider['user_id']?.toString() ?? '';
+
+    // Start from provider-specific times if they exist; otherwise use the default 9 AM–6 PM slots.
+    final providerTimes = availableTimesOnly(provider['available_today']);
+    final baseTimes =
+        providerTimes.isEmpty ? defaultConsultationTimes : providerTimes;
+
+    final futureTimes = futureTimesForDate(baseTimes, today);
+    final bookedTimes = bookedByProvider[providerId] ?? <String>{};
+
+    final available = futureTimes
+        .where((time) => !bookedTimes.contains(timeOnly(time)))
+        .toList();
+
+    return {
+      ...provider,
+      'available_today': available,
+    };
+  }).toList();
 }
 
 // ── Shared provider card (Select Specialist / Select Volunteer) ────
@@ -59,121 +263,295 @@ Widget providerCard(
       : (provider['expertise'] as String? ?? 'Volunteer');
   final rating = (provider['rating'] as num?)?.toStringAsFixed(1);
   final years = provider['years_experience'];
-  final helpsWith = (provider['helps_with'] as List?)
-          ?.map((e) => e.toString())
-          .toList() ??
-      const <String>[];
+  final organisation = isSpecialist
+      ? (provider['hospital_affiliation'] as String? ?? '')
+      : (provider['affiliation'] as String? ?? '');
+  final qualification = isSpecialist
+      ? (provider['qualification'] as String? ?? '')
+      : (provider['certification'] as String? ?? '');
+  final helpsWith =
+      (provider['helps_with'] as List?)?.map((e) => e.toString()).toList() ??
+          const <String>[];
   final availableToday = (provider['available_today'] as List?)
-          ?.map((e) => e.toString())
+          ?.map((e) => timeOnly(e))
+          .where((e) => e.isNotEmpty)
           .toList() ??
       const <String>[];
   final accent = isSpecialist ? AppColors.teal : AppColors.sage;
+  final emoji = isSpecialist ? '👩‍⚕️' : '🤝';
+  final label = isSpecialist ? 'Specialist Consultant' : 'Volunteer Consultant';
 
   return Padding(
-    padding: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.only(bottom: 16),
     child: TBCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: accent.withValues(alpha: 0.15),
-                child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: TextStyle(
-                        color: accent,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20)),
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Center(
+                  child: Text(emoji, style: const TextStyle(fontSize: 25)),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
-                    const SizedBox(height: 2),
-                    Text(role,
-                        style: const TextStyle(
-                            color: AppColors.textMid, fontSize: 13)),
-                    const SizedBox(height: 4),
-                    Row(children: [
-                      if (rating != null) ...[
-                        const Icon(Icons.star, color: AppColors.gold, size: 15),
-                        const SizedBox(width: 4),
-                        Text(rating,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600, fontSize: 13)),
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      role,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textMid,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _providerChip(label, accent, Icons.verified_outlined),
+                        if (rating != null)
+                          _providerChip('$rating Rating', AppColors.gold,
+                              Icons.star_rounded),
+                        if (years != null)
+                          _providerChip('$years Years', AppColors.rose,
+                              Icons.work_outline),
                       ],
-                      if (years != null) ...[
-                        const SizedBox(width: 8),
-                        Text('•  $years Years Experience',
-                            style: const TextStyle(
-                                color: AppColors.textLight, fontSize: 12)),
-                      ],
-                    ]),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
+          if (organisation.isNotEmpty || qualification.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (organisation.isNotEmpty)
+                    _providerInfoLine(
+                        Icons.location_city_outlined, organisation),
+                  if (organisation.isNotEmpty && qualification.isNotEmpty)
+                    const SizedBox(height: 6),
+                  if (qualification.isNotEmpty)
+                    _providerInfoLine(Icons.school_outlined, qualification),
+                ],
+              ),
+            ),
+          ],
           if (helpsWith.isNotEmpty) ...[
             const SizedBox(height: 14),
-            const Text('Helps with:',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            const SizedBox(height: 4),
-            ...helpsWith.map((h) => Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text('•  $h',
-                      style: const TextStyle(
-                          color: AppColors.textMid, fontSize: 13)),
-                )),
-          ],
-          if (availableToday.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text('Available Today:',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            const SizedBox(height: 6),
+            const Text(
+              'Helps with',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: availableToday
-                    .map((t) => Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: AppColors.rose.withValues(alpha: 0.4))),
-                          child: Text(t,
-                              style: const TextStyle(
-                                  color: AppColors.roseDeep,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                        ))
-                    .toList()),
+              spacing: 8,
+              runSpacing: 8,
+              children: helpsWith
+                  .take(4)
+                  .map((h) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          h,
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
           ],
           const SizedBox(height: 14),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Remaining timings today',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+              Text(
+                availableToday.isEmpty
+                    ? 'Choose another date'
+                    : '${availableToday.length} left',
+                style: TextStyle(
+                  color: availableToday.isEmpty
+                      ? AppColors.textLight
+                      : AppColors.roseDeep,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (availableToday.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.blush.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Text(
+                'No remaining timings today. You can still select this provider and choose tomorrow or another date.',
+                style: TextStyle(
+                  color: AppColors.textMid,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: availableToday
+                  .take(5)
+                  .map((t) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 11, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.rose.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.rose.withValues(alpha: 0.28),
+                          ),
+                        ),
+                        child: Text(
+                          t,
+                          style: const TextStyle(
+                            color: AppColors.roseDeep,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => context.push('/consultation/book',
-                  extra: {'provider': provider, 'type': type}),
+              onPressed: () => context.push(
+                '/consultation/book',
+                extra: {'provider': provider, 'type': type},
+              ),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6B5B56),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24))),
-              child: Text(isSpecialist ? 'Select Specialist' : 'Select Volunteer',
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700)),
+                backgroundColor: accent,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                isSpecialist
+                    ? 'Select Specialist Consultant'
+                    : 'Select Volunteer Consultant',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
         ],
       ),
     ),
+  );
+}
+
+Widget _providerChip(String text, Color color, IconData icon) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _providerInfoLine(IconData icon, String text) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, color: AppColors.textLight, size: 16),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.textMid,
+            fontSize: 12,
+            height: 1.35,
+          ),
+        ),
+      ),
+    ],
   );
 }

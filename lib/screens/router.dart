@@ -33,6 +33,7 @@ import 'specialist/specialist_edit_profile_screen.dart';
 import 'specialist/change_password_screen.dart';
 import 'mum/forum/forum_screen.dart';
 import 'mum/forum/post_detail_screen.dart';
+import 'shared/notifications_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/splash',
@@ -57,8 +58,11 @@ final router = GoRouter(
     GoRoute(path: '/splash', builder: (_, __) => const _SplashScreen()),
     // Auth
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-    GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
-    GoRoute(path: '/onboarding', builder: (_, __) => const MumOnboardingScreen()),
+    GoRoute(
+        path: '/forgot-password',
+        builder: (_, __) => const ForgotPasswordScreen()),
+    GoRoute(
+        path: '/onboarding', builder: (_, __) => const MumOnboardingScreen()),
 
     // Shell (bottom nav)
     ShellRoute(
@@ -85,14 +89,22 @@ final router = GoRouter(
         return AppShell(selectedIndex: idx, child: child);
       },
       routes: [
-        GoRoute(path: '/home', builder: (context, __) {
-          final auth = context.read<AuthProvider>();
-          return auth.isMum ? const DashboardScreen() : const SpecialistDashboardScreen();
-        }),
-        GoRoute(path: '/profile', builder: (context, __) {
-          final auth = context.read<AuthProvider>();
-          return auth.role == 'specialist' ? const SpecialistProfileScreen() : const ProfileScreen();
-        }),
+        GoRoute(
+            path: '/home',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              return auth.isMum
+                  ? const DashboardScreen()
+                  : const SpecialistDashboardScreen();
+            }),
+        GoRoute(
+            path: '/profile',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              return auth.role == 'specialist'
+                  ? const SpecialistProfileScreen()
+                  : const ProfileScreen();
+            }),
         GoRoute(
             path: '/education', builder: (_, __) => const EducationScreen()),
         GoRoute(
@@ -120,8 +132,8 @@ final router = GoRouter(
     GoRoute(path: '/faq', builder: (_, __) => const FaqScreen()),
     GoRoute(path: '/chatbot', builder: (_, __) => const ChatbotScreen()),
     GoRoute(
-
-        path: '/consultation', builder: (_, __) => const ConsultationListScreen()),
+        path: '/consultation',
+        builder: (_, __) => const ConsultationListScreen()),
     GoRoute(
         path: '/consultation/specialists',
         builder: (_, __) => const SpecialistsListScreen()),
@@ -158,9 +170,6 @@ final router = GoRouter(
         builder: (context, state) => ArticleDetailScreen(
             article: (state.extra as Map<String, dynamic>?) ?? {})),
     GoRoute(
-        path: '/notifications',
-        builder: (_, __) => const _NotificationsScreen()),
-    GoRoute(
         path: '/baby-development',
         builder: (_, __) => const BabyDevelopmentScreen()),
     GoRoute(
@@ -171,11 +180,17 @@ final router = GoRouter(
         path: '/specialist/edit-profile',
         builder: (context, state) => SpecialistEditProfileScreen(
             specialistProfile: state.extra as Map<String, dynamic>?)),
-    GoRoute(path: '/change-password', builder: (_, __) => const ChangePasswordScreen()),
+    GoRoute(
+        path: '/change-password',
+        builder: (_, __) => const ChangePasswordScreen()),
     GoRoute(
         path: '/forum/post',
         builder: (context, state) =>
             PostDetailScreen(post: state.extra as Map<String, dynamic>)),
+    GoRoute(
+      path: '/notifications',
+      builder: (_, __) => const NotificationsScreen(),
+    ),
   ],
 );
 
@@ -185,19 +200,6 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(child: CircularProgressIndicator(color: Color(0xFFE8A0B4))),
-    );
-  }
-}
-
-class _NotificationsScreen extends StatelessWidget {
-  const _NotificationsScreen();
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
-      body: const Center(
-          child: Text('No notifications yet 🔔',
-              style: TextStyle(color: Color(0xFF9B8B86)))),
     );
   }
 }
