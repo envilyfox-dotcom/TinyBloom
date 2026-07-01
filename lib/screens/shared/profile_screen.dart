@@ -150,6 +150,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () => context.push('/subscription')),
                       _divider(),
                     ],
+                    if (role == 'next_of_kin') ...[
+                      _menuItem(Icons.link, 'Link to Pregnant User',
+                        onTap: () => context.push('/next-of-kin/link')),
+                      _divider(),
+                    ],
                     _menuItem(Icons.feedback_outlined, 'Feedback',
                       onTap: () => _showFeedback()),
                     _divider(),
