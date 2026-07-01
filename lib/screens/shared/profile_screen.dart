@@ -15,6 +15,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _linkedMum;
   bool _loading = true;
 
   @override
@@ -25,11 +26,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _load() async {
     final p = await SupabaseService.getProfile();
-    if (!mounted) return;
-    setState(() {
-      _profile = p;
-      _loading = false;
-    });
+    Map<String, dynamic>? linkedMum;
+    if (p?['role'] == 'next_of_kin') {
+      try { linkedMum = await SupabaseService.getLinkedMum(); } catch (_) {}
+    }
+    if (mounted) {
+      setState(() { _profile = p; _linkedMum = linkedMum; _loading = false; });
+    }
   }
 
   String _roleLabel(String? role) {
@@ -81,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             '';
     final role = _profile?['role'] as String? ?? '';
     final userCode = _profile?['user_code'];
-    final isMum = role == 'free_user' || role == 'premium_user';
+    final photoUrl = _profile?['profile_picture_url'] as String?;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -120,62 +123,157 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _SectionCard(
                 title: 'Account',
                 children: [
-                  _menuItem(
-                    Icons.edit_outlined,
-                    'Edit Profile',
-                    subtitle: 'Update name, email, phone and password',
-                    onTap: () => context
-                        .push('/profile/edit', extra: _profile)
-                        .then((_) => _load()),
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                    backgroundImage:
+                        photoUrl != null ? NetworkImage(photoUrl) : null,
+                    child: photoUrl != null
+                        ? null
+                        : Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                            style: const TextStyle(
+                                color: AppColors.roseDeep,
+                                fontSize: 28, fontWeight: FontWeight.w700)),
                   ),
-                  _divider(),
-                  _menuItem(
-                    Icons.phone_outlined,
-                    phone.trim().isEmpty ? 'No phone number added' : phone,
-                    subtitle: 'Phone number',
-                    showChevron: false,
+                  const SizedBox(height: 12),
+                  Text(name,
+                    style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 4),
+                  Text(email,
+                    style: const TextStyle(color: AppColors.textMid, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: Text(_roleLabel(role),
+                      style: const TextStyle(
+                        color: AppColors.teal, fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: 'TinyBloom',
-                children: [
-                  if (role == 'specialist') ...[
-                    _menuItem(
-                      Icons.link,
-                      'Submit Article Link',
-                      subtitle: 'Share trusted education content',
-                      onTap: () => context.push('/submit-link'),
-                    ),
-                    _divider(),
-                  ],
-                  if (isMum) ...[
-                    _menuItem(
-                      Icons.workspace_premium_outlined,
-                      'Subscription',
-                      subtitle: 'View free and premium comparison',
-                      onTap: () => context.push('/subscription'),
-                    ),
-                    _divider(),
-                  ],
-                  _menuItem(
-                    Icons.feedback_outlined,
-                    'Feedback',
-                    subtitle: 'Tell us how we can improve',
-                    onTap: _showFeedback,
+            ),
+
+            // Connected mum (next-of-kin accounts)
+            if (role == 'next_of_kin')
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TBCard(
+                  color: AppColors.blush,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _linkedMum != null ? Icons.favorite : Icons.link_off,
+                        color: AppColors.roseDeep, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('CONNECTED TO',
+                              style: TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.w700,
+                                color: AppColors.roseDeep, letterSpacing: 1)),
+                            const SizedBox(height: 4),
+                            Text(
+                              _linkedMum != null
+                                  ? (_linkedMum!['full_name'] as String? ?? 'Unnamed')
+                                  : 'Not linked to a pregnant user yet',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15)),
+                            if (_linkedMum?['relationship'] != null) ...[
+                              const SizedBox(height: 2),
+                              Text(_linkedMum!['relationship'] as String,
+                                style: const TextStyle(
+                                  color: AppColors.textMid, fontSize: 12)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // User ID (mum accounts)
+            if (userCode != null && (role == 'free_user' || role == 'premium_user'))
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TBCard(
+                  color: AppColors.blush,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('YOUR UNIQUE USER ID',
+                        style: TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.w700,
+                          color: AppColors.roseDeep, letterSpacing: 1)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(userCode,
+                              style: const TextStyle(
+                                fontSize: 22, fontWeight: FontWeight.w700,
+                                letterSpacing: 3)),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              // Copy to clipboard
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('User ID copied!'),
+                                  duration: Duration(seconds: 2)));
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Copy'),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        'Share this ID with your partner or family so they can link to your account.',
+                        style: TextStyle(color: AppColors.textMid, fontSize: 12)),
+                    ],
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               TBCard(
                 padding: EdgeInsets.zero,
-                child: _menuItem(
-                  Icons.logout,
-                  'Sign Out',
-                  subtitle: 'Log out from this account',
-                  color: Colors.red,
-                  onTap: _signOut,
+                child: Column(
+                  children: [
+                    _menuItem(Icons.edit_outlined, 'Edit Profile',
+                      onTap: () => context.push('/profile/edit', extra: _profile)
+                          .then((_) => _load())),
+                    _divider(),
+                    if (role == 'specialist') ...[
+                      _menuItem(Icons.link, 'Submit Article Link',
+                        onTap: () => context.push('/submit-link')),
+                      _divider(),
+                    ],
+                    if (role == 'free_user' || role == 'premium_user') ...[
+                      _menuItem(Icons.workspace_premium_outlined, 'Subscription',
+                        onTap: () => context.push('/subscription')),
+                      _divider(),
+                    ],
+                    if (role == 'next_of_kin') ...[
+                      _menuItem(Icons.link, 'Link to Pregnant User',
+                        onTap: () => context.push('/next-of-kin/link')),
+                      _divider(),
+                      _menuItem(Icons.help_outline, 'FAQ',
+                        onTap: () => context.push('/next-of-kin/faq')),
+                      _divider(),
+                    ],
+                    _menuItem(Icons.feedback_outlined, 'Feedback',
+                      onTap: () => _showFeedback()),
+                    _divider(),
+                    _menuItem(Icons.logout, 'Sign Out',
+                      color: Colors.red,
+                      onTap: () => _signOut()),
+                  ],
                 ),
               ),
             ],

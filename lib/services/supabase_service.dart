@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/app_theme.dart';
 
@@ -69,12 +70,60 @@ class SupabaseService {
     await client.from('profiles').update(data).eq('id', user.id);
   }
 
+  // Profile picture — stored in the public 'avatars' bucket at
+  // <user_id>/avatar.<ext>, one file per user (upsert overwrites any
+  // previous picture, so there's nothing extra to clean up on re-upload).
+  static Future<String> uploadProfilePicture(Uint8List bytes, String fileExt) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+
+    final ext = fileExt.toLowerCase();
+    final path = '${user.id}/avatar.$ext';
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    await client.storage.from('avatars').uploadBinary(
+        path, bytes,
+        fileOptions: FileOptions(upsert: true, contentType: contentType));
+
+    // Cache-bust so the new photo shows immediately instead of a
+    // browser/CDN-cached copy of whatever used to be at this path.
+    final url =
+        '${client.storage.from('avatars').getPublicUrl(path)}?t=${DateTime.now().millisecondsSinceEpoch}';
+    await updateProfile({'profile_picture_url': url});
+    return url;
+  }
+
+  static Future<void> removeProfilePicture() async {
+    final user = currentUser;
+    if (user == null) return;
+    await updateProfile({'profile_picture_url': null});
+    try {
+      final files = await client.storage.from('avatars').list(path: user.id);
+      final paths = files.map((f) => '${user.id}/${f.name}').toList();
+      if (paths.isNotEmpty) await client.storage.from('avatars').remove(paths);
+    } catch (_) {
+      // Best-effort cleanup — profile_picture_url is already cleared either way.
+    }
+  }
+
   // Subscription — there's no real payment gateway wired up, so "upgrading"
   // just records the chosen plan and flips the role. Passing null cancels.
   static Future<void> setSubscriptionPlan(String? plan) async {
     await updateProfile({
       'subscription_plan': plan,
       'role': plan == null ? 'free_user' : 'premium_user',
+    });
+  }
+
+  // Same as setSubscriptionPlan, but for a next-of-kin gifting premium to
+  // the mum they're linked to, rather than subscribing themselves. Goes
+  // through the gift_subscription_to_linked_mum RPC rather than a direct
+  // table update — that function checks the link and touches only
+  // subscription_plan/role, instead of relying on a table-wide UPDATE grant
+  // that could otherwise let a next-of-kin write any column on the row.
+  static Future<void> giftSubscriptionPlan(String mumId, String plan) async {
+    await client.rpc('gift_subscription_to_linked_mum', params: {
+      'mum_id': mumId,
+      'plan': plan,
     });
   }
 
@@ -327,6 +376,23 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Best-effort: a linked mum's consultations, for the next-of-kin
+  // dashboard's Active Alerts. Depending on RLS this may come back empty
+  // rather than erroring, so it's wrapped defensively.
+  static Future<List<Map<String, dynamic>>> getConsultationsForPatient(
+      String patientId) async {
+    try {
+      final res = await client
+          .from('consultations')
+          .select('*')
+          .eq('patient_id', patientId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
   static Future<void> bookConsultation(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
@@ -385,6 +451,98 @@ class SupabaseService {
       if (vol != null) return {...vol, 'provider_type': 'volunteer'};
     } catch (_) {}
     return null;
+  }
+
+  // Next of kin — the mum this next-of-kin account is linked to, via the
+  // next_of_kin_profiles table (user_id -> linked_pregnant_user_id).
+  static Future<Map<String, dynamic>?> getLinkedMum() async {
+    final user = currentUser;
+    if (user == null) return null;
+    try {
+      final link = await client
+          .from('next_of_kin_profiles')
+          .select('relationship, mum:linked_pregnant_user_id(id, full_name, email)')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      final mum = link?['mum'] as Map<String, dynamic>?;
+      if (mum == null) return null;
+
+      // Best-effort: the linked mum's own pregnancy_profiles row may not be
+      // readable depending on RLS, so a missing week just means we show none.
+      int? week;
+      try {
+        final pp = await client
+            .from('pregnancy_profiles')
+            .select('due_date, current_week')
+            .eq('user_id', mum['id'])
+            .maybeSingle()
+            .timeout(const Duration(seconds: 6));
+        final dueDateStr = pp?['due_date'] as String?;
+        if (dueDateStr != null) {
+          final due = DateTime.tryParse(dueDateStr);
+          if (due != null) {
+            final conception = due.subtract(const Duration(days: 280));
+            week = (DateTime.now().difference(conception).inDays ~/ 7)
+                .clamp(1, 42);
+          }
+        }
+        week ??= (pp?['current_week'] as num?)?.toInt();
+      } catch (_) {}
+
+      return {
+        'id': mum['id'],
+        'full_name': mum['full_name'],
+        'email': mum['email'],
+        'relationship': link?['relationship'],
+        'current_week': week,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Shared lookup for the user_code linking flow — throws a user-facing
+  // message if the code doesn't exist or doesn't belong to a mum account.
+  static Future<Map<String, dynamic>> _findMumByUserCode(String userCode) async {
+    final mum = await client
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('user_code', userCode)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 6));
+    if (mum == null) throw Exception('User code not found.');
+
+    final role = mum['role'] as String?;
+    if (role != 'free_user' && role != 'premium_user') {
+      throw Exception('This code does not belong to a registered mum.');
+    }
+    return mum;
+  }
+
+  // Verifies a user_code belongs to a registered mum, without linking — used
+  // to enable the Link button only once the code checks out.
+  static Future<Map<String, dynamic>> verifyMumUserCode(String userCode) {
+    return _findMumByUserCode(userCode);
+  }
+
+  // Looks up a mum by her user_code and links this next-of-kin account to
+  // her, replacing any previous link. Throws a user-facing message if the
+  // code doesn't exist or doesn't belong to a mum account.
+  static Future<String> linkToMum(String userCode, String relationship) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+
+    final mum = await _findMumByUserCode(userCode);
+
+    await client.from('next_of_kin_profiles').delete().eq('user_id', user.id);
+    await client.from('next_of_kin_profiles').insert({
+      'user_id': user.id,
+      'linked_pregnant_user_id': mum['id'],
+      'relationship': relationship,
+    });
+
+    return mum['full_name'] as String? ?? 'Mum';
   }
 
   // Specialists & volunteers

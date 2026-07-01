@@ -12,9 +12,10 @@ class SubscriptionScreen extends StatefulWidget {
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-const _subscriptionPlans = {
-  'premium_monthly': {'label': 'Premium', 'price': '\$9.90/month'},
-  'premium_yearly': {'label': 'Premium Annual', 'price': '\$90/year'},
+// Plan metadata shared by the upgrade tiles and the Change Plan sheet.
+const subscriptionPlans = {
+  'premium_monthly': {'label': 'Premium Monthly', 'price': '\$9.90/month'},
+  'premium_yearly': {'label': 'Premium Annual', 'price': '\$90/year • Save 24%'},
 };
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
@@ -26,15 +27,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       await SupabaseService.setSubscriptionPlan(plan);
       if (mounted) await context.read<AuthProvider>().refreshProfile();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              plan == null
-                  ? 'You are now on the Basic plan.'
-                  : 'You are now on the ${_subscriptionPlans[plan]!['label']} plan!',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(plan == null
+                ? 'Subscription cancelled.'
+                : 'You\'re on the ${subscriptionPlans[plan]!['label']} plan!')));
       }
     } catch (e) {
       if (mounted) {
@@ -47,9 +43,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<void> _confirmUpgrade(String plan) async {
-    final label = _subscriptionPlans[plan]!['label'];
-    final price = _subscriptionPlans[plan]!['price'];
-
+    final label = subscriptionPlans[plan]!['label'];
+    final price = subscriptionPlans[plan]!['price'];
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -85,15 +80,42 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     if (confirm == true) await _setPlan(plan);
   }
 
-  Future<void> _confirmBasic() async {
-    final auth = context.read<AuthProvider>();
-    if (!auth.isPremium) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are already on the Basic plan.')),
-      );
-      return;
-    }
+  void _showChangePlan(String? currentPlan) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Change Plan', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            Text(
+                currentPlan == null
+                    ? 'No plan on file yet — choose one below.'
+                    : 'Choose between monthly and yearly billing.',
+                style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
+            const SizedBox(height: 16),
+            for (final entry in subscriptionPlans.entries) ...[
+              _planTile(entry.key, entry.value['label']!, entry.value['price']!,
+                  isCurrent: entry.key == currentPlan,
+                  onSelect: () {
+                    Navigator.pop(context);
+                    if (entry.key != currentPlan) _setPlan(entry.key);
+                  }),
+              const SizedBox(height: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
+  Future<void> _confirmCancel() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -138,280 +160,60 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final isPremium = auth.isPremium;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: const Text(
-          'Subscription',
-          style: TextStyle(
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Compare Plans',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontSize: 24),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Choose the plan that best supports your pregnancy journey.',
-                style: TextStyle(color: AppColors.textMid, fontSize: 13),
-              ),
-              const SizedBox(height: 18),
-              _currentPlanBanner(isPremium, currentPlan),
-              const SizedBox(height: 20),
-              _planCards(currentPlan, isPremium),
-              const SizedBox(height: 24),
-              Text(
-                'Feature Comparison',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 12),
-              _comparisonTable(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _currentPlanBanner(bool isPremium, String? currentPlan) {
-    final label = currentPlan == 'premium_monthly'
-        ? 'Premium Monthly'
-        : currentPlan == 'premium_yearly'
-            ? 'Premium Annual'
-            : 'Basic';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isPremium ? AppColors.blush : AppColors.tealLight,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isPremium
-              ? AppColors.rose.withValues(alpha: 0.25)
-              : AppColors.teal.withValues(alpha: 0.25),
-        ),
-      ),
-      child: Row(
-        children: [
-          Text(isPremium ? '⭐' : '🌱', style: const TextStyle(fontSize: 34)),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Current Plan: $label',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
+      appBar: AppBar(title: const Text('Subscription')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TBCard(
+              color: isPremium ? AppColors.blush : AppColors.tealLight,
+              child: Row(
+                children: [
+                  Text(isPremium ? '⭐' : '🌱',
+                      style: const TextStyle(fontSize: 36)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(isPremium ? 'Premium Member' : 'Free Member',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontSize: 16)),
+                        Text(
+                            isPremium
+                                ? (currentPlan != null
+                                    ? 'You\'re on the ${subscriptionPlans[currentPlan]?['label'] ?? 'Premium'} plan.'
+                                    : 'You have access to all premium features.')
+                                : 'Upgrade to unlock all features.',
+                            style: const TextStyle(
+                                color: AppColors.textMid, fontSize: 13)),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  isPremium
-                      ? 'You currently have premium access.'
-                      : 'You are using the free Basic plan.',
-                  style:
-                      const TextStyle(color: AppColors.textMid, fontSize: 12),
-                ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (!isPremium) ...[
+              Text('Upgrade to Premium',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              for (final entry in subscriptionPlans.entries) ...[
+                _planTile(entry.key, entry.value['label']!, entry.value['price']!,
+                    onSelect: _busy ? null : () => _confirmUpgrade(entry.key)),
+                const SizedBox(height: 10),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _planCards(String? currentPlan, bool isPremium) {
-    return SizedBox(
-      height: 415,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _planCard(
-            title: 'Basic',
-            price: '\$0',
-            period: '/ month',
-            tagline: 'Basic information and simple tracking.',
-            features: const [
-              'Pregnancy articles & FAQ',
-              'Simple symptom logging',
-              'Basic week-by-week tracking',
             ],
-            isCurrent: !isPremium,
-            isFeatured: false,
-            buttonText: isPremium ? 'Switch to Basic' : 'Current Plan',
-            onPressed: _busy ? null : _confirmBasic,
-          ),
-          const SizedBox(width: 14),
-          _planCard(
-            title: 'Premium',
-            price: '\$9.90',
-            period: '/ month',
-            tagline: 'Personalised insights and full support.',
-            features: const [
-              'Personalised pregnancy tracking',
-              'Advanced symptom tracking',
-              'Detailed baby development insights',
-              'Full access to all resources',
-            ],
-            isCurrent: currentPlan == 'premium_monthly',
-            isFeatured: true,
-            buttonText: currentPlan == 'premium_monthly'
-                ? 'Current Plan'
-                : 'Get Started',
-            onPressed: _busy || currentPlan == 'premium_monthly'
-                ? null
-                : () => _confirmUpgrade('premium_monthly'),
-          ),
-          const SizedBox(width: 14),
-          _planCard(
-            title: 'Premium Annual',
-            price: '\$90',
-            period: '/ year',
-            tagline: 'Best value — save compared to monthly.',
-            features: const [
-              'Personalised pregnancy tracking',
-              'Advanced symptom tracking',
-              'Detailed baby development insights',
-              'Full access to all resources',
-            ],
-            isCurrent: currentPlan == 'premium_yearly',
-            isFeatured: false,
-            buttonText: currentPlan == 'premium_yearly'
-                ? 'Current Plan'
-                : 'Get Started',
-            onPressed: _busy || currentPlan == 'premium_yearly'
-                ? null
-                : () => _confirmUpgrade('premium_yearly'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _planCard({
-    required String title,
-    required String price,
-    required String period,
-    required String tagline,
-    required List<String> features,
-    required bool isCurrent,
-    required bool isFeatured,
-    required String buttonText,
-    required VoidCallback? onPressed,
-  }) {
-    return Container(
-      width: 245,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isFeatured ? AppColors.tealLight : AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isFeatured ? AppColors.teal : Colors.transparent,
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textDark.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-              if (isCurrent) _currentPill(),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                child: Text(
-                  price,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Playfair Display',
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 34,
-                    height: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text(
-                  period,
-                  style: const TextStyle(
-                    color: AppColors.textLight,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            tagline,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textMid,
-              fontSize: 12,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: features.length,
-              itemBuilder: (context, index) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            if (isPremium) ...[
+              Text('Manage Subscription',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              TBCard(
+                padding: EdgeInsets.zero,
+                child: Column(
                   children: [
                     const Text(
                       '✓',

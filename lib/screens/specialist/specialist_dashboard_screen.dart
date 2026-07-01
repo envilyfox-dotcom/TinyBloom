@@ -135,6 +135,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
   String get _firstName =>
       (_profile?['full_name'] as String? ?? 'Doctor').split(' ').first;
 
+  String? get _photoUrl => _profile?['profile_picture_url'] as String?;
+
   String get _specialization =>
       (_specialistProfile?['specialization'] as String? ?? 'Healthcare Specialist');
 
@@ -326,12 +328,17 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               radius: 22,
                               backgroundColor:
                                   AppColors.rose.withValues(alpha: 0.15),
-                              child: Text(
-                                  _firstName.isNotEmpty ? _firstName[0] : '?',
-                                  style: const TextStyle(
-                                      color: AppColors.roseDeep,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700)),
+                              backgroundImage: _photoUrl != null
+                                  ? NetworkImage(_photoUrl!)
+                                  : null,
+                              child: _photoUrl != null
+                                  ? null
+                                  : Text(
+                                      _firstName.isNotEmpty ? _firstName[0] : '?',
+                                      style: const TextStyle(
+                                          color: AppColors.roseDeep,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700)),
                             ),
                           ),
                         ],

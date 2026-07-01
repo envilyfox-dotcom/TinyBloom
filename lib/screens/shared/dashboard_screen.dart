@@ -179,6 +179,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String get _firstName =>
       (_profile?['full_name'] as String? ?? 'there').split(' ').first;
 
+  String? get _photoUrl => _profile?['profile_picture_url'] as String?;
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -234,16 +236,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             onTap: () => context.push('/profile'),
                             child: CircleAvatar(
                               radius: 20,
-                              backgroundColor:
-                                  AppColors.rose.withValues(alpha: 0.15),
-                              child: Text(
-                                  _firstName.isNotEmpty
-                                      ? _firstName[0].toUpperCase()
-                                      : 'U',
-                                  style: const TextStyle(
-                                      color: AppColors.roseDeep,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 18)),
+                              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                              backgroundImage: _photoUrl != null
+                                  ? NetworkImage(_photoUrl!)
+                                  : null,
+                              child: _photoUrl != null
+                                  ? null
+                                  : Text(
+                                      _firstName.isNotEmpty
+                                          ? _firstName[0].toUpperCase()
+                                          : 'U',
+                                      style: const TextStyle(
+                                          color: AppColors.roseDeep,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 18)),
                             ),
                           ),
                         ],
