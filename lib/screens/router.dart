@@ -12,6 +12,7 @@ import 'volunteer/volunteer_requests_screen.dart';
 import 'volunteer/volunteer_more_screen.dart';
 import 'next_of_kin/next_of_kin_dashboard_screen.dart';
 import 'next_of_kin/link_to_mum_screen.dart';
+import 'next_of_kin/gift_subscription_screen.dart';
 
 import 'shared/dashboard_screen.dart';
 import 'mum/logs/logs_screen.dart';
@@ -218,6 +219,7 @@ final router = GoRouter(
             specialistProfile: state.extra as Map<String, dynamic>?)),
     GoRoute(path: '/change-password', builder: (_, __) => const ChangePasswordScreen()),
     GoRoute(path: '/next-of-kin/link', builder: (_, __) => const LinkToMumScreen()),
+    GoRoute(path: '/next-of-kin/gift-subscription', builder: (_, __) => const GiftSubscriptionScreen()),
     GoRoute(
         path: '/forum/post',
         builder: (context, state) =>

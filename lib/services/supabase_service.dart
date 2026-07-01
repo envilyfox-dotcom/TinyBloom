@@ -69,6 +69,19 @@ class SupabaseService {
     });
   }
 
+  // Same as setSubscriptionPlan, but for a next-of-kin gifting premium to
+  // the mum they're linked to, rather than subscribing themselves. Goes
+  // through the gift_subscription_to_linked_mum RPC rather than a direct
+  // table update — that function checks the link and touches only
+  // subscription_plan/role, instead of relying on a table-wide UPDATE grant
+  // that could otherwise let a next-of-kin write any column on the row.
+  static Future<void> giftSubscriptionPlan(String mumId, String plan) async {
+    await client.rpc('gift_subscription_to_linked_mum', params: {
+      'mum_id': mumId,
+      'plan': plan,
+    });
+  }
+
   // Pregnancy profile
   static Future<Map<String, dynamic>?> getPregnancyProfile() async {
     final user = currentUser;
@@ -273,6 +286,23 @@ class SupabaseService {
         .or('patient_id.eq.${user.id},specialist_id.eq.${user.id}')
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(res);
+  }
+
+  // Best-effort: a linked mum's consultations, for the next-of-kin
+  // dashboard's Active Alerts. Depending on RLS this may come back empty
+  // rather than erroring, so it's wrapped defensively.
+  static Future<List<Map<String, dynamic>>> getConsultationsForPatient(
+      String patientId) async {
+    try {
+      final res = await client
+          .from('consultations')
+          .select('*')
+          .eq('patient_id', patientId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<void> bookConsultation(Map<String, dynamic> data) async {

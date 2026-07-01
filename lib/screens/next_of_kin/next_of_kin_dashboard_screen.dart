@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
@@ -15,12 +16,11 @@ class NextOfKinDashboardScreen extends StatefulWidget {
 
 class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _linkedMum;
+  List<Map<String, dynamic>> _consultations = [];
+  Map<String, String> _providerNames = {};
   bool _loading = true;
   DateTime? _lastNavTime;
-
-  // Placeholder until next-of-kin <-> mum linking exists in the backend —
-  // replace with a real fetch of the linked mum's profile once that's designed.
-  static const _linkedMum = {'name': 'Sarah K', 'week': 24};
 
   bool _canNav() {
     final now = DateTime.now();
@@ -49,9 +49,37 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         profile = {'full_name': meta['full_name'], 'role': meta['role']};
       }
     }
+
+    Map<String, dynamic>? linkedMum;
+    try {
+      linkedMum = await SupabaseService.getLinkedMum();
+    } catch (_) {}
+
+    List<Map<String, dynamic>> consultations = [];
+    final providerNames = <String, String>{};
+    if (linkedMum != null) {
+      consultations =
+          await SupabaseService.getConsultationsForPatient(linkedMum['id'] as String);
+
+      final activeSpecialistIds = consultations.where((c) {
+        final status = (c['status'] as String? ?? '').toLowerCase();
+        return status == 'pending' || status == 'confirmed';
+      }).take(2).map((c) => c['specialist_id'] as String?).whereType<String>().toSet();
+      for (final id in activeSpecialistIds) {
+        try {
+          final p = await SupabaseService.getProviderProfile(id);
+          final name = (p?['profiles'] as Map<String, dynamic>?)?['full_name'] as String?;
+          if (name != null) providerNames[id] = name;
+        } catch (_) {}
+      }
+    }
+
     if (mounted) {
       setState(() {
         _profile = profile;
+        _linkedMum = linkedMum;
+        _consultations = consultations;
+        _providerNames = providerNames;
         _loading = false;
       });
     }
@@ -67,12 +95,13 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   String get _firstName =>
       (_profile?['full_name'] as String? ?? 'there').split(' ').first;
 
-  int get _linkedMumWeek => _linkedMum['week'] as int;
-  String get _linkedMumName => _linkedMum['name'] as String;
+  int get _linkedMumWeek => (_linkedMum?['current_week'] as int?) ?? 0;
+  String get _linkedMumName => (_linkedMum?['full_name'] as String?) ?? 'them';
 
   String get _trimesterLabel {
-    if (_linkedMumWeek <= 12) return '1st Trimester';
-    if (_linkedMumWeek <= 27) return '2nd Trimester';
+    final week = _linkedMumWeek;
+    if (week <= 12) return '1st Trimester';
+    if (week <= 27) return '2nd Trimester';
     return '3rd Trimester';
   }
 
@@ -119,21 +148,26 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                                     .headlineMedium
                                     ?.copyWith(fontSize: 20)),
                             const SizedBox(height: 4),
-                            Text.rich(
-                              TextSpan(
-                                style: const TextStyle(
-                                    color: AppColors.textMid, fontSize: 13),
-                                children: [
-                                  TextSpan(text: '$_linkedMumName is on '),
-                                  TextSpan(
-                                    text: 'Week $_linkedMumWeek',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700),
-                                  ),
-                                  const TextSpan(text: ' of Pregnancy'),
-                                ],
-                              ),
-                            ),
+                            if (_linkedMum != null)
+                              Text.rich(
+                                TextSpan(
+                                  style: const TextStyle(
+                                      color: AppColors.textMid, fontSize: 13),
+                                  children: [
+                                    TextSpan(text: '$_linkedMumName is on '),
+                                    TextSpan(
+                                      text: 'Week $_linkedMumWeek',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                    const TextSpan(text: ' of Pregnancy'),
+                                  ],
+                                ),
+                              )
+                            else
+                              const Text('Not linked to a pregnant user yet',
+                                  style: TextStyle(
+                                      color: AppColors.textMid, fontSize: 13)),
                           ],
                         ),
                       ),
@@ -161,18 +195,20 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTrimesterCard(),
-                    const SizedBox(height: 20),
-                    _buildQuickActions(),
-                    const SizedBox(height: 20),
-                    _buildBabyDevelopmentCard(context),
-                    const SizedBox(height: 20),
-                    _buildActiveAlerts(),
-                  ],
-                ),
+                child: _linkedMum == null
+                    ? _buildNotLinkedPrompt(context)
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildTrimesterCard(),
+                          const SizedBox(height: 20),
+                          _buildQuickActions(),
+                          const SizedBox(height: 20),
+                          _buildBabyDevelopmentCard(context),
+                          const SizedBox(height: 20),
+                          _buildActiveAlerts(),
+                        ],
+                      ),
               ),
             ),
           ],
@@ -181,7 +217,32 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
+  Widget _buildNotLinkedPrompt(BuildContext context) {
+    return TBEmptyState(
+      emoji: '🔗',
+      title: 'Not linked yet',
+      subtitle: "Link to a pregnant user's account to see her pregnancy journey here.",
+      buttonLabel: 'Link to Pregnant User',
+      onButton: () => context.push('/next-of-kin/link'),
+    );
+  }
+
   Widget _buildTrimesterCard() {
+    final week = _linkedMumWeek;
+    if (week == 0) {
+      return const TBCard(
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, color: AppColors.textLight, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('No pregnancy details available yet.',
+                  style: TextStyle(color: AppColors.textMid, fontSize: 13)),
+            ),
+          ],
+        ),
+      );
+    }
     return TBCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +301,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         emoji: '🎁',
         iconBg: AppColors.gold.withValues(alpha: 0.15),
         label: 'Gift premium',
-        onTap: () { if (_canNav()) context.push('/subscription'); },
+        onTap: () { if (_canNav()) context.push('/next-of-kin/gift-subscription'); },
       ),
     ];
 
@@ -283,7 +344,10 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   }
 
   Widget _buildBabyDevelopmentCard(BuildContext context) {
-    final data = pregnancyWeekData[_linkedMumWeek];
+    final week = _linkedMumWeek;
+    if (week == 0) return const SizedBox.shrink();
+
+    final data = pregnancyWeekData[week];
     final size = data?['size'] ?? 'growing strong';
     final emoji = data?['emoji'] ?? '🌸';
     final highlight = data?['highlight'] ?? '';
@@ -308,7 +372,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          Text('Week $_linkedMumWeek',
+          Text('Week $week',
               style: const TextStyle(
                   color: AppColors.rose,
                   fontWeight: FontWeight.w700,
@@ -330,6 +394,35 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   }
 
   Widget _buildActiveAlerts() {
+    final week = _linkedMumWeek;
+
+    final activeConsultations = _consultations.where((c) {
+      final status = (c['status'] as String? ?? '').toLowerCase();
+      return status == 'pending' || status == 'confirmed';
+    }).toList();
+
+    final alerts = <Widget>[
+      if (week > 0)
+        _alertCard(
+          icon: Icons.auto_awesome,
+          iconBg: AppColors.rose.withValues(alpha: 0.15),
+          iconColor: AppColors.roseDeep,
+          title: 'New Milestone',
+          subtitle:
+              'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
+          onTap: () => _comingSoon('Milestone journey'),
+        ),
+      for (final c in activeConsultations.take(2))
+        _alertCard(
+          icon: Icons.calendar_today_outlined,
+          iconBg: AppColors.sage.withValues(alpha: 0.15),
+          iconColor: AppColors.sage,
+          title: _appointmentDateLabel(c['scheduled_date'] as String?),
+          subtitle: _appointmentSubtitle(c),
+          onTap: () { if (_canNav()) context.push('/consultation'); },
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -339,25 +432,38 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
           onAction: () { if (_canNav()) context.push('/notifications'); },
         ),
         const SizedBox(height: 12),
-        _alertCard(
-          icon: Icons.cake_outlined,
-          iconBg: AppColors.rose.withValues(alpha: 0.15),
-          iconColor: AppColors.roseDeep,
-          title: 'Milestone',
-          subtitle:
-              'Baby now weighs ${pregnancyWeekData[_linkedMumWeek]?['weight'] ?? '—'} — the size of ${pregnancyWeekData[_linkedMumWeek]?['size'] ?? 'growing strong'}.',
-          onTap: () => _comingSoon('Milestone journey'),
-        ),
-        _alertCard(
-          icon: Icons.calendar_today_outlined,
-          iconBg: AppColors.sage.withValues(alpha: 0.15),
-          iconColor: AppColors.sage,
-          title: 'Appointment Tomorrow',
-          subtitle: 'Specialist Consultation 1-1',
-          onTap: () { if (_canNav()) context.push('/consultation'); },
-        ),
+        if (alerts.isEmpty)
+          const TBEmptyState(
+              emoji: '🔔',
+              title: 'No active alerts',
+              subtitle: 'Milestones and upcoming appointments will show up here.')
+        else
+          ...alerts,
       ],
     );
+  }
+
+  String _appointmentDateLabel(String? scheduledDate) {
+    final date = scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
+    if (date == null) return 'Upcoming Appointment';
+    final today = DateTime.now();
+    final diff = DateTime(date.year, date.month, date.day)
+        .difference(DateTime(today.year, today.month, today.day))
+        .inDays;
+    if (diff == 0) return 'Appointment Today';
+    if (diff == 1) return 'Appointment Tomorrow';
+    if (diff < 0) return 'Past Appointment';
+    return 'Appointment on ${DateFormat('d MMM').format(date)}';
+  }
+
+  String _appointmentSubtitle(Map<String, dynamic> c) {
+    final type = (c['consultation_type'] as String? ?? 'specialist');
+    final typeLabel = '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
+    final time = c['scheduled_time'] as String?;
+    final providerName = _providerNames[c['specialist_id']];
+    if (time == null && providerName == null) return typeLabel;
+    final timeProvider = [time, providerName].whereType<String>().join(' - ');
+    return '$typeLabel\n$timeProvider';
   }
 
   Widget _alertCard({

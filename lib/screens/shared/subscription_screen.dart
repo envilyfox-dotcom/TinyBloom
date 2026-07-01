@@ -13,7 +13,7 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 // Plan metadata shared by the upgrade tiles and the Change Plan sheet.
-const _subscriptionPlans = {
+const subscriptionPlans = {
   'premium_monthly': {'label': 'Premium Monthly', 'price': '\$9.90/month'},
   'premium_yearly': {'label': 'Premium Annual', 'price': '\$90/year • Save 24%'},
 };
@@ -33,7 +33,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(plan == null
                 ? 'Subscription cancelled.'
-                : 'You\'re on the ${_subscriptionPlans[plan]!['label']} plan!')));
+                : 'You\'re on the ${subscriptionPlans[plan]!['label']} plan!')));
       }
     } catch (e) {
       if (mounted) {
@@ -45,8 +45,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<void> _confirmUpgrade(String plan) async {
-    final label = _subscriptionPlans[plan]!['label'];
-    final price = _subscriptionPlans[plan]!['price'];
+    final label = subscriptionPlans[plan]!['label'];
+    final price = subscriptionPlans[plan]!['price'];
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -95,7 +95,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     : 'Choose between monthly and yearly billing.',
                 style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
             const SizedBox(height: 16),
-            for (final entry in _subscriptionPlans.entries) ...[
+            for (final entry in subscriptionPlans.entries) ...[
               _planTile(entry.key, entry.value['label']!, entry.value['price']!,
                   isCurrent: entry.key == currentPlan,
                   onSelect: () {
@@ -172,7 +172,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         Text(
                             isPremium
                                 ? (currentPlan != null
-                                    ? 'You\'re on the ${_subscriptionPlans[currentPlan]?['label'] ?? 'Premium'} plan.'
+                                    ? 'You\'re on the ${subscriptionPlans[currentPlan]?['label'] ?? 'Premium'} plan.'
                                     : 'You have access to all premium features.')
                                 : 'Upgrade to unlock all features.',
                             style: const TextStyle(
@@ -188,7 +188,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Text('Upgrade to Premium',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
-              for (final entry in _subscriptionPlans.entries) ...[
+              for (final entry in subscriptionPlans.entries) ...[
                 _planTile(entry.key, entry.value['label']!, entry.value['price']!,
                     onSelect: _busy ? null : () => _confirmUpgrade(entry.key)),
                 const SizedBox(height: 10),
