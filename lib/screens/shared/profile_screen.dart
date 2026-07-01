@@ -50,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final email = _profile?['email'] ?? '';
     final role = _profile?['role'] ?? '';
     final userCode = _profile?['user_code'];
+    final photoUrl = _profile?['profile_picture_url'] as String?;
 
     return Scaffold(
       appBar: AppBar(title: const Text('My Profile')),
@@ -66,11 +67,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 36,
                     backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                      style: const TextStyle(
-                        color: AppColors.roseDeep,
-                        fontSize: 28, fontWeight: FontWeight.w700)),
+                    backgroundImage:
+                        photoUrl != null ? NetworkImage(photoUrl) : null,
+                    child: photoUrl != null
+                        ? null
+                        : Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                            style: const TextStyle(
+                                color: AppColors.roseDeep,
+                                fontSize: 28, fontWeight: FontWeight.w700)),
                   ),
                   const SizedBox(height: 12),
                   Text(name,

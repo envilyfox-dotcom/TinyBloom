@@ -95,6 +95,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   String get _firstName =>
       (_profile?['full_name'] as String? ?? 'there').split(' ').first;
 
+  String? get _photoUrl => _profile?['profile_picture_url'] as String?;
+
   int get _linkedMumWeek => (_linkedMum?['current_week'] as int?) ?? 0;
   String get _linkedMumName => (_linkedMum?['full_name'] as String?) ?? 'them';
 
@@ -177,14 +179,19 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           radius: 22,
                           backgroundColor:
                               AppColors.rose.withValues(alpha: 0.15),
-                          child: Text(
-                              _firstName.isNotEmpty
-                                  ? _firstName[0].toUpperCase()
-                                  : 'U',
-                              style: const TextStyle(
-                                  color: AppColors.roseDeep,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 18)),
+                          backgroundImage: _photoUrl != null
+                              ? NetworkImage(_photoUrl!)
+                              : null,
+                          child: _photoUrl != null
+                              ? null
+                              : Text(
+                                  _firstName.isNotEmpty
+                                      ? _firstName[0].toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(
+                                      color: AppColors.roseDeep,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 18)),
                         ),
                       ),
                     ],

@@ -131,7 +131,7 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
     final phone = _profile?['phone'] as String? ?? '';
     final specialization = _profile?['specialization'] as String? ?? '';
     final licenseNo = _profile?['license_no'] as String? ?? '';
-    final avatarUrl = _profile?['avatar_url'] as String?;
+    final avatarUrl = _profile?['profile_picture_url'] as String?;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF5F7),

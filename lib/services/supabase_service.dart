@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/app_theme.dart';
 
@@ -58,6 +59,41 @@ class SupabaseService {
     final user = currentUser;
     if (user == null) return;
     await client.from('profiles').update(data).eq('id', user.id);
+  }
+
+  // Profile picture — stored in the public 'avatars' bucket at
+  // <user_id>/avatar.<ext>, one file per user (upsert overwrites any
+  // previous picture, so there's nothing extra to clean up on re-upload).
+  static Future<String> uploadProfilePicture(Uint8List bytes, String fileExt) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+
+    final ext = fileExt.toLowerCase();
+    final path = '${user.id}/avatar.$ext';
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    await client.storage.from('avatars').uploadBinary(
+        path, bytes,
+        fileOptions: FileOptions(upsert: true, contentType: contentType));
+
+    // Cache-bust so the new photo shows immediately instead of a
+    // browser/CDN-cached copy of whatever used to be at this path.
+    final url =
+        '${client.storage.from('avatars').getPublicUrl(path)}?t=${DateTime.now().millisecondsSinceEpoch}';
+    await updateProfile({'profile_picture_url': url});
+    return url;
+  }
+
+  static Future<void> removeProfilePicture() async {
+    final user = currentUser;
+    if (user == null) return;
+    await updateProfile({'profile_picture_url': null});
+    try {
+      final files = await client.storage.from('avatars').list(path: user.id);
+      final paths = files.map((f) => '${user.id}/${f.name}').toList();
+      if (paths.isNotEmpty) await client.storage.from('avatars').remove(paths);
+    } catch (_) {
+      // Best-effort cleanup — profile_picture_url is already cleared either way.
+    }
   }
 
   // Subscription — there's no real payment gateway wired up, so "upgrading"

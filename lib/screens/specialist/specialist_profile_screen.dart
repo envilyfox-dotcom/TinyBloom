@@ -59,6 +59,7 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
 
     final fullName = _profile?['full_name'] as String? ?? 'Dr Specialist';
     final email = _profile?['email'] as String? ?? '';
+    final photoUrl = _profile?['profile_picture_url'] as String?;
     final specialization =
         _specialistProfile?['specialization'] as String? ?? 'Healthcare Specialist';
     final hospital =
@@ -105,14 +106,18 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    child: Text(
-                      fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                        color: AppColors.roseDeep,
-                        fontSize: 36,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    backgroundImage:
+                        photoUrl != null ? NetworkImage(photoUrl) : null,
+                    child: photoUrl != null
+                        ? null
+                        : Text(
+                            fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: AppColors.roseDeep,
+                              fontSize: 36,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 12),
                   Row(
