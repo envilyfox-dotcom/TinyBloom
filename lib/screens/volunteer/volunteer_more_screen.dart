@@ -176,7 +176,7 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
                     // ── Avatar ───────────────────────────────────
                     CircleAvatar(
                       radius: 52,
-                      backgroundColor: _pink.withOpacity(0.2),
+                      backgroundColor: _pink.withValues(alpha: 0.2),
                       backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
                           ? CachedNetworkImageProvider(avatarUrl)
                           : null,
@@ -323,7 +323,7 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-                color: _pink.withOpacity(0.08),
+                color: _pink.withValues(alpha: 0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -339,7 +339,7 @@ class _VolunteerMoreScreenState extends State<VolunteerMoreScreen> {
                     fontWeight: FontWeight.w500)),
             const Spacer(),
             Icon(Icons.chevron_right,
-                color: c.withOpacity(0.5), size: 20),
+                color: c.withValues(alpha: 0.5), size: 20),
           ],
         ),
       ),

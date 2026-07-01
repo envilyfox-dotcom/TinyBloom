@@ -177,8 +177,8 @@ class _RequestCard extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isResponded
-                        ? Colors.green.withOpacity(0.3)
-                        : Colors.orange.withOpacity(0.3),
+                        ? Colors.green.withValues(alpha: 0.3)
+                        : Colors.orange.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -329,7 +329,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide:
-                            BorderSide(color: Colors.white.withOpacity(0.3)),
+                            BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -338,10 +338,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       disabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide:
-                            BorderSide(color: Colors.white.withOpacity(0.2)),
+                            BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                       ),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
                 ],

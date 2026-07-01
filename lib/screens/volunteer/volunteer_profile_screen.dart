@@ -75,7 +75,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                   // Avatar
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: _pink.withOpacity(0.2),
+                    backgroundColor: _pink.withValues(alpha: 0.2),
                     backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
                         ? CachedNetworkImageProvider(avatarUrl)
                         : null,

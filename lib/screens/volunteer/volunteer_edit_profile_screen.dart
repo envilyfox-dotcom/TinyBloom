@@ -140,7 +140,7 @@ class _VolunteerEditProfileScreenState
                 children: [
                   CircleAvatar(
                     radius: 52,
-                    backgroundColor: _pink.withOpacity(0.2),
+                    backgroundColor: _pink.withValues(alpha: 0.2),
                     backgroundImage: _pickedImage != null
                         ? FileImage(_pickedImage!) as ImageProvider
                         : (existingAvatar != null && existingAvatar.isNotEmpty
