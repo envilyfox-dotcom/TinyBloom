@@ -14,6 +14,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _linkedMum;
   bool _loading = true;
 
   @override
@@ -21,7 +22,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _load() async {
     final p = await SupabaseService.getProfile();
-    if (mounted) setState(() { _profile = p; _loading = false; });
+    Map<String, dynamic>? linkedMum;
+    if (p?['role'] == 'next_of_kin') {
+      try { linkedMum = await SupabaseService.getLinkedMum(); } catch (_) {}
+    }
+    if (mounted) {
+      setState(() { _profile = p; _linkedMum = linkedMum; _loading = false; });
+    }
   }
 
   String _roleLabel(String? role) {
@@ -85,6 +92,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+
+            // Connected mum (next-of-kin accounts)
+            if (role == 'next_of_kin')
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TBCard(
+                  color: AppColors.blush,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _linkedMum != null ? Icons.favorite : Icons.link_off,
+                        color: AppColors.roseDeep, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('CONNECTED TO',
+                              style: TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.w700,
+                                color: AppColors.roseDeep, letterSpacing: 1)),
+                            const SizedBox(height: 4),
+                            Text(
+                              _linkedMum != null
+                                  ? (_linkedMum!['full_name'] as String? ?? 'Unnamed')
+                                  : 'Not linked to a pregnant user yet',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // User ID (mum accounts)
             if (userCode != null && (role == 'free_user' || role == 'premium_user'))

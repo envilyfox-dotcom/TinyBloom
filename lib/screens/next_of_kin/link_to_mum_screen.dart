@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
 // ── Link to Pregnant User (Next of Kin) ──────────────────────────────
 // Lets a next-of-kin account send a link request to a mum by email.
-// Backend linking (a request table + mum-side approval) isn't built yet,
-// so this only validates input and shows placeholder state for now.
+// Sending a request isn't wired up yet (no request/approval table), but the
+// "Currently Linked" section reads the real link from next_of_kin_profiles.
 class LinkToMumScreen extends StatefulWidget {
   const LinkToMumScreen({super.key});
   @override
@@ -16,14 +17,19 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   bool _sending = false;
+  bool _loadingLinked = true;
+  Map<String, dynamic>? _linkedMum;
 
-  // Placeholder until the mum <-> next-of-kin link table exists — swap for
-  // a real fetch of the linked mum's profile once that's built.
-  static const _linkedMum = {
-    'name': 'Sarah K',
-    'week': 24,
-    'email': 'sarahk@gmail.com',
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadLinkedMum();
+  }
+
+  Future<void> _loadLinkedMum() async {
+    final mum = await SupabaseService.getLinkedMum();
+    if (mounted) setState(() { _linkedMum = mum; _loadingLinked = false; });
+  }
 
   @override
   void dispose() {
@@ -97,45 +103,66 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
             const Text('Currently Linked',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             const SizedBox(height: 12),
-            TBCard(
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    child: Text(
-                        (_linkedMum['name'] as String)
-                            .split(' ')
-                            .map((w) => w.isNotEmpty ? w[0] : '')
-                            .take(2)
-                            .join()
-                            .toUpperCase(),
-                        style: const TextStyle(
-                            color: AppColors.roseDeep,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_linkedMum['name'] as String,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 14)),
-                        const SizedBox(height: 2),
-                        Text(
-                            'Week ${_linkedMum['week']} · ${_linkedMum['email']}',
-                            style: const TextStyle(
-                                color: AppColors.textLight, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            if (_loadingLinked)
+              const TBLoading()
+            else if (_linkedMum == null)
+              const TBEmptyState(
+                  emoji: '🔗',
+                  title: 'Not linked yet',
+                  subtitle: 'Send a link request above to connect to a pregnant user.')
+            else
+              _buildLinkedMumCard(_linkedMum!),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLinkedMumCard(Map<String, dynamic> mum) {
+    final name = mum['full_name'] as String? ?? 'Unnamed';
+    final week = mum['current_week'] as int?;
+    final email = mum['email'] as String? ?? '';
+    final initials = name
+        .split(' ')
+        .map((w) => w.isNotEmpty ? w[0] : '')
+        .take(2)
+        .join()
+        .toUpperCase();
+    final subtitle = [
+      if (week != null) 'Week $week',
+      if (email.isNotEmpty) email,
+    ].join(' · ');
+
+    return TBCard(
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+            child: Text(initials,
+                style: const TextStyle(
+                    color: AppColors.roseDeep,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14)),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: AppColors.textLight, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

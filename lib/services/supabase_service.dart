@@ -322,6 +322,55 @@ class SupabaseService {
     return null;
   }
 
+  // Next of kin — the mum this next-of-kin account is linked to, via the
+  // next_of_kin_profiles table (user_id -> linked_pregnant_user_id).
+  static Future<Map<String, dynamic>?> getLinkedMum() async {
+    final user = currentUser;
+    if (user == null) return null;
+    try {
+      final link = await client
+          .from('next_of_kin_profiles')
+          .select('relationship, mum:linked_pregnant_user_id(id, full_name, email)')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      final mum = link?['mum'] as Map<String, dynamic>?;
+      if (mum == null) return null;
+
+      // Best-effort: the linked mum's own pregnancy_profiles row may not be
+      // readable depending on RLS, so a missing week just means we show none.
+      int? week;
+      try {
+        final pp = await client
+            .from('pregnancy_profiles')
+            .select('due_date, current_week')
+            .eq('user_id', mum['id'])
+            .maybeSingle()
+            .timeout(const Duration(seconds: 6));
+        final dueDateStr = pp?['due_date'] as String?;
+        if (dueDateStr != null) {
+          final due = DateTime.tryParse(dueDateStr);
+          if (due != null) {
+            final conception = due.subtract(const Duration(days: 280));
+            week = (DateTime.now().difference(conception).inDays ~/ 7)
+                .clamp(1, 42);
+          }
+        }
+        week ??= (pp?['current_week'] as num?)?.toInt();
+      } catch (_) {}
+
+      return {
+        'id': mum['id'],
+        'full_name': mum['full_name'],
+        'email': mum['email'],
+        'relationship': link?['relationship'],
+        'current_week': week,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Specialists & volunteers
   static Future<List<Map<String, dynamic>>> getSpecialists() async {
     final res = await client
