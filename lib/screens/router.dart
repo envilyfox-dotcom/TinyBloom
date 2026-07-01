@@ -36,6 +36,7 @@ import 'specialist/specialist_dashboard_screen.dart';
 import 'specialist/specialist_profile_screen.dart';
 import 'specialist/specialist_edit_profile_screen.dart';
 import 'specialist/change_password_screen.dart';
+import 'mum/consultation/specialist_consultation_detail_screen.dart';
 
 import 'mum/forum/post_detail_screen.dart';
 import 'shared/notifications_screen.dart';
@@ -199,8 +200,15 @@ final router = GoRouter(
         }),
     GoRoute(
         path: '/consultation/detail',
-        builder: (context, state) => ConsultationDetailScreen(
-            consultation: state.extra as Map<String, dynamic>)),
+        builder: (context, state) {
+          final auth = context.read<AuthProvider>();
+          final consultation = state.extra as Map<String, dynamic>;
+          if (auth.isSpecialist) {
+            return SpecialistConsultationDetailScreen(
+                consultation: consultation);
+          }
+          return ConsultationDetailScreen(consultation: consultation);
+        }),
     GoRoute(path: '/subscription', builder: (_, __) => const SubscriptionScreen()),
     GoRoute(
         path: '/education/:id',
