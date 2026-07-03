@@ -66,9 +66,9 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
         _specialistProfile?['hospital_affiliation'] as String? ?? 'Medical Institution';
     final bio = _specialistProfile?['bio'] as String? ?? '';
     final yearsExperience = _specialistProfile?['years_experience'] as int? ?? 0;
-    final videoCallFee = _specialistProfile?['video_call_fee'] as num? ?? 0;
-    final inPersonFee = _specialistProfile?['in_person_fee'] as num? ?? 0;
-    final availableHours = _specialistProfile?['available_hours'] as String? ?? '';
+    final videoCallFee = _numValue(_specialistProfile?['video_call_fee']) ?? 0;
+    final inPersonFee = _numValue(_specialistProfile?['in_person_fee']) ?? 0;
+    final availableHours = _availableHoursText(_specialistProfile);
     final articlesPublished =
         (_specialistProfile?['articles_published'] as num?)?.toInt() ?? 0;
     final articlesReviewed =
@@ -305,11 +305,15 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      availableHours.isNotEmpty
-                          ? availableHours
-                          : 'Monday - Friday\n9:00 AM to 5:00 PM',
-                      style: const TextStyle(fontSize: 12),
+                    Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        availableHours.isNotEmpty
+                            ? availableHours
+                            : 'Monday - Friday\n9:00 AM to 5:00 PM',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -385,6 +389,21 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
         ),
       ],
     );
+  }
+
+  num? _numValue(dynamic value) {
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value.trim());
+    return null;
+  }
+
+  String _availableHoursText(Map<String, dynamic>? profile) {
+    final value = profile?['available_hours'] ?? profile?['available_today'];
+    if (value is String) return value;
+    if (value is List) {
+      return value.map((e) => e.toString()).join(', ');
+    }
+    return '';
   }
 
   void _showMoreOptions() {

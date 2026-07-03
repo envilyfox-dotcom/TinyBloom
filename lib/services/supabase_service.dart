@@ -624,33 +624,41 @@ class SupabaseService {
   }
 
   // Update specialist profile
-  static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
-    final user = currentUser;
-    if (user == null) return;
+static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
+  final user = currentUser;
+  if (user == null) return;
 
-    // Check if a row already exists
-    final existing = await client
+  final existing = await client
+      .from('specialist_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+  if (existing != null) {
+    // .select() so we can tell a silent RLS-blocked update (0 rows
+    // affected, no error thrown) apart from a real success.
+    final res = await client
         .from('specialist_profiles')
-        .select('*')
+        .update(data)
         .eq('user_id', user.id)
-        .maybeSingle();
-
-    if (existing != null) {
-      // Row exists — just update the fields we care about
-      await client
-          .from('specialist_profiles')
-          .update(data)
-          .eq('user_id', user.id);
-    } else {
-      // No row yet — insert with required fields defaulted
-      await client.from('specialist_profiles').insert({
-        'user_id': user.id,
-        'specialization': '', // satisfies NOT NULL
-        'is_verified': false,
-        ...data,
-      });
+        .select();
+    if (res.isEmpty) {
+      throw Exception(
+          'Could not update your profile — you may not have permission to.');
+    }
+  } else {
+    final res = await client.from('specialist_profiles').insert({
+      'user_id': user.id,
+      'specialization': '', // satisfies NOT NULL
+      'is_verified': false,
+      ...data,
+    }).select();
+    if (res.isEmpty) {
+      throw Exception(
+          'Could not create your profile — you may not have permission to.');
     }
   }
+}
 
   // Site settings
   static Future<Map<String, String>> getSiteSettings() async {

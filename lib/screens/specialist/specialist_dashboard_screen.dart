@@ -6,6 +6,7 @@ import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../mum/consultation/consultation_helpers.dart';
 
 class SpecialistDashboardScreen extends StatefulWidget {
   const SpecialistDashboardScreen({super.key});
@@ -150,6 +151,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     final scheduledDate = consultation['scheduled_date'] as String?;
     final scheduledTime = consultation['scheduled_time'] as String?;
     final purpose = consultation['purpose'] as String? ?? 'Consultation';
+    final status = (consultation['status'] as String?) ?? 'pending';
 
     String formattedTime = '';
     if (scheduledTime != null) {
@@ -183,6 +185,20 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                       Text(purpose,
                           style: const TextStyle(
                               color: AppColors.textMid, fontSize: 12)),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor(status).withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(statusLabel(status),
+                            style: TextStyle(
+                                color: statusColor(status),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700)),
+                      ),
                     ],
                   ),
                 ),

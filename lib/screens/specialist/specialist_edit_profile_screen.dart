@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../mum/consultation/consultation_helpers.dart';
 
 class SpecialistEditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? specialistProfile;
@@ -25,11 +25,40 @@ class _SpecialistEditProfileScreenState
   late TextEditingController _videoCallFeeCtrl;
   late TextEditingController _inPersonFeeCtrl;
 
-  // Calendar state — keys are date-only DateTimes (midnight local)
-  Set<DateTime> _selectedDates = {};
+  final Set<String> _selectedDays = {};
+  final Set<String> _selectedTimes = {};
+  String? _dayError;
+  String? _timeError;
 
-  // Calendar focus day (for the widget's internal state)
-  DateTime _focusedDay = DateTime.now();
+  static const List<String> _weekDays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  static const Map<String, String> _weekDayAliases = {
+    'mon': 'Monday',
+    'monday': 'Monday',
+    'tue': 'Tuesday',
+    'tues': 'Tuesday',
+    'tuesday': 'Tuesday',
+    'wed': 'Wednesday',
+    'weds': 'Wednesday',
+    'wednesday': 'Wednesday',
+    'thu': 'Thursday',
+    'thurs': 'Thursday',
+    'thursday': 'Thursday',
+    'fri': 'Friday',
+    'friday': 'Friday',
+    'sat': 'Saturday',
+    'saturday': 'Saturday',
+    'sun': 'Sunday',
+    'sunday': 'Sunday',
+  };
 
   bool _saving = false;
   bool _loading = true;
@@ -48,11 +77,79 @@ class _SpecialistEditProfileScreenState
     _inPersonFeeCtrl = TextEditingController();
   }
 
-  /// Normalise a DateTime to midnight-local so Set equality works reliably.
-  DateTime _normalise(DateTime d) => DateTime(d.year, d.month, d.day);
+  String _stringValue(dynamic value, {String fallback = ''}) {
+    if (value == null) return fallback;
+    if (value is num) return value.toString();
+    final text = value.toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
 
-  bool _isSelected(DateTime day) =>
-      _selectedDates.contains(_normalise(day));
+  String _parseWeekDay(String text) {
+    final clean = text.trim().toLowerCase();
+    if (_weekDayAliases.containsKey(clean)) return _weekDayAliases[clean]!;
+    return '';
+  }
+
+  String _formatSelectedDays() {
+    if (_selectedDays.isEmpty) return '';
+
+    final selectedIndexes = _weekDays
+        .asMap()
+        .entries
+        .where((entry) => _selectedDays.contains(entry.value))
+        .map((entry) => entry.key)
+        .toList();
+
+    if (selectedIndexes.length == 1) {
+      return _weekDays[selectedIndexes.first];
+    }
+
+    final parts = <String>[];
+    int rangeStart = selectedIndexes.first;
+    int rangeEnd = rangeStart;
+
+    void addRange() {
+      if (rangeStart == rangeEnd) {
+        parts.add(_weekDays[rangeStart]);
+      } else {
+        parts.add('${_weekDays[rangeStart]} - ${_weekDays[rangeEnd]}');
+      }
+    }
+
+    for (var i = 1; i < selectedIndexes.length; i++) {
+      final current = selectedIndexes[i];
+      if (current == rangeEnd + 1) {
+        rangeEnd = current;
+      } else {
+        addRange();
+        rangeStart = rangeEnd = current;
+      }
+    }
+
+    addRange();
+    return parts.join(', ');
+  }
+
+  String _formatSelectedTimes() {
+    if (_selectedTimes.isEmpty) return '';
+    final ordered = defaultConsultationTimes
+        .where(_selectedTimes.contains)
+        .toList();
+    if (ordered.isEmpty) {
+      final fallback = _selectedTimes.toList()..sort();
+      return fallback.length == 1 ? fallback.first : fallback.join(', ');
+    }
+    return ordered.length == 1 ? ordered.first : ordered.join(', ');
+  }
+
+  String _availableHoursSummary() {
+    final days = _formatSelectedDays();
+    final times = _formatSelectedTimes();
+    if (days.isEmpty && times.isEmpty) return '';
+    if (days.isEmpty) return times;
+    if (times.isEmpty) return days;
+    return '$days\n$times';
+  }
 
   Future<void> _loadProfile() async {
     try {
@@ -63,26 +160,45 @@ class _SpecialistEditProfileScreenState
       }
 
       final specialist = widget.specialistProfile ?? {};
-      _videoCallFeeCtrl.text =
-          (specialist['video_call_fee'] ?? '0').toString();
-      _inPersonFeeCtrl.text =
-          (specialist['in_person_fee'] ?? '0').toString();
+      _videoCallFeeCtrl.text = _stringValue(
+          specialist['video_call_fee'],
+          fallback: '0');
+      _inPersonFeeCtrl.text = _stringValue(
+          specialist['in_person_fee'],
+          fallback: '0');
 
-      // Parse stored available_today string back into selected dates.
-      // Format produced by _saveChanges: "2025-07-01, 2025-07-03, …"
-      // We also gracefully ignore the old "Mon, Tue, …" format.
-      final stored =
-          (specialist['available_today'] as String? ?? '').trim();
-      if (stored.isNotEmpty) {
-        final Set<DateTime> parsed = {};
-        for (final part in stored.split(',')) {
-          final trimmed = part.trim();
-          // Try ISO date first
-          final dt = DateTime.tryParse(trimmed);
-          if (dt != null) parsed.add(_normalise(dt));
+      final availableToday = specialist['available_today'];
+      if (availableToday != null) {
+        final selectedTimes = availableTimesOnly(availableToday);
+        if (selectedTimes.isNotEmpty) {
+          setState(() => _selectedTimes.addAll(selectedTimes));
         }
-        if (parsed.isNotEmpty) {
-          setState(() => _selectedDates = parsed);
+      }
+
+      final availableHours = specialist['available_hours'];
+      if (availableHours is String && availableHours.trim().isNotEmpty) {
+        final lines = availableHours
+            .split('\n')
+            .map((line) => line.trim())
+            .where((line) => line.isNotEmpty)
+            .toList();
+        if (lines.isNotEmpty) {
+          final dayLine = lines.first;
+          final days = dayLine
+              .split(RegExp(r'[,-]'))
+              .map((part) => _parseWeekDay(part))
+              .where((day) => day.isNotEmpty)
+              .toSet();
+          if (days.isNotEmpty) {
+            setState(() => _selectedDays.addAll(days));
+          }
+        }
+        if (lines.length > 1) {
+          final timeLine = lines.sublist(1).join(', ');
+          final parsedTimes = availableTimesOnly(timeLine);
+          if (parsedTimes.isNotEmpty) {
+            setState(() => _selectedTimes.addAll(parsedTimes));
+          }
         }
       }
     } catch (e) {
@@ -106,7 +222,14 @@ class _SpecialistEditProfileScreenState
   }
 
   Future<void> _saveChanges() async {
-    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _dayError = _selectedDays.isEmpty ? 'Please select at least one day.' : null;
+      _timeError = _selectedTimes.isEmpty ? 'Please select at least one time.' : null;
+    });
+
+    if (!_formKey.currentState!.validate() || _dayError != null || _timeError != null) {
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -117,17 +240,11 @@ class _SpecialistEditProfileScreenState
         'email': _emailCtrl.text.trim(),
       });
 
-      // Serialise selected dates as ISO strings so they can be parsed back.
-      final sortedDates = _selectedDates.toList()..sort();
-      final availableHoursStr = sortedDates
-          .map((d) =>
-              '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}')
-          .join(', ');
-
       await SupabaseService.updateSpecialistProfile({
         'video_call_fee': double.parse(_videoCallFeeCtrl.text),
         'in_person_fee': double.parse(_inPersonFeeCtrl.text),
-        'available_today': availableHoursStr,
+        'available_today': _selectedTimes.toList(),
+        'available_hours': _availableHoursSummary(),
       });
 
       if (mounted) {
@@ -238,82 +355,138 @@ class _SpecialistEditProfileScreenState
               ),
               const SizedBox(height: 24),
 
-              // ── Available Days Calendar ───────────────────────────
+              // ── Available Days ─────────────────────────────────
               _label('Available Days for Consultation'),
               const SizedBox(height: 4),
               const Text(
-                'Tap dates to mark yourself available. Tap again to deselect.',
+                'Select the days you are available for consultation.',
                 style: TextStyle(color: AppColors.textMid, fontSize: 12),
               ),
               const SizedBox(height: 12),
 
               TBCard(
-                child: TableCalendar(
-                  firstDay: DateTime.now(),
-                  lastDay:
-                      DateTime.now().add(const Duration(days: 365)),
-                  focusedDay: _focusedDay,
-                  calendarFormat: CalendarFormat.month,
-                  availableCalendarFormats: const {
-                    CalendarFormat.month: 'Month',
-                  },
-                  selectedDayPredicate: _isSelected,
-                  onDaySelected: (selectedDay, focusedDay) {
-                    setState(() {
-                      _focusedDay = focusedDay;
-                      final key = _normalise(selectedDay);
-                      if (_selectedDates.contains(key)) {
-                        _selectedDates.remove(key);
-                      } else {
-                        _selectedDates.add(key);
-                      }
-                    });
-                  },
-                  onPageChanged: (focusedDay) {
-                    setState(() => _focusedDay = focusedDay);
-                  },
-                  calendarStyle: CalendarStyle(
-                    selectedDecoration: const BoxDecoration(
-                      color: AppColors.teal,
-                      shape: BoxShape.circle,
-                    ),
-                    todayDecoration: BoxDecoration(
-                      color: AppColors.rose.withValues(alpha: 0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    outsideDaysVisible: false,
-                  ),
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false,
-                    titleCentered: true,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _weekDays.map((day) {
+                      final selected = _selectedDays.contains(day);
+                      return ChoiceChip(
+                        label: Text(day),
+                        selected: selected,
+                        onSelected: (value) {
+                          setState(() {
+                            if (value) {
+                              _selectedDays.add(day);
+                            } else {
+                              _selectedDays.remove(day);
+                            }
+                            _dayError = _selectedDays.isEmpty
+                                ? 'Please select at least one day.'
+                                : null;
+                          });
+                        },
+                        selectedColor: AppColors.teal.withValues(alpha: 0.18),
+                        backgroundColor: AppColors.blush,
+                        labelStyle: TextStyle(
+                          color: selected ? AppColors.teal : AppColors.textDark,
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ),
 
-              // Selected dates summary
-              if (_selectedDates.isNotEmpty) ...[
+              if (_selectedDays.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Builder(builder: (context) {
-                    final sorted = _selectedDates.toList()..sort();
-                    final labels = sorted.map((d) =>
-                        '${d.day}/${d.month}/${d.year}');
-                    return Text(
-                      '${_selectedDates.length} day${_selectedDates.length == 1 ? '' : 's'} selected: ${labels.join(', ')}',
-                      style: const TextStyle(
-                          color: AppColors.teal, fontSize: 12),
-                    );
-                  }),
+                  child: Text(
+                    'Selected: ${_formatSelectedDays()}',
+                    style:
+                        const TextStyle(color: AppColors.teal, fontSize: 12),
+                  ),
                 ),
               ] else ...[
                 const SizedBox(height: 8),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
-                    'No dates selected yet.',
+                    _dayError ?? 'No days selected yet.',
+                    style: TextStyle(
+                      color: _dayError != null ? Colors.red : AppColors.textMid,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              // ── Available Time Slots ───────────────────────────
+              _label('Available Time Slots for Consultation'),
+              const SizedBox(height: 4),
+              const Text(
+                'Select the times you are available for consultation.',
+                style: TextStyle(color: AppColors.textMid, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+
+              TBCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: defaultConsultationTimes.map((slot) {
+                      final selected = _selectedTimes.contains(slot);
+                      return ChoiceChip(
+                        label: Text(slot),
+                        selected: selected,
+                        onSelected: (value) {
+                          setState(() {
+                            if (value) {
+                              _selectedTimes.add(slot);
+                            } else {
+                              _selectedTimes.remove(slot);
+                            }
+                            _timeError = _selectedTimes.isEmpty
+                                ? 'Please select at least one time.'
+                                : null;
+                          });
+                        },
+                        selectedColor: AppColors.teal.withValues(alpha: 0.18),
+                        backgroundColor: AppColors.blush,
+                        labelStyle: TextStyle(
+                          color: selected ? AppColors.teal : AppColors.textDark,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+
+              if (_selectedTimes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'Selected: ${_formatSelectedTimes()}',
                     style:
-                        TextStyle(color: AppColors.textMid, fontSize: 12),
+                        const TextStyle(color: AppColors.teal, fontSize: 12),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    _timeError ?? 'No time slots selected yet.',
+                    style: TextStyle(
+                      color: _timeError != null ? Colors.red : AppColors.textMid,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
