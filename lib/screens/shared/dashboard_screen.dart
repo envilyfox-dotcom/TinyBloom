@@ -7,6 +7,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -32,6 +33,954 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     _lastNavTime = now;
     return true;
+  }
+
+
+  String _normaliseNotificationType(dynamic rawType) {
+    final type = (rawType ?? 'general').toString().trim().toLowerCase();
+    final clean = type.replaceAll(RegExp(r'[\s_-]+'), '');
+
+    if ([
+      'appointment',
+      'appointments',
+      'consultation',
+      'consultations',
+      'booking',
+      'bookings',
+    ].contains(clean)) {
+      return 'consultation';
+    }
+
+    if ([
+      'emergency',
+      'emergencies',
+      'emergencys',
+      'urgent',
+      'alert',
+      'activealert',
+      'emergencyalert',
+    ].contains(clean)) {
+      return 'emergency';
+    }
+
+    if ([
+      'reminder',
+      'reminders',
+      'dailyreminder',
+      'healthreminder',
+      'waterreminder',
+      'hydration',
+    ].contains(clean)) {
+      return 'reminder';
+    }
+
+    if ([
+      'milestone',
+      'milestones',
+      'pregnancymilestone',
+      'babydevelopment',
+      'development',
+    ].contains(clean)) {
+      return 'milestone';
+    }
+
+    if ([
+      'education',
+      'educational',
+      'article',
+      'articles',
+      'learn',
+      'learning',
+      'resource',
+      'resources',
+      'faq',
+      'faqs',
+    ].contains(clean)) {
+      return 'education';
+    }
+
+    if ([
+      'ai',
+      'aitip',
+      'aiadvice',
+      'airecommendation',
+      'airecommendations',
+    ].contains(clean)) {
+      return 'ai';
+    }
+
+    return type.isEmpty ? 'general' : type;
+  }
+
+  DateTime _notificationCreatedAt(Map<String, dynamic> item) {
+    return DateTime.tryParse(item['created_at']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  bool _isPremiumProfile(Map<String, dynamic>? profile) {
+    final plan = profile?['subscription_plan']?.toString().toLowerCase();
+    final role = profile?['role']?.toString().toLowerCase();
+
+    return plan == 'premium' ||
+        plan == 'premium_user' ||
+        role == 'premium_user' ||
+        role == 'admin';
+  }
+
+  String _notificationReadReceiptKey(String sourceTable, String sourceId) {
+    return '$sourceTable::$sourceId';
+  }
+
+  Future<Set<String>> _loadNotificationReadReceiptKeys(String userId) async {
+    try {
+      final data = await SupabaseService.client
+          .from('notification_read_receipts')
+          .select('source_table,source_id')
+          .eq('user_id', userId);
+
+      return List<Map<String, dynamic>>.from(data).map((item) {
+        return _notificationReadReceiptKey(
+          item['source_table']?.toString() ?? '',
+          item['source_id']?.toString() ?? '',
+        );
+      }).where((key) => !key.endsWith('::')).toSet();
+    } catch (e) {
+      debugPrint('Failed to load dashboard read receipts: $e');
+      return <String>{};
+    }
+  }
+
+  Future<void> _saveNotificationReadReceipt(
+    Map<String, dynamic> item,
+  ) async {
+    final userId = SupabaseService.currentUser?.id;
+    final sourceId = item['id']?.toString();
+    final sourceTable = item['source_table']?.toString() ?? 'notifications';
+
+    if (userId == null || sourceId == null || sourceId.isEmpty) return;
+
+    try {
+      await SupabaseService.client.from('notification_read_receipts').upsert(
+        {
+          'user_id': userId,
+          'source_table': sourceTable,
+          'source_id': sourceId,
+          'read_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'user_id,source_table,source_id',
+      );
+    } catch (e) {
+      debugPrint('Failed to save dashboard read receipt: $e');
+    }
+  }
+
+
+
+  Future<bool> _openWebsite(dynamic rawUrl) async {
+    final value = rawUrl?.toString().trim();
+    if (value == null || value.isEmpty) return false;
+
+    final fixedUrl = value.startsWith('http://') || value.startsWith('https://')
+        ? value
+        : 'https://$value';
+    final uri = Uri.tryParse(fixedUrl);
+    if (uri == null) return false;
+
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('Failed to open website: $e');
+      return false;
+    }
+  }
+
+  int _pregnancyWeekFromProfile(Map<String, dynamic>? pregnancyProfile) {
+    if (pregnancyProfile == null) return 0;
+
+    final dueDateStr = pregnancyProfile['due_date']?.toString();
+    if (dueDateStr != null && dueDateStr.isNotEmpty) {
+      final dueDate = DateTime.tryParse(dueDateStr);
+      if (dueDate != null) {
+        final pregnancyStart = dueDate.subtract(const Duration(days: 280));
+        final week = DateTime.now().difference(pregnancyStart).inDays ~/ 7;
+        return week.clamp(1, 42);
+      }
+    }
+
+    final storedWeek = pregnancyProfile['current_week'] ??
+        pregnancyProfile['pregnancy_week'];
+    if (storedWeek is num) return storedWeek.toInt().clamp(1, 42);
+    if (storedWeek != null) {
+      final parsed = int.tryParse(storedWeek.toString());
+      if (parsed != null) return parsed.clamp(1, 42);
+    }
+
+    return 0;
+  }
+
+  Map<String, dynamic> _dashboardMilestoneNotification(
+      Map<String, dynamic>? pregnancyProfile) {
+    final week = _pregnancyWeekFromProfile(pregnancyProfile);
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    if (week <= 0) {
+      return {
+        'id': 'dashboard-milestone-set-due-date-$today',
+        'user_id': SupabaseService.currentUser?.id,
+        'title': 'Set your due date',
+        'message':
+            'Add your due date or pregnancy week to see weekly baby milestones.',
+        'type': 'milestone',
+        'is_read': true,
+        'created_at': DateTime.now().toIso8601String(),
+        'source_table': 'generated_milestone',
+      };
+    }
+
+    final data = pregnancyWeekData[week];
+    final size = data?['size']?.toString() ?? 'growing beautifully';
+    final emoji = data?['emoji']?.toString() ?? '🌸';
+    final weight = data?['weight']?.toString();
+
+    return {
+      'id': 'dashboard-milestone-week-$week-$today',
+      'user_id': SupabaseService.currentUser?.id,
+      'title': 'Week $week Pregnancy Milestone',
+      'message': weight == null || weight.isEmpty
+          ? 'Your baby is about the size of $size $emoji this week.'
+          : 'Your baby is about the size of $size $emoji and weighs around $weight this week.',
+      'type': 'milestone',
+      'is_read': true,
+      'created_at': DateTime.now().toIso8601String(),
+      'source_table': 'generated_milestone',
+    };
+  }
+
+  List<Map<String, dynamic>> _dashboardEmergencyNotifications() {
+    final now = DateTime.now().toIso8601String();
+    return [
+      {
+        'id': 'dashboard-emergency-support-fallback',
+        'user_id': SupabaseService.currentUser?.id,
+        'title': 'Emergency Support',
+        'message':
+            'If you have severe pain, heavy bleeding, breathing difficulty, fainting, or reduced baby movement, seek urgent medical help immediately.',
+        'type': 'emergency',
+        'is_read': true,
+        'created_at': now,
+        'source_table': 'generated_emergency',
+      },
+    ];
+  }
+
+
+
+  List<String> _stringListFromArray(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    final text = raw.toString().trim();
+    if (text.isEmpty) return [];
+
+    return text
+        .replaceAll('{', '')
+        .replaceAll('}', '')
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  int? _intFromValue(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  String _healthLogCreatedAt(Map<String, dynamic> item) {
+    return (item['logged_at'] ?? item['created_at'] ?? DateTime.now().toIso8601String())
+        .toString();
+  }
+
+  String _cleanHealthText(List<String> symptoms, String notes) {
+    final parts = <String>[];
+    if (symptoms.isNotEmpty) parts.add(symptoms.join(', '));
+    if (notes.trim().isNotEmpty) parts.add(notes.trim());
+    return parts.join(' ').toLowerCase();
+  }
+
+  List<String> _dangerSymptomMatches(String combinedText) {
+    final checks = <String, String>{
+      'heavy bleeding': 'Heavy bleeding reported',
+      'bleeding': 'Bleeding reported',
+      'severe headache': 'Severe headache reported',
+      'blurred vision': 'Blurred vision reported',
+      'vision changes': 'Vision changes reported',
+      'chest pain': 'Chest pain reported',
+      'shortness of breath': 'Shortness of breath reported',
+      'breathless': 'Breathlessness reported',
+      'severe abdominal pain': 'Severe abdominal pain reported',
+      'fainting': 'Fainting reported',
+      'seizure': 'Seizure reported',
+      'fever': 'Fever reported',
+      'reduced movement': 'Reduced baby movement reported',
+      'less movement': 'Reduced baby movement reported',
+      'no movement': 'No baby movement reported',
+      'swelling': 'Sudden swelling reported',
+      'contractions': 'Contractions reported',
+      'water broke': 'Possible water breaking reported',
+      'fluid leakage': 'Fluid leakage reported',
+    };
+
+    final matches = <String>[];
+    for (final entry in checks.entries) {
+      if (combinedText.contains(entry.key) && !matches.contains(entry.value)) {
+        matches.add(entry.value);
+      }
+    }
+    return matches;
+  }
+
+  List<Map<String, dynamic>> _dashboardEmergencyRowsFromHealthLog(
+      Map<String, dynamic> item) {
+    final systolic = _intFromValue(item['blood_pressure_systolic']);
+    final diastolic = _intFromValue(item['blood_pressure_diastolic']);
+    final kickCount = _intFromValue(item['kick_count']);
+    final symptoms = _stringListFromArray(item['symptoms']);
+    final notes = (item['notes'] ?? '').toString();
+    final createdAt = _healthLogCreatedAt(item);
+    final issues = <String>[];
+    var severity = 'Monitor';
+    var title = 'Health Log Alert';
+
+    if (systolic != null && diastolic != null) {
+      if (systolic >= 160 || diastolic >= 110) {
+        title = 'Critical Blood Pressure Alert';
+        severity = 'Critical';
+        issues.add('Blood pressure is very high: $systolic/$diastolic mmHg');
+      } else if (systolic >= 140 || diastolic >= 90) {
+        title = 'High Blood Pressure Alert';
+        severity = 'Urgent';
+        issues.add('Blood pressure is high: $systolic/$diastolic mmHg');
+      } else if (systolic < 90 || diastolic < 60) {
+        title = 'Low Blood Pressure Alert';
+        severity = 'Monitor';
+        issues.add('Blood pressure is low: $systolic/$diastolic mmHg');
+      }
+    }
+
+    if (kickCount != null && kickCount <= 0) {
+      severity = severity == 'Critical' ? severity : 'Urgent';
+      title = 'Baby Movement Alert';
+      issues.add('Baby movement count was logged as $kickCount');
+    }
+
+    final symptomMatches = _dangerSymptomMatches(
+      _cleanHealthText(symptoms, notes),
+    );
+    if (symptomMatches.isNotEmpty) {
+      if (severity != 'Critical') severity = 'Urgent';
+      title = title == 'Health Log Alert' ? 'Symptom Alert' : title;
+      issues.addAll(symptomMatches);
+    }
+
+    if (issues.isEmpty) return [];
+
+    return [
+      {
+        'id': 'health-log-emergency-${item['id']}',
+        'user_id': item['user_id'] ?? SupabaseService.currentUser?.id,
+        'title': title,
+        'message': issues.first,
+        'type': 'emergency',
+        'is_read': false,
+        'created_at': createdAt,
+        'source_table': 'health_logs',
+        'severity': severity,
+        'condition': 'Abnormal health log detected',
+        'full_content': '${issues.map((issue) => '• $issue').join('\n')}\n\nThis alert was generated from the user health log. If symptoms are severe, worsening, or the user feels unsafe, they should contact a doctor, clinic, maternity unit, or local emergency services immediately.',
+      }
+    ];
+  }
+
+  List<Map<String, dynamic>> _dashboardEmergencyRowsFromPregnancyLog(
+      Map<String, dynamic> item) {
+    final symptoms = _stringListFromArray(item['symptoms']);
+    final notes = (item['notes'] ?? '').toString();
+    final matches = _dangerSymptomMatches(_cleanHealthText(symptoms, notes));
+    if (matches.isEmpty) return [];
+
+    return [
+      {
+        'id': 'pregnancy-log-emergency-${item['id']}',
+        'user_id': item['user_id'] ?? SupabaseService.currentUser?.id,
+        'title': 'Pregnancy Log Alert',
+        'message': matches.first,
+        'type': 'emergency',
+        'is_read': false,
+        'created_at': (item['created_at'] ?? item['log_date'] ?? DateTime.now().toIso8601String()).toString(),
+        'source_table': 'pregnancy_logs',
+        'severity': 'Urgent',
+        'condition': 'Abnormal pregnancy log detected',
+        'full_content': '${matches.map((issue) => '• $issue').join('\n')}\n\nThis alert was generated from the pregnancy log. If symptoms are severe, worsening, or the user feels unsafe, they should seek medical advice immediately.',
+      }
+    ];
+  }
+
+  Future<List<Map<String, dynamic>>> _loadDashboardHealthLogEmergencyAlerts(
+      String userId) async {
+    final alerts = <Map<String, dynamic>>[];
+
+    final healthLogs = await SupabaseService.client
+        .from('health_logs')
+        .select(
+            'id,user_id,blood_pressure_systolic,blood_pressure_diastolic,symptoms,notes,kick_count,logged_at,created_at')
+        .eq('user_id', userId)
+        .order('logged_at', ascending: false)
+        .limit(10);
+
+    for (final item in List<Map<String, dynamic>>.from(healthLogs)) {
+      alerts.addAll(_dashboardEmergencyRowsFromHealthLog(item));
+    }
+
+    try {
+      final pregnancyLogs = await SupabaseService.client
+          .from('pregnancy_logs')
+          .select('id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(10);
+
+      for (final item in List<Map<String, dynamic>>.from(pregnancyLogs)) {
+        alerts.addAll(_dashboardEmergencyRowsFromPregnancyLog(item));
+      }
+    } catch (e) {
+      debugPrint('Failed to scan pregnancy_logs for dashboard emergency alerts: $e');
+    }
+
+    return alerts;
+  }
+
+  String _titleCase(String value) {
+    final clean = value.trim();
+    if (clean.isEmpty) return clean;
+    return clean[0].toUpperCase() + clean.substring(1).toLowerCase();
+  }
+
+  String _formatDashboardConsultationDate(Map<String, dynamic> item) {
+    final scheduledAt = item['scheduled_at']?.toString();
+    if (scheduledAt != null && scheduledAt.isNotEmpty) {
+      final parsed = DateTime.tryParse(scheduledAt);
+      if (parsed != null) {
+        return DateFormat('d MMM yyyy, h:mm a').format(parsed.toLocal());
+      }
+    }
+
+    final date = item['scheduled_date']?.toString().trim() ?? '';
+    final time = item['scheduled_time']?.toString().trim() ?? '';
+
+    if (date.isNotEmpty && time.isNotEmpty) return '$date, $time';
+    if (date.isNotEmpty) return date;
+    if (time.isNotEmpty) return time;
+    return 'Time not confirmed yet';
+  }
+
+  Future<List<Map<String, dynamic>>> _loadDashboardConsultationNotifications(
+      String userId) async {
+    final data = await SupabaseService.client
+        .from('consultations')
+        .select(
+            'id,patient_id,specialist_id,status,consultation_type,scheduled_at,scheduled_date,scheduled_time,purpose,platform,meeting_link,notes,created_at')
+        .eq('patient_id', userId)
+        .order('created_at', ascending: false)
+        .limit(8);
+
+    return List<Map<String, dynamic>>.from(data).map((item) {
+      final status = (item['status'] ?? 'booked').toString();
+      final consultationType =
+          (item['consultation_type'] ?? 'consultation').toString();
+      final purpose = (item['purpose'] ?? '').toString().trim();
+      final scheduled = _formatDashboardConsultationDate(item);
+
+      return {
+        'id': 'consultation-${item['id']}',
+        'consultation_id': item['id'],
+        'user_id': item['patient_id'],
+        'title': '${_titleCase(status)} ${_titleCase(consultationType)}',
+        'message': purpose.isEmpty
+            ? 'Your consultation is scheduled for $scheduled.'
+            : '$purpose • $scheduled',
+        'type': 'consultation',
+        'is_read': false,
+        'created_at': item['created_at'] ?? item['scheduled_at'],
+        'source_table': 'consultations',
+        'status': status,
+        'consultation_type': consultationType,
+        'scheduled_display': scheduled,
+        'scheduled_at': item['scheduled_at'],
+        'scheduled_date': item['scheduled_date'],
+        'scheduled_time': item['scheduled_time'],
+        'purpose': item['purpose'],
+        'platform': item['platform'],
+        'meeting_link': item['meeting_link'],
+        'notes': item['notes'],
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadDashboardNotifications(
+      Map<String, dynamic>? profile,
+      Map<String, dynamic>? pregnancyProfile) async {
+    final userId = SupabaseService.currentUser?.id;
+
+    final isPremiumUser = _isPremiumProfile(profile);
+
+    final merged = <Map<String, dynamic>>[];
+
+    if (userId != null) {
+      try {
+        final data = await SupabaseService.client
+            .from('notifications')
+            .select('id,user_id,title,message,type,is_read,created_at')
+            .or('user_id.eq.$userId,user_id.is.null')
+            .order('created_at', ascending: false)
+            .limit(12);
+
+        merged.addAll(List<Map<String, dynamic>>.from(data).map((item) {
+          return {
+            ...item,
+            'source_table': 'notifications',
+            'type': _normaliseNotificationType(item['type']),
+          };
+        }));
+      } catch (e) {
+        debugPrint('Failed to load dashboard notifications: $e');
+      }
+
+      try {
+        final data = await SupabaseService.client
+            .from('active_alerts')
+            .select('id,user_id,alert_type,title,message,icon_name,created_at')
+            .or('user_id.eq.$userId,user_id.is.null')
+            .order('created_at', ascending: false)
+            .limit(12);
+
+        merged.addAll(List<Map<String, dynamic>>.from(data).map((item) {
+          return {
+            'id': item['id'],
+            'user_id': item['user_id'],
+            'title': item['title'],
+            'message': item['message'],
+            'type': _normaliseNotificationType(item['alert_type']),
+            'is_read': false,
+            'created_at': item['created_at'],
+            'source_table': 'active_alerts',
+            'icon_name': item['icon_name'],
+          };
+        }));
+      } catch (e) {
+        // Active alerts are optional. If this table is blocked by RLS, keep the
+        // dashboard usable with normal notifications and generated cards.
+        debugPrint('Failed to load dashboard active alerts: $e');
+      }
+
+      try {
+        merged.addAll(await _loadDashboardHealthLogEmergencyAlerts(userId));
+      } catch (e) {
+        debugPrint('Failed to scan health logs for dashboard emergency alerts: $e');
+      }
+
+      try {
+        merged.addAll(await _loadDashboardConsultationNotifications(userId));
+      } catch (e) {
+        debugPrint('Failed to load dashboard consultation notifications: $e');
+      }
+    }
+
+    try {
+      final data = await SupabaseService.client
+          .from('ai_recommendations')
+          .select(
+              'id,trigger_type,trigger_value,recommendation,source_name,source_url,priority,premium_only,created_at')
+          .order('created_at', ascending: false)
+          .limit(8);
+
+      merged.addAll(List<Map<String, dynamic>>.from(data).where((item) {
+        final premiumOnly = item['premium_only'] == true;
+        return isPremiumUser || !premiumOnly;
+      }).map((item) {
+        final triggerType = (item['trigger_type'] ?? '').toString();
+        final triggerValue = (item['trigger_value'] ?? '').toString();
+        final title = triggerType.isEmpty
+            ? 'AI Recommendation'
+            : 'AI Recommendation • ${triggerType.replaceAll('_', ' ')}';
+
+        return {
+          'id': item['id'],
+          'user_id': null,
+          'title': title,
+          'message': item['recommendation'],
+          'type': 'ai',
+          'is_read': true,
+          'created_at': item['created_at'],
+          'source_table': 'ai_recommendations',
+          'priority': item['priority'],
+          'source_url': item['source_url'],
+          'trigger_type': triggerType,
+          'trigger_value': triggerValue,
+        };
+      }));
+    } catch (e) {
+      debugPrint('Failed to load dashboard AI recommendations: $e');
+    }
+
+
+
+    try {
+      final articleData = await SupabaseService.client
+          .from('articles')
+          .select('id,title,excerpt,content,url,is_premium_only,created_at,published_at')
+          .order('created_at', ascending: false)
+          .limit(4);
+
+      merged.addAll(List<Map<String, dynamic>>.from(articleData).where((item) {
+        final premiumOnly = item['is_premium_only'] == true;
+        return isPremiumUser || !premiumOnly;
+      }).map((item) {
+        final excerpt = (item['excerpt'] ?? '').toString().trim();
+        final content = (item['content'] ?? '').toString().trim();
+        final message = excerpt.isNotEmpty
+            ? excerpt
+            : content.length > 110
+                ? '${content.substring(0, 110)}...'
+                : content;
+
+        return {
+          'id': item['id'],
+          'user_id': null,
+          'title': item['title'] ?? 'Education Resource',
+          'message': message.isEmpty ? 'Tap to view this education resource.' : message,
+          'full_content': content,
+          'type': 'education',
+          'is_read': true,
+          'created_at': item['published_at'] ?? item['created_at'],
+          'source_table': 'articles',
+          'source_url': item['url'],
+        };
+      }));
+    } catch (e) {
+      debugPrint('Failed to load dashboard education articles: $e');
+    }
+
+    try {
+      final emergencyData = await SupabaseService.client
+          .from('emergency_rules')
+          .select('id,condition,severity,action')
+          .limit(3);
+
+      merged.addAll(List<Map<String, dynamic>>.from(emergencyData).map((item) {
+        final condition = (item['condition'] ?? 'Emergency Guidance').toString();
+        final severity = (item['severity'] ?? '').toString();
+        final action = (item['action'] ?? '').toString();
+
+        return {
+          'id': item['id'],
+          'user_id': null,
+          'title': severity.isEmpty ? condition : '$severity: $condition',
+          'message': action.isEmpty ? 'Tap to view emergency support guidance.' : action,
+          'type': 'emergency',
+          'is_read': true,
+          'created_at': DateTime.now().toIso8601String(),
+          'source_table': 'emergency_rules',
+        };
+      }));
+    } catch (e) {
+      debugPrint('Failed to load dashboard emergency rules: $e');
+    }
+
+    if (!merged.any((item) => _normaliseNotificationType(item['type']) == 'milestone')) {
+      merged.add(_dashboardMilestoneNotification(pregnancyProfile));
+    }
+
+    if (!merged.any((item) => _normaliseNotificationType(item['type']) == 'emergency')) {
+      merged.addAll(_dashboardEmergencyNotifications());
+    }
+
+    merged.add({
+      'id': 'daily-health-reminder-${DateFormat('yyyy-MM-dd').format(DateTime.now())}',
+      'user_id': userId,
+      'title': 'Daily Health Reminder',
+      'message': 'Remember to log your mood, symptoms and pregnancy notes today.',
+      'type': 'reminder',
+      'is_read': true,
+      'created_at': DateTime.now().toIso8601String(),
+      'source_table': 'generated_reminder',
+    });
+
+    final readReceiptKeys = userId == null
+        ? <String>{}
+        : await _loadNotificationReadReceiptKeys(userId);
+
+    final visible = merged.where((item) {
+      final sourceTable = item['source_table']?.toString() ?? 'notifications';
+      final sourceId = item['id']?.toString();
+
+      if (sourceTable == 'notifications' && item['is_read'] == true) {
+        return false;
+      }
+
+      if (sourceId != null &&
+          readReceiptKeys.contains(
+            _notificationReadReceiptKey(sourceTable, sourceId),
+          )) {
+        return false;
+      }
+
+      return item['is_read'] != true;
+    }).toList();
+
+    visible.sort((a, b) {
+      final aRead = a['is_read'] == true ? 1 : 0;
+      final bRead = b['is_read'] == true ? 1 : 0;
+      final unreadCompare = aRead.compareTo(bRead);
+      if (unreadCompare != 0) return unreadCompare;
+      return _notificationCreatedAt(b).compareTo(_notificationCreatedAt(a));
+    });
+
+    return visible.take(6).toList();
+  }
+
+  Future<void> _showRecommendationDetails(Map<String, dynamic> item) async {
+    final title = (item['title'] ?? 'AI Recommendation').toString();
+    final message = (item['message'] ?? '').toString().trim();
+    final triggerType = (item['trigger_type'] ?? '').toString().trim();
+    final triggerValue = (item['trigger_value'] ?? '').toString().trim();
+    final priority = (item['priority'] ?? '').toString().trim();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.82,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textDark.withValues(alpha: 0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.purpleAccent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.smart_toy_outlined,
+                          color: Colors.purpleAccent,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'AI Assistant Advice',
+                              style: TextStyle(
+                                color: Colors.purpleAccent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close, color: AppColors.textLight),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    message.isEmpty
+                        ? 'No recommendation details available.'
+                        : message,
+                    style: const TextStyle(
+                      color: AppColors.textMid,
+                      fontSize: 14,
+                      height: 1.55,
+                    ),
+                  ),
+                  if (triggerType.isNotEmpty || triggerValue.isNotEmpty || priority.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.blush.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (triggerType.isNotEmpty)
+                            Text(
+                              'Based on: ${triggerType.replaceAll('_', ' ')}',
+                              style: const TextStyle(
+                                color: AppColors.textMid,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          if (triggerValue.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Value: $triggerValue',
+                              style: const TextStyle(
+                                color: AppColors.textLight,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                          if (priority.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Priority: $priority',
+                              style: const TextStyle(
+                                color: AppColors.textLight,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.rose,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openNotificationsCentre() async {
+    if (!_canNav()) return;
+
+    await context.push('/notifications');
+
+    // Refresh dashboard after returning from Notifications Centre.
+    // This is important because Mark All As Read is done on the
+    // Notifications Centre page, while the dashboard keeps its own list
+    // in memory until we reload it.
+    if (mounted) {
+      await _load();
+    }
+  }
+
+  Future<void> _openDashboardNotification(Map<String, dynamic> notification) async {
+    final id = notification['id']?.toString();
+    final sourceTable = notification['source_table']?.toString() ?? 'notifications';
+    final type = _normaliseNotificationType(notification['type']);
+
+    // Remove the card from the dashboard immediately after the user opens it.
+    // This keeps Active Alerts & Notifications clear once the item is read.
+    if (id != null) {
+      setState(() {
+        _notifications = _notifications.where((n) {
+          return !(n['id']?.toString() == id &&
+              (n['source_table']?.toString() ?? 'notifications') == sourceTable);
+        }).toList();
+      });
+
+      // Always save a read receipt so the dashboard stays cleared after
+      // app restart. This also handles global notifications where user_id is NULL.
+      await _saveNotificationReadReceipt(notification);
+
+      if (sourceTable == 'notifications') {
+        try {
+          final userId = SupabaseService.currentUser?.id;
+          final itemUserId = notification['user_id']?.toString();
+
+          // Only update user-owned notification rows. Global notification rows
+          // are cleared per user through notification_read_receipts.
+          if (userId != null && itemUserId == userId) {
+            await SupabaseService.client
+                .from('notifications')
+                .update({'is_read': true})
+                .eq('id', id)
+                .eq('user_id', userId);
+          }
+        } catch (e) {
+          debugPrint('Failed to mark dashboard notification as read: $e');
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    if (type == 'ai') {
+      await _showRecommendationDetails(notification);
+      return;
+    }
+
+    // For dashboard preview cards, open the full Notifications Centre.
+    // The Notifications Centre now shows the correct detail sheet for
+    // emergency, consultation, milestone, education, reminder and AI items.
+    await _openNotificationsCentre();
   }
 
   @override
@@ -62,30 +1011,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       consultations = await SupabaseService.getConsultations();
     } catch (_) {}
 
-    // Load latest notifications for the dashboard preview. AI tips are only
-    // shown to premium users; all other notification types are visible to mums.
-    try {
-      final userId = SupabaseService.currentUser?.id;
-      final isPremiumUser =
-          (profile?['subscription_plan']?.toString().toLowerCase() ==
-                  'premium') ||
-              (profile?['role']?.toString().toLowerCase() == 'premium_user');
-
-      if (userId != null) {
-        final data = await SupabaseService.client
-            .from('notifications')
-            .select()
-            .eq('user_id', userId)
-            .order('created_at', ascending: false)
-            .limit(6);
-
-        notifications = List<Map<String, dynamic>>.from(data).where((n) {
-          final type = (n['type'] ?? '').toString().toLowerCase();
-          if (type == 'ai' && !isPremiumUser) return false;
-          return true;
-        }).toList();
-      }
-    } catch (_) {}
+    // Load latest notifications and active alerts for the dashboard preview.
+    notifications = await _loadDashboardNotifications(profile, pp);
 
     // Look up provider names for whichever consultations the Active Alerts
     // card will actually show, so it can read "2:00 PM - Nur Aisyah".
@@ -450,19 +1377,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildActiveAlerts() {
-    final week = _currentWeek;
-    final auth = context.read<AuthProvider>();
-
-    final activeConsultations = _consultations.where((c) {
-      final status = (c['status'] as String? ?? '').toLowerCase();
-      return status == 'pending' || status == 'confirmed';
-    }).toList();
-
     final cards = <Widget>[];
 
-    // 1) Show real notifications first.
+    // Only show unread dashboard notifications loaded from the database or
+    // generated alert sources. Do not recreate fallback milestone/consultation
+    // cards here, because that makes the dashboard look unread again after
+    // the user taps Mark all as read.
     for (final n in _notifications.take(3)) {
-      final type = (n['type'] ?? 'general').toString().toLowerCase();
+      final type = _normaliseNotificationType(n['type']);
 
       cards.add(
         _notificationPreviewCard(
@@ -470,52 +1392,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           message: (n['message'] ?? '').toString(),
           type: type,
           isRead: n['is_read'] == true,
-          onTap: () => _openNotificationTarget(type),
+          onTap: () => _openDashboardNotification(n),
         ),
       );
-    }
-
-    // 2) Add dashboard-generated alerts if there are not enough DB notifications.
-    if (cards.length < 3 && auth.isMum && week > 0) {
-      cards.add(
-        _alertCard(
-          icon: Icons.auto_awesome,
-          iconBg: AppColors.rose.withValues(alpha: 0.15),
-          iconColor: AppColors.roseDeep,
-          title: 'New Milestone',
-          subtitle:
-              'Baby now weighs ~${_babyWeight(week) ?? '—'} — Size of ${_babySize(week)}',
-          onTap: () {
-            if (_canNav()) context.push('/milestone-journey');
-          },
-        ),
-      );
-    }
-
-    if (cards.length < 3) {
-      for (final c in activeConsultations.take(3 - cards.length)) {
-        cards.add(
-          _alertCard(
-            icon: Icons.calendar_today_outlined,
-            iconBg: AppColors.sage.withValues(alpha: 0.15),
-            iconColor: AppColors.sage,
-            title: _appointmentDateLabel(
-              c['scheduled_date'] as String?,
-              c['status'] as String?,
-            ),
-            subtitle: _appointmentSubtitle(c),
-            onTap: () {
-              if (_canNav()) context.push('/consultation');
-            },
-          ),
-        );
-      }
     }
 
     if (cards.isEmpty) {
-      cards.add(
-        _emptyAlertCard(),
-      );
+      cards.add(_emptyAlertCard());
     }
 
     return Column(
@@ -535,23 +1418,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
             TextButton(
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(0, 32),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () {
-                if (_canNav()) context.push('/notifications');
-              },
-              child: const Text(
-                'View All',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              onPressed: _openNotificationsCentre,
+              child: const Text('View All'),
             ),
           ],
         ),
@@ -562,20 +1431,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+
   Widget _emptyAlertCard() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TBCard(
-        onTap: () {
-          if (_canNav()) context.push('/notifications');
-        },
+        onTap: _openNotificationsCentre,
         padding: const EdgeInsets.all(14),
         child: const Row(
           children: [
             CircleAvatar(
               backgroundColor: AppColors.blush,
-              child: Icon(Icons.notifications_none_outlined,
-                  color: AppColors.roseDeep),
+              child: Icon(
+                Icons.notifications_none_outlined,
+                color: AppColors.roseDeep,
+              ),
             ),
             SizedBox(width: 12),
             Expanded(
@@ -595,38 +1465,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _openNotificationTarget(String type) {
-    if (!_canNav()) return;
-
-    switch (type) {
-      case 'appointment':
-        context.push('/consultation');
-        break;
-      case 'milestone':
-        context.push('/milestone-journey');
-        break;
-      case 'education':
-        context.push('/education');
-        break;
-      case 'reminder':
-        context.push('/logs/create');
-        break;
-      case 'ai':
-        context.push('/chatbot');
-        break;
-      case 'emergency':
-      default:
-        context.push('/notifications');
-    }
-  }
-
   IconData _notificationIcon(String type) {
-    switch (type) {
+    switch (_normaliseNotificationType(type)) {
       case 'emergency':
         return Icons.warning_amber_rounded;
       case 'milestone':
         return Icons.auto_awesome;
-      case 'appointment':
+      case 'consultation':
         return Icons.calendar_today_outlined;
       case 'education':
         return Icons.menu_book_outlined;
@@ -640,12 +1485,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Color _notificationColor(String type) {
-    switch (type) {
+    switch (_normaliseNotificationType(type)) {
       case 'emergency':
         return Colors.redAccent;
       case 'milestone':
         return AppColors.rose;
-      case 'appointment':
+      case 'consultation':
         return AppColors.sage;
       case 'education':
         return AppColors.teal;

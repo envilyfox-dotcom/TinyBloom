@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../services/supabase_service.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 enum ChatSectionType { ask, symptoms, faq }
 
@@ -21,25 +23,18 @@ class ChatSectionData {
 
 class GuidedQuestion {
   final String question;
-  final String answer;
   final String category;
   final IconData icon;
   final Color color;
 
   const GuidedQuestion({
     required this.question,
-    required this.answer,
     required this.category,
     required this.icon,
     required this.color,
   });
 }
 
-// ── AI Chatbot Screen ─────────────────────────────────────────────
-// Organised into 3 user-friendly sections:
-// 1. Ask Questions
-// 2. Symptoms Information
-// 3. FAQ
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
 
@@ -50,6 +45,8 @@ class ChatbotScreen extends StatefulWidget {
 class _ChatbotScreenState extends State<ChatbotScreen> {
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
+
+  static const String _chatFunctionName = 'tinybloom-chat';
 
   ChatSectionType _selectedSection = ChatSectionType.ask;
   bool _typing = false;
@@ -89,48 +86,36 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       category: 'Nutrition',
       icon: Icons.restaurant_outlined,
       color: AppColors.sage,
-      answer:
-          'A balanced pregnancy diet should include wholegrains, lean protein, dairy or calcium-rich alternatives, fruits, vegetables and enough water. Include folate, iron and calcium-rich foods where possible. If you have gestational diabetes or other conditions, follow your doctor or dietitian’s advice.',
     ),
     GuidedQuestion(
       question: 'What foods should I avoid during pregnancy?',
       category: 'Food safety',
       icon: Icons.no_food_outlined,
       color: AppColors.rose,
-      answer:
-          'It is safer to avoid raw or undercooked meat, raw fish, raw eggs, unpasteurised dairy, alcohol, and fish high in mercury. Choose freshly cooked food and practise good food hygiene to lower the risk of food poisoning.',
     ),
     GuidedQuestion(
       question: 'Can I exercise while pregnant?',
       category: 'Lifestyle',
       icon: Icons.directions_walk_outlined,
       color: AppColors.teal,
-      answer:
-          'Many pregnant mums can do light to moderate activities such as walking, stretching or swimming if their doctor says it is safe. Stop and seek advice if you feel pain, dizziness, bleeding, contractions, chest pain or severe breathlessness.',
     ),
     GuidedQuestion(
       question: 'How can I sleep better during pregnancy?',
       category: 'Rest',
       icon: Icons.nights_stay_outlined,
       color: AppColors.gold,
-      answer:
-          'Try sleeping on your side, using pillows for support, keeping a regular sleep routine, reducing screens before bed and avoiding heavy meals close to bedtime. If sleep problems are severe or linked to pain, breathlessness or anxiety, speak to your doctor.',
     ),
     GuidedQuestion(
       question: 'When should I feel baby movement?',
       category: 'Baby movement',
       icon: Icons.child_care_outlined,
       color: AppColors.roseDeep,
-      answer:
-          'Many mums feel baby movements between 16 and 25 weeks, but first-time mums may notice them later. If movements become reduced, weaker, or very different from usual, seek medical advice immediately. Do not wait until the next day.',
     ),
     GuidedQuestion(
       question: 'What happens during antenatal check-ups?',
       category: 'Antenatal care',
       icon: Icons.local_hospital_outlined,
       color: AppColors.teal,
-      answer:
-          'Antenatal visits may include weight, blood pressure, urine checks, blood tests, scans, baby growth checks and baby heartbeat checks in later weeks. These visits help monitor mother and baby and allow symptoms to be raised early.',
     ),
   ];
 
@@ -140,48 +125,36 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       category: 'Fatigue',
       icon: Icons.bedtime_outlined,
       color: AppColors.gold,
-      answer:
-          'Tiredness is common, especially in the first and third trimester. Rest when possible, drink enough water, eat regular meals and include iron-rich foods. Seek medical advice if tiredness is extreme or comes with dizziness, breathlessness, fainting or paleness.',
     ),
     GuidedQuestion(
       question: 'What can I do for morning sickness?',
       category: 'Nausea',
       icon: Icons.sick_outlined,
       color: AppColors.sage,
-      answer:
-          'Morning sickness is common in early pregnancy. Small frequent meals, plain crackers, fluids and avoiding strong smells may help. Seek medical help if you cannot keep food or fluids down, feel dehydrated or lose weight.',
     ),
     GuidedQuestion(
       question: 'Is mild cramping normal?',
       category: 'Cramps',
       icon: Icons.healing_outlined,
       color: AppColors.teal,
-      answer:
-          'Mild cramps can happen as the uterus grows, but severe pain, one-sided pain, pain with bleeding, fever, shoulder tip pain or dizziness should be checked urgently.',
     ),
     GuidedQuestion(
       question: 'When is bleeding serious?',
       category: 'Bleeding',
       icon: Icons.warning_amber_rounded,
       color: AppColors.rose,
-      answer:
-          'Bleeding during pregnancy should be taken seriously. Contact your doctor or seek urgent care, especially if bleeding is heavy, bright red, painful, or comes with cramps, dizziness or fainting.',
     ),
     GuidedQuestion(
       question: 'What if I have severe headache or blurred vision?',
       category: 'Warning signs',
       icon: Icons.visibility_outlined,
       color: AppColors.roseDeep,
-      answer:
-          'Severe headache, blurred vision, swelling of face or hands, chest pain or upper abdominal pain can be warning signs. Please seek medical help urgently.',
     ),
     GuidedQuestion(
       question: 'What should I do about reduced baby movement?',
       category: 'Urgent',
       icon: Icons.favorite_border,
       color: AppColors.rose,
-      answer:
-          'If your baby’s movements are reduced, weaker, or different from usual, seek medical advice immediately. Do not wait to see if it improves tomorrow.',
     ),
   ];
 
@@ -191,48 +164,36 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       category: 'Trimester',
       icon: Icons.looks_one_outlined,
       color: AppColors.teal,
-      answer:
-          'The first trimester is week 1 to week 12. Common changes include missed period, nausea, tiredness, breast tenderness and mood changes. Early baby development happens quickly, so folic acid, healthy eating and antenatal care are important.',
     ),
     GuidedQuestion(
       question: 'Why is folic acid important?',
       category: 'Supplements',
       icon: Icons.medication_outlined,
       color: AppColors.sage,
-      answer:
-          'Folic acid supports early development of the baby’s nervous system. It is commonly recommended before pregnancy and during the first 12 weeks. Ask your doctor or pharmacist about the correct dose for you.',
     ),
     GuidedQuestion(
       question: 'What is gestational diabetes?',
       category: 'Conditions',
       icon: Icons.water_drop_outlined,
       color: AppColors.gold,
-      answer:
-          'Gestational diabetes is diabetes that develops during pregnancy. It may not cause obvious symptoms, so screening is important. Healthy eating, glucose monitoring and medical advice help reduce risks for mother and baby.',
     ),
     GuidedQuestion(
       question: 'What vaccines are recommended during pregnancy?',
       category: 'Vaccination',
       icon: Icons.vaccines_outlined,
       color: AppColors.teal,
-      answer:
-          'Some vaccines, such as flu and whooping cough vaccination, may be recommended during pregnancy depending on your situation. Always confirm with your doctor before taking any vaccine.',
     ),
     GuidedQuestion(
       question: 'How often should I attend antenatal visits?',
       category: 'Check-ups',
       icon: Icons.event_available_outlined,
       color: AppColors.roseDeep,
-      answer:
-          'The schedule depends on your pregnancy stage and risk factors. Regular antenatal visits allow healthcare providers to monitor your health, baby growth and any symptoms. Follow the schedule given by your clinic or hospital.',
     ),
     GuidedQuestion(
       question: 'When should I seek urgent medical help?',
       category: 'Emergency',
       icon: Icons.emergency_outlined,
       color: AppColors.rose,
-      answer:
-          'Seek urgent medical help for heavy bleeding, severe abdominal pain, severe headache, vision changes, fever, chest pain, fainting, reduced baby movement, or fluid leaking from the vagina.',
     ),
   ];
 
@@ -248,7 +209,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 
   ChatSectionData get _currentSection {
-    return _sections.firstWhere((s) => s.type == _selectedSection);
+    return _sections.firstWhere((section) => section.type == _selectedSection);
   }
 
   @override
@@ -260,7 +221,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   Future<void> _send(String text) async {
     final cleanText = text.trim();
-    if (cleanText.isEmpty) return;
+    if (cleanText.isEmpty || _typing) return;
 
     setState(() {
       _messages.add({'role': 'user', 'text': cleanText});
@@ -270,86 +231,234 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     _ctrl.clear();
     _scrollDown();
 
-    await Future.delayed(const Duration(milliseconds: 550));
+    final reply = await _callChatbotApi(cleanText);
 
     if (!mounted) return;
     setState(() {
-      _messages.add({'role': 'ai', 'text': _getResponse(cleanText)});
+      _messages.add({'role': 'ai', 'text': reply});
       _typing = false;
     });
     _scrollDown();
   }
 
   Future<void> _sendGuidedQuestion(GuidedQuestion item) async {
+    if (_typing) return;
+
     setState(() {
       _messages.add({'role': 'user', 'text': item.question});
       _typing = true;
     });
 
     _scrollDown();
-    await Future.delayed(const Duration(milliseconds: 450));
+
+    final reply = await _callChatbotApi(
+      item.question,
+      guidedQuestion: item,
+    );
 
     if (!mounted) return;
     setState(() {
-      _messages
-          .add({'role': 'ai', 'text': '${item.answer}\n\n${_disclaimer()}'});
+      _messages.add({'role': 'ai', 'text': reply});
       _typing = false;
     });
     _scrollDown();
   }
 
-  String _getResponse(String question) {
-    final q = question.toLowerCase();
+  Future<String> _callChatbotApi(
+    String question, {
+    GuidedQuestion? guidedQuestion,
+  }) async {
+    final cleanQuestion = question.trim();
 
-    for (final item in [
-      ..._askQuestions,
-      ..._symptomQuestions,
-      ..._faqQuestions
-    ]) {
-      final keywords = item.question
-          .toLowerCase()
-          .replaceAll('?', '')
-          .split(RegExp(r'\s+'))
-          .where((w) => w.length > 3);
+    if (cleanQuestion.isEmpty) {
+      return _apiErrorMessage('Please type a question first.');
+    }
 
-      if (keywords.any((word) => q.contains(word))) {
-        return '${item.answer}\n\n${_disclaimer()}';
+    try {
+      final response = await SupabaseService.client.functions.invoke(
+        _chatFunctionName,
+        body: {
+          'question': cleanQuestion,
+          'section': _currentSection.title,
+          'sectionType': _selectedSection.name,
+          'guidedQuestion': guidedQuestion == null
+              ? null
+              : {
+                  'question': guidedQuestion.question,
+                  'category': guidedQuestion.category,
+                },
+          'messages': _recentMessagesForApi(),
+          'profile': await _profileContextForApi(),
+          'pregnancyProfile': await _pregnancyContextForApi(),
+        },
+      );
+
+      final apiError = _extractApiError(response.data);
+      if (apiError != null) {
+        debugPrint('Chatbot API returned error: $apiError');
+        return _apiErrorMessage(apiError);
       }
-    }
 
-    if (_containsAny(q, ['bleed', 'bleeding', 'spotting'])) {
-      return '${_symptomQuestions[3].answer}\n\n${_disclaimer()}';
-    }
-    if (_containsAny(q, ['headache', 'vision', 'blur', 'swelling'])) {
-      return '${_symptomQuestions[4].answer}\n\n${_disclaimer()}';
-    }
-    if (_containsAny(q, ['kick', 'movement', 'reduced'])) {
-      return '${_symptomQuestions[5].answer}\n\n${_disclaimer()}';
-    }
-    if (_containsAny(q, ['vomit', 'nausea', 'morning sickness'])) {
-      return '${_symptomQuestions[1].answer}\n\n${_disclaimer()}';
-    }
-    if (_containsAny(q, ['food', 'eat', 'nutrition', 'avoid'])) {
-      return q.contains('avoid')
-          ? '${_askQuestions[1].answer}\n\n${_disclaimer()}'
-          : '${_askQuestions[0].answer}\n\n${_disclaimer()}';
-    }
-    if (_containsAny(q, ['exercise', 'walk', 'active', 'workout'])) {
-      return '${_askQuestions[2].answer}\n\n${_disclaimer()}';
-    }
-    if (_containsAny(q, ['urgent', 'emergency', 'doctor', 'hospital'])) {
-      return '${_urgentAdvice()}\n\n${_disclaimer()}';
-    }
+      final reply = _extractReply(response.data);
+      if (reply.trim().isEmpty) {
+        return _apiErrorMessage(
+          'The AI service replied with an empty response. Check the Edge Function logs.',
+        );
+      }
 
-    return 'That is a good question 🌸 I can provide general pregnancy information. For more specific guidance, try one of the guided questions under Ask Questions, Symptoms, or FAQ.\n\n${_disclaimer()}';
+      return _ensureDisclaimer(reply.trim());
+    } catch (e) {
+      debugPrint('Chatbot API failed: $e');
+      return _apiErrorMessage(
+        'Cannot connect to AI service. Check Supabase Edge Function deployment, OPENAI_API_KEY secret, and function logs.\n\nError: $e',
+      );
+    }
   }
 
-  bool _containsAny(String text, List<String> words) {
-    return words.any((word) => text.contains(word));
+  List<Map<String, String>> _recentMessagesForApi() {
+    final startIndex = _messages.length > 8 ? _messages.length - 8 : 0;
+
+    return _messages.sublist(startIndex).map((message) {
+      final role = message['role'] ?? '';
+      final text = message['text'] ?? '';
+
+      return {
+        'role': role,
+        'text': text,
+      };
+    }).where((message) {
+      final role = message['role'] ?? '';
+      final text = message['text'] ?? '';
+
+      return role.isNotEmpty && text.isNotEmpty;
+    }).toList();
   }
 
-  String _urgentAdvice() {
-    return 'Please seek medical help urgently if you have heavy bleeding, severe abdominal pain, severe headache, vision changes, fever, chest pain, fainting, reduced baby movement, or fluid leaking from the vagina.';
+  Future<Map<String, dynamic>?> _profileContextForApi() async {
+    try {
+      final rawProfile = await SupabaseService.getProfile();
+
+      if (rawProfile == null) {
+        return null;
+      }
+
+      final profile = Map<String, dynamic>.from(rawProfile as Map);
+
+      return {
+        'role': profile['role'],
+        'subscription_plan': profile['subscription_plan'],
+      };
+    } catch (e) {
+      debugPrint('Chatbot API profile context skipped: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _pregnancyContextForApi() async {
+    try {
+      final rawPregnancyProfile = await SupabaseService.getPregnancyProfile();
+
+      if (rawPregnancyProfile == null) {
+        return null;
+      }
+
+      final pregnancyProfile =
+          Map<String, dynamic>.from(rawPregnancyProfile as Map);
+
+      return {
+        'due_date': pregnancyProfile['due_date'],
+        'current_week': pregnancyProfile['current_week'] ??
+            pregnancyProfile['pregnancy_week'],
+        'is_first_pregnancy': pregnancyProfile['is_first_pregnancy'],
+        'pregnancy_status': pregnancyProfile['pregnancy_status'],
+        'areas_of_interest': pregnancyProfile['areas_of_interest'],
+        'consultation_needs': pregnancyProfile['consultation_needs'],
+      };
+    } catch (e) {
+      debugPrint('Chatbot API pregnancy context skipped: $e');
+      return null;
+    }
+  }
+
+  String _extractReply(dynamic data) {
+    if (data is Map) {
+      return (data['reply'] ?? data['answer'] ?? data['message'] ?? '')
+          .toString();
+    }
+
+    if (data is String) return data;
+
+    return '';
+  }
+
+  String? _extractApiError(dynamic data) {
+    if (data is! Map) return null;
+
+    final error = data['error']?.toString().trim() ?? '';
+    final status = data['status']?.toString().trim() ?? '';
+    final code = data['code']?.toString().trim() ?? '';
+    final details = (data['details'] ??
+                data['detail'] ??
+                data['body'] ??
+                data['openai_error'])
+            ?.toString()
+            .trim() ??
+        '';
+
+    final hasError = error.isNotEmpty ||
+        status.isNotEmpty ||
+        code.isNotEmpty ||
+        details.isNotEmpty;
+
+    if (!hasError) return null;
+
+    final parts = <String>[];
+
+    if (status.isNotEmpty) {
+      parts.add('AI service error (status $status)');
+    } else {
+      parts.add('AI service error');
+    }
+
+    if (error.isNotEmpty) {
+      parts.add(error);
+    }
+
+    if (code.isNotEmpty) {
+      parts.add('Code: $code');
+    }
+
+    if (details.isNotEmpty) {
+      parts.add('Details: ${_compactApiDetails(details)}');
+    }
+
+    return parts.join('\n');
+  }
+
+  String _compactApiDetails(String details) {
+    final cleaned = details.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    if (cleaned.length <= 700) {
+      return cleaned;
+    }
+
+    return '${cleaned.substring(0, 700)}...';
+  }
+
+  String _ensureDisclaimer(String text) {
+    final lower = text.toLowerCase();
+
+    if (lower.contains('does not replace') ||
+        lower.contains('not replace') ||
+        lower.contains('medical advice')) {
+      return text;
+    }
+
+    return '$text\n\n${_disclaimer()}';
+  }
+
+  String _apiErrorMessage(String detail) {
+    return '$detail\n\nThe chatbot is API-only now. No hardcoded pregnancy answer was used.\n\n${_disclaimer()}';
   }
 
   String _disclaimer() {
@@ -422,7 +531,11 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                 const SizedBox(height: 18),
                 const TBSectionTitle(title: 'Conversation'),
                 const SizedBox(height: 12),
-                for (final m in _messages) _buildBubble(m['role']!, m['text']!),
+                for (final message in _messages)
+                  _buildBubble(
+                    message['role'] ?? '',
+                    message['text'] ?? '',
+                  ),
                 if (_typing) _buildTyping(),
               ],
             ),
@@ -446,8 +559,9 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               color: AppColors.blush,
               borderRadius: BorderRadius.circular(14),
             ),
-            child:
-                const Center(child: Text('🌸', style: TextStyle(fontSize: 23))),
+            child: const Center(
+              child: Text('🌸', style: TextStyle(fontSize: 23)),
+            ),
           ),
           const SizedBox(width: 12),
           const Expanded(
@@ -464,7 +578,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Get guided pregnancy information for questions, symptoms and common FAQs.',
+                  'Get AI-generated pregnancy information for questions, symptoms and common FAQs.',
                   style: TextStyle(
                     color: AppColors.textMid,
                     fontSize: 13,
@@ -721,8 +835,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: const BoxDecoration(
-                  color: AppColors.teal,
+                decoration: BoxDecoration(
+                  color: _typing ? AppColors.textLight : AppColors.teal,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.send, color: AppColors.white, size: 18),
@@ -778,14 +892,40 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                       ]
                     : null,
               ),
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: isAI ? AppColors.textMid : AppColors.white,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
+              child: isAI
+                  ? MarkdownBody(
+                      data: text,
+                      selectable: true,
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(
+                          color: AppColors.textMid,
+                          fontSize: 14,
+                          height: 1.55,
+                        ),
+                        strong: const TextStyle(
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        listBullet: const TextStyle(
+                          color: AppColors.textMid,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                        h3: const TextStyle(
+                          color: AppColors.textDark,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      text,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -840,33 +980,33 @@ class _Dot extends StatefulWidget {
 }
 
 class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
-  late AnimationController _c;
-  late Animation<double> _a;
+  late AnimationController _controller;
+  late Animation<double> _opacity;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(
+    _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _a = Tween<double>(begin: 0.3, end: 1.0).animate(_c);
+    _opacity = Tween<double>(begin: 0.3, end: 1.0).animate(_controller);
 
     Future.delayed(Duration(milliseconds: widget.delay), () {
-      if (mounted) _c.repeat(reverse: true);
+      if (mounted) _controller.repeat(reverse: true);
     });
   }
 
   @override
   void dispose() {
-    _c.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: _a,
+      opacity: _opacity,
       child: const CircleAvatar(radius: 4, backgroundColor: AppColors.teal),
     );
   }
