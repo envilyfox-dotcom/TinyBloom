@@ -30,9 +30,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   final Set<String> _bookedTimes = <String>{};
   bool _loadingBookedTimes = false;
 
-  // Fixed consultation timings: 9 AM to 6 PM, 1-hour interval.
-  // These are shown as time only, not start-end ranges.
-  static const List<String> _timeSlots = [
+  static const List<String> _fallbackTimeSlots = [
     '9:00 AM',
     '10:00 AM',
     '11:00 AM',
@@ -65,6 +63,40 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
 
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _isProviderAvailableOnDate(DateTime date) {
+    final availableHours = widget.provider['available_hours'];
+    if (availableHours is! String || availableHours.trim().isEmpty) {
+      return true;
+    }
+
+    final dayLine = availableHours
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .firstOrNull;
+
+    if (dayLine == null || dayLine.isEmpty) return true;
+
+    final availableDays = dayLine
+        .split(RegExp(r'[,-]'))
+        .map((part) => part.trim().toLowerCase())
+        .where((part) => part.isNotEmpty)
+        .toSet();
+
+    if (availableDays.isEmpty) return true;
+
+    return availableDays
+        .contains(DateFormat('EEEE').format(date).toLowerCase());
+  }
+
+  List<String> get _providerTimeSlots {
+    final configured = widget.provider['availability_slots'];
+    final source =
+        configured is List ? configured : widget.provider['available_today'];
+    final times = availableTimesOnly(source);
+    return times.isEmpty ? _fallbackTimeSlots : times;
   }
 
   bool _isPastDate(DateTime date) {
@@ -219,10 +251,11 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
 
   List<String> get _visibleTimeSlots {
     if (_isPastDate(_selectedDate)) return [];
+    if (!_isProviderAvailableOnDate(_selectedDate)) return [];
 
     final now = DateTime.now();
 
-    return _timeSlots.where((time) {
+    return _providerTimeSlots.where((time) {
       final normalised = _normaliseTime(time);
 
       // Hide timings that are already booked for THIS provider and THIS selected date.
@@ -521,10 +554,11 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   Widget _dayCell(int day, DateTime todayOnly) {
     final date = DateTime(_month.year, _month.month, day);
     final isPast = date.isBefore(todayOnly);
+    final isAvailable = _isProviderAvailableOnDate(date);
     final isSelected = _isSameDay(_selectedDate, date);
 
     return GestureDetector(
-      onTap: isPast ? null : () => _selectDate(date),
+      onTap: (isPast || !isAvailable) ? null : () => _selectDate(date),
       child: Container(
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
@@ -538,7 +572,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
             fontSize: 13,
             color: isSelected
                 ? Colors.white
-                : isPast
+                : isPast || !isAvailable
                     ? AppColors.textLight.withValues(alpha: 0.5)
                     : AppColors.textDark,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,

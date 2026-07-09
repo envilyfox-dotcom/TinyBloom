@@ -138,6 +138,55 @@ bool _isSameDay(DateTime a, DateTime b) {
   return a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
+const Map<String, String> _weekDayAliases = {
+  'mon': 'Monday',
+  'monday': 'Monday',
+  'tue': 'Tuesday',
+  'tues': 'Tuesday',
+  'tuesday': 'Tuesday',
+  'wed': 'Wednesday',
+  'weds': 'Wednesday',
+  'wednesday': 'Wednesday',
+  'thu': 'Thursday',
+  'thurs': 'Thursday',
+  'thursday': 'Thursday',
+  'fri': 'Friday',
+  'friday': 'Friday',
+  'sat': 'Saturday',
+  'saturday': 'Saturday',
+  'sun': 'Sunday',
+  'sunday': 'Sunday',
+};
+
+String _parseWeekDay(String text) {
+  final clean = text.trim().toLowerCase();
+  return _weekDayAliases[clean] ?? '';
+}
+
+Set<String> _availableDaysFromHours(dynamic value) {
+  if (value is! String || value.trim().isEmpty) return {};
+
+  final lines = value
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toList();
+
+  if (lines.isEmpty) return {};
+
+  return lines.first
+      .split(RegExp(r'[,-]'))
+      .map((part) => _parseWeekDay(part))
+      .where((day) => day.isNotEmpty)
+      .toSet();
+}
+
+bool _isTodayAvailableForHours(dynamic value, DateTime date) {
+  final availableDays = _availableDaysFromHours(value);
+  if (availableDays.isEmpty) return true;
+  return availableDays.contains(DateFormat('EEEE').format(date));
+}
+
 List<String> availableTimesOnly(dynamic value) {
   final parsed = <String>[];
 
@@ -158,10 +207,11 @@ List<String> availableTimesOnly(dynamic value) {
         .where((t) => t.isNotEmpty));
   }
 
-  // Keep only the standard 9 AM to 6 PM slots.
+  if (parsed.isEmpty) return [];
+
   final normalised = parsed.toSet();
   return defaultConsultationTimes
-      .where((time) => normalised.isEmpty || normalised.contains(time))
+      .where((time) => normalised.contains(time))
       .toList();
 }
 
@@ -215,10 +265,9 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
   }
 }
 
-/// Adds `available_today` to each provider using:
-/// 1. Standard slots from 9 AM to 6 PM.
-/// 2. Slots that have not passed today.
-/// 3. Slots that are not already pending/confirmed for the same provider today.
+/// Adds `available_today` to each provider using the specialist's saved
+/// availability days from `available_hours` and the actual time slots from
+/// `available_today`, while excluding slots that have already passed or been booked.
 Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
     List<Map<String, dynamic>> providers) async {
   final today = DateTime.now();
@@ -231,13 +280,15 @@ Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
 
   return providers.map((provider) {
     final providerId = provider['user_id']?.toString() ?? '';
-
-    // Start from provider-specific times if they exist; otherwise use the default 9 AM–6 PM slots.
     final providerTimes = availableTimesOnly(provider['available_today']);
-    final baseTimes =
-        providerTimes.isEmpty ? defaultConsultationTimes : providerTimes;
+    final shouldShowToday = _isTodayAvailableForHours(
+      provider['available_hours'],
+      today,
+    );
 
-    final futureTimes = futureTimesForDate(baseTimes, today);
+    final baseTimes = shouldShowToday ? providerTimes : <String>[];
+    final futureTimes =
+        shouldShowToday ? futureTimesForDate(baseTimes, today) : <String>[];
     final bookedTimes = bookedByProvider[providerId] ?? <String>{};
 
     final available = futureTimes
@@ -246,6 +297,7 @@ Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
 
     return {
       ...provider,
+      'availability_slots': providerTimes,
       'available_today': available,
     };
   }).toList();
