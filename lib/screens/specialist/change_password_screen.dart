@@ -50,7 +50,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password changed successfully')),
         );
-        context.go('/profile');
+        Navigator.pop(context);
       }
     } on AuthException catch (e) {
       if (mounted) {

@@ -3,6 +3,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
+import 'package:go_router/go_router.dart';
 
 class SpecialistEditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? specialistProfile;
@@ -29,6 +30,8 @@ class _SpecialistEditProfileScreenState
   final Set<String> _selectedTimes = {};
   String? _dayError;
   String? _timeError;
+  String? _videoCallFeeError;
+  String? _inPersonFeeError;
 
   static const List<String> _weekDays = [
     'Monday',
@@ -77,11 +80,24 @@ class _SpecialistEditProfileScreenState
     _inPersonFeeCtrl = TextEditingController();
   }
 
-  String _stringValue(dynamic value, {String fallback = ''}) {
-    if (value == null) return fallback;
-    if (value is num) return value.toString();
+  String _formatFeeValue(dynamic value) {
+    if (value == null) return '\$0.0';
+    if (value is num) return '\$${value.toStringAsFixed(2)}';
+
     final text = value.toString().trim();
-    return text.isEmpty ? fallback : text;
+    if (text.isEmpty) return '\$0.0';
+
+    final parsed =
+        double.tryParse(text.replaceAll('\$', '').replaceAll(',', '').trim());
+    if (parsed == null) return '\$0.0';
+    return '\$${parsed.toStringAsFixed(2)}';
+  }
+
+  double? _parseFeeValue(String? value) {
+    if (value == null) return null;
+    final clean = value.replaceAll('\$', '').replaceAll(',', '').trim();
+    if (clean.isEmpty) return null;
+    return double.tryParse(clean);
   }
 
   String _parseWeekDay(String text) {
@@ -132,9 +148,8 @@ class _SpecialistEditProfileScreenState
 
   String _formatSelectedTimes() {
     if (_selectedTimes.isEmpty) return '';
-    final ordered = defaultConsultationTimes
-        .where(_selectedTimes.contains)
-        .toList();
+    final ordered =
+        defaultConsultationTimes.where(_selectedTimes.contains).toList();
     if (ordered.isEmpty) {
       final fallback = _selectedTimes.toList()..sort();
       return fallback.length == 1 ? fallback.first : fallback.join(', ');
@@ -160,12 +175,8 @@ class _SpecialistEditProfileScreenState
       }
 
       final specialist = widget.specialistProfile ?? {};
-      _videoCallFeeCtrl.text = _stringValue(
-          specialist['video_call_fee'],
-          fallback: '0');
-      _inPersonFeeCtrl.text = _stringValue(
-          specialist['in_person_fee'],
-          fallback: '0');
+      _videoCallFeeCtrl.text = _formatFeeValue(specialist['video_call_fee']);
+      _inPersonFeeCtrl.text = _formatFeeValue(specialist['in_person_fee']);
 
       final availableToday = specialist['available_today'];
       if (availableToday != null) {
@@ -222,12 +233,25 @@ class _SpecialistEditProfileScreenState
   }
 
   Future<void> _saveChanges() async {
+    final videoCallFee = _parseFeeValue(_videoCallFeeCtrl.text);
+    final inPersonFee = _parseFeeValue(_inPersonFeeCtrl.text);
+
     setState(() {
-      _dayError = _selectedDays.isEmpty ? 'Please select at least one day.' : null;
-      _timeError = _selectedTimes.isEmpty ? 'Please select at least one time.' : null;
+      _dayError =
+          _selectedDays.isEmpty ? 'Please select at least one day.' : null;
+      _timeError =
+          _selectedTimes.isEmpty ? 'Please select at least one time.' : null;
+      _videoCallFeeError =
+          videoCallFee == null ? 'Please enter a valid fee.' : null;
+      _inPersonFeeError =
+          inPersonFee == null ? 'Please enter a valid fee.' : null;
     });
 
-    if (!_formKey.currentState!.validate() || _dayError != null || _timeError != null) {
+    if (!_formKey.currentState!.validate() ||
+        _dayError != null ||
+        _timeError != null ||
+        _videoCallFeeError != null ||
+        _inPersonFeeError != null) {
       return;
     }
 
@@ -241,8 +265,8 @@ class _SpecialistEditProfileScreenState
       });
 
       await SupabaseService.updateSpecialistProfile({
-        'video_call_fee': double.parse(_videoCallFeeCtrl.text),
-        'in_person_fee': double.parse(_inPersonFeeCtrl.text),
+        'video_call_fee': videoCallFee,
+        'in_person_fee': inPersonFee,
         'available_today': _selectedTimes.toList(),
         'available_hours': _availableHoursSummary(),
       });
@@ -290,12 +314,10 @@ class _SpecialistEditProfileScreenState
               TextFormField(
                 controller: _nameCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Your full name',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Name is required'
-                    : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Name is required' : null,
               ),
               const SizedBox(height: 16),
 
@@ -306,7 +328,6 @@ class _SpecialistEditProfileScreenState
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
-                  labelText: 'your@email.com',
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
                 validator: (v) {
@@ -317,42 +338,94 @@ class _SpecialistEditProfileScreenState
               ),
               const SizedBox(height: 16),
 
+              // ── Edit Password ────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => context.push('/change-password'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 16),
+                    foregroundColor: AppColors.textDark,
+                    side: BorderSide(
+                        color: AppColors.teal.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline, color: AppColors.textDark),
+                          SizedBox(width: 8),
+                          Text('Edit Password'),
+                        ],
+                      ),
+                      Icon(Icons.chevron_right, color: AppColors.textDark),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // ── Video Call Fee ────────────────────────────────────
-              _label('Video Call Fee (\$)'),
+              _label('Video Call Fee'),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _videoCallFeeCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
-                  labelText: 'e.g., 50.00',
+                  hintText: '0.0',
+                  prefixText: '\$',
                   prefixIcon: Icon(Icons.videocam_outlined),
                 ),
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Fee is required';
-                  if (double.tryParse(v) == null) return 'Enter a valid number';
+                  final parsed = _parseFeeValue(v);
+                  if (parsed == null) return 'Fee is required';
                   return null;
                 },
+                onChanged: (value) {
+                  setState(() => _videoCallFeeError = null);
+                },
               ),
+              if (_videoCallFeeError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _videoCallFeeError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ],
               const SizedBox(height: 16),
 
               // ── In-Person Fee ─────────────────────────────────────
-              _label('In-Person Consultation Fee (\$)'),
+              _label('In-Person Consultation Fee'),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _inPersonFeeCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
-                  labelText: 'e.g., 75.00',
+                  hintText: '0.0',
+                  prefixText: '\$',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Fee is required';
-                  if (double.tryParse(v) == null) return 'Enter a valid number';
+                  final parsed = _parseFeeValue(v);
+                  if (parsed == null) return 'Fee is required';
                   return null;
                 },
+                onChanged: (value) {
+                  setState(() => _inPersonFeeError = null);
+                },
               ),
+              if (_inPersonFeeError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _inPersonFeeError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ],
               const SizedBox(height: 24),
 
               // ── Available Days ─────────────────────────────────
@@ -404,8 +477,7 @@ class _SpecialistEditProfileScreenState
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
                     'Selected: ${_formatSelectedDays()}',
-                    style:
-                        const TextStyle(color: AppColors.teal, fontSize: 12),
+                    style: const TextStyle(color: AppColors.teal, fontSize: 12),
                   ),
                 ),
               ] else ...[
@@ -473,8 +545,7 @@ class _SpecialistEditProfileScreenState
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
                     'Selected: ${_formatSelectedTimes()}',
-                    style:
-                        const TextStyle(color: AppColors.teal, fontSize: 12),
+                    style: const TextStyle(color: AppColors.teal, fontSize: 12),
                   ),
                 ),
               ] else ...[
@@ -484,7 +555,8 @@ class _SpecialistEditProfileScreenState
                   child: Text(
                     _timeError ?? 'No time slots selected yet.',
                     style: TextStyle(
-                      color: _timeError != null ? Colors.red : AppColors.textMid,
+                      color:
+                          _timeError != null ? Colors.red : AppColors.textMid,
                       fontSize: 12,
                     ),
                   ),
@@ -535,7 +607,6 @@ class _SpecialistEditProfileScreenState
 
   Widget _label(String text) => Text(
         text,
-        style:
-            const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
       );
 }

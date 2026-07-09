@@ -60,12 +60,13 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
     final fullName = _profile?['full_name'] as String? ?? 'Dr Specialist';
     final email = _profile?['email'] as String? ?? '';
     final photoUrl = _profile?['profile_picture_url'] as String?;
-    final specialization =
-        _specialistProfile?['specialization'] as String? ?? 'Healthcare Specialist';
-    final hospital =
-        _specialistProfile?['hospital_affiliation'] as String? ?? 'Medical Institution';
+    final specialization = _specialistProfile?['specialization'] as String? ??
+        'Healthcare Specialist';
+    final hospital = _specialistProfile?['hospital_affiliation'] as String? ??
+        'Medical Institution';
     final bio = _specialistProfile?['bio'] as String? ?? '';
-    final yearsExperience = _specialistProfile?['years_experience'] as int? ?? 0;
+    final yearsExperience =
+        _specialistProfile?['years_experience'] as int? ?? 0;
     final videoCallFee = _numValue(_specialistProfile?['video_call_fee']) ?? 0;
     final inPersonFee = _numValue(_specialistProfile?['in_person_fee']) ?? 0;
     final availableHours = _availableHoursText(_specialistProfile);
@@ -73,7 +74,8 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
         (_specialistProfile?['articles_published'] as num?)?.toInt() ?? 0;
     final articlesReviewed =
         (_specialistProfile?['articles_reviewed'] as num?)?.toInt() ?? 0;
-    final licenseNumber = _specialistProfile?['license_number'] as String? ?? '';
+    final licenseNumber =
+        _specialistProfile?['license_number'] as String? ?? '';
     final qualification = _specialistProfile?['qualification'] as String? ?? '';
     final certificateExpiryDate =
         _specialistProfile?['practising_certificate_expiry'] as String? ?? '';
@@ -81,19 +83,17 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: _showMoreOptions,
-          ),
-        ],
-      ),
+  backgroundColor: AppColors.background,
+  elevation: 0,
+  automaticallyImplyLeading: false,
+  title: const Text(
+    'My Profile',
+    style: TextStyle(
+      color: AppColors.textDark,
+      fontWeight: FontWeight.w700,
+    ),
+  ),
+),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -111,7 +111,9 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
                     child: photoUrl != null
                         ? null
                         : Text(
-                            fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
+                            fullName.isNotEmpty
+                                ? fullName[0].toUpperCase()
+                                : '?',
                             style: const TextStyle(
                               color: AppColors.roseDeep,
                               fontSize: 36,
@@ -170,47 +172,50 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
             const SizedBox(height: 20),
 
             // Credentials Section
-            if (licenseNumber.isNotEmpty ||
-                qualification.isNotEmpty ||
-                hospital.isNotEmpty ||
-                certificateExpiryDate.isNotEmpty) ...[
-              TBCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Professional Credentials:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          color: AppColors.textMid,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (licenseNumber.isNotEmpty) ...[
-                        _credentialRow('SMC / MCR Number', licenseNumber),
-                        const SizedBox(height: 10),
-                      ],
-                      if (qualification.isNotEmpty) ...[
-                        _credentialRow('Medical Qualification', qualification),
-                        const SizedBox(height: 10),
-                      ],
-                      if (hospital.isNotEmpty) ...[
-                        _credentialRow('Place of Practice', hospital),
-                        const SizedBox(height: 10),
-                      ],
-                      if (certificateExpiryDate.isNotEmpty) ...[
-                        _credentialRow(
-                            'Practising Certificate Expiry', certificateExpiryDate),
-                      ],
-                    ],
-                  ),
-                ),
+if (licenseNumber.isNotEmpty ||
+    qualification.isNotEmpty ||
+    hospital.isNotEmpty ||
+    certificateExpiryDate.isNotEmpty) ...[
+  SizedBox(
+    width: double.infinity,
+    child: TBCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Professional Credentials:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textMid,
               ),
-              const SizedBox(height: 12),
+            ),
+            const SizedBox(height: 12),
+            if (licenseNumber.isNotEmpty) ...[
+              _credentialRow('SMC / MCR Number', licenseNumber),
+              const SizedBox(height: 10),
             ],
+            if (qualification.isNotEmpty) ...[
+              _credentialRow('Medical Qualification', qualification),
+              const SizedBox(height: 10),
+            ],
+            if (hospital.isNotEmpty) ...[
+              _credentialRow('Place of Practice', hospital),
+              const SizedBox(height: 10),
+            ],
+            if (certificateExpiryDate.isNotEmpty) ...[
+              _credentialRow(
+                  'Practising Certificate Expiry', certificateExpiryDate),
+            ],
+          ],
+        ),
+      ),
+    ),
+  ),
+  const SizedBox(height: 12),
+],
 
             // Description
             if (bio.isNotEmpty) ...[
@@ -245,127 +250,220 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
             ],
 
             // Consultation Charges
-            TBCard(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.videocam_outlined,
-                            size: 18, color: AppColors.textMid),
-                        SizedBox(width: 8),
-                        Text(
-                          'Consultation Charges:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: AppColors.textMid,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Video call: \$${videoCallFee.toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'In-person: \$${inPersonFee.toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
+            Center(
+  child: SizedBox(
+    width: 270,
+    child: TBCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.videocam_outlined,
+                    size: 18, color: AppColors.textMid),
+                SizedBox(width: 8),
+                Text(
+                  'Consultation Charges:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textMid,
+                  ),
                 ),
-              ),
+              ],
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Video call: \$${videoCallFee.toStringAsFixed(2)}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'In-person: \$${inPersonFee.toStringAsFixed(2)}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+),
             const SizedBox(height: 12),
 
             // Available Hours
-            TBCard(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.schedule_outlined,
-                            size: 18, color: AppColors.textMid),
-                        SizedBox(width: 8),
-                        Text(
-                          'Available Hours:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: AppColors.textMid,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        availableHours.isNotEmpty
-                            ? availableHours
-                            : 'Monday - Friday\n9:00 AM to 5:00 PM',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
+           TBCard(
+  child: Padding(
+    padding: const EdgeInsets.all(12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.schedule_outlined,
+                size: 18, color: AppColors.textMid),
+            SizedBox(width: 8),
+            Text(
+              'Available Hours:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textMid,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.center,
+          child: Text(
+            availableHours.isNotEmpty
+                ? availableHours
+                : 'Monday - Friday\n9:00 AM to 5:00 PM',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
             const SizedBox(height: 12),
 
             // Activity
-            TBCard(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.edit_outlined,
-                            size: 18, color: AppColors.textMid),
-                        SizedBox(width: 8),
-                        Text(
-                          'Activity:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: AppColors.textMid,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Articles published: $articlesPublished',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Articles reviewed: $articlesReviewed',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
+            Center(
+  child: SizedBox(
+    width: 270,
+    child: TBCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.edit_outlined,
+                    size: 18, color: AppColors.textMid),
+                SizedBox(width: 8),
+                Text(
+                  'Activity:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textMid,
+                  ),
                 ),
-              ),
+              ],
             ),
-
-            // Bottom padding — no buttons here
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
+            Text(
+              'Articles published: $articlesPublished',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Articles reviewed: $articlesReviewed',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+),
+            // Bottom padding, sign out and edit profile buttons
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+  child: GestureDetector(
+    onTap: () async {
+      await context.push(
+        '/specialist/edit-profile',
+        extra: _specialistProfile,
+      );
+      setState(() => _loading = true);
+      _load();
+    },
+    child: TBCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.edit_outlined,
+                    size: 18, color: AppColors.textMid),
+                SizedBox(width: 8),
+                Text(
+                  'Edit Profile',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ],
+            ),
+            const Icon(Icons.chevron_right,
+                size: 18, color: AppColors.textMid),
+          ],
+        ),
+      ),
+    ),
+  ),
+),
+const SizedBox(width: 12),
+Expanded(
+  child: GestureDetector(
+    onTap: _showLogoutDialog,
+    child: TBCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+  mainAxisAlignment: MainAxisAlignment.center,
+  children: const [
+    Icon(Icons.logout, size: 18, color: Colors.red),
+    SizedBox(width: 8),
+    Text(
+      'Sign Out',
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 13,
+        color: Colors.red,
+      ),
+    ),
+    SizedBox(width: 8),
+    Icon(Icons.chevron_right, size: 18, color: Colors.red),
+  ],
+),
+          ],
+        ),
+      ),
+    ),
+  ),
+),
+              ],
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-
   Widget _credentialRow(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,52 +503,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
     }
     return '';
   }
-
-  void _showMoreOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit Profile'),
-              onTap: () async {
-                Navigator.pop(context);
-                await context.push(
-                  '/specialist/edit-profile',
-                  extra: _specialistProfile,
-                );
-                // Reload after returning from edit
-                setState(() => _loading = true);
-                _load();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.lock_outline),
-              title: const Text('Change Password'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/change-password');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title:
-                  const Text('Sign Out', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                _showLogoutDialog();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showLogoutDialog() {
     showDialog(
       context: context,
@@ -468,8 +520,7 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
               await context.read<AuthProvider>().signOut();
               if (mounted) context.go('/login');
             },
-            child:
-                const Text('Sign Out', style: TextStyle(color: Colors.red)),
+            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
