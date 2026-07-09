@@ -53,6 +53,16 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     final isPremium = context.watch<AuthProvider>().isPremium;
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+        ),
         title: const Text('Consultations'),
         bottom: TabBar(
           controller: _tabs,
