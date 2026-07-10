@@ -252,7 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.logout,
                         'Sign Out',
                         color: Colors.red,
-                        onTap: () => _signOut(),
+                        onTap: () => _confirmSignOut(),
                       ),
                     ],
                   ),
@@ -324,6 +324,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => const _FeedbackSheet(),
+    );
+  }
+
+  void _confirmSignOut() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _signOut();
+            },
+            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 

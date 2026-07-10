@@ -407,9 +407,20 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                 delegate: SliverChildListDelegate([
                   // Today's Appointments
                   if (_todayConsultations.isNotEmpty) ...[
-                    const Text("Today's Appointment:",
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text("Today's Appointment:",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 16)),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              context.go('/specialist/consultations'),
+                          child: const Text('View All >'),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     ..._todayConsultations
                         .map((c) => Padding(
