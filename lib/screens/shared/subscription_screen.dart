@@ -4,6 +4,7 @@ import '../../services/supabase_service.dart';
 import '../../services/auth_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ── Subscription Screen ───────────────────────────────────────────
 class SubscriptionScreen extends StatefulWidget {
@@ -16,7 +17,10 @@ class SubscriptionScreen extends StatefulWidget {
 // Plan metadata shared by the upgrade tiles and the Change Plan sheet.
 const subscriptionPlans = {
   'premium_monthly': {'label': 'Premium Monthly', 'price': '\$9.90/month'},
-  'premium_yearly': {'label': 'Premium Annual', 'price': '\$90/year • Save 24%'},
+  'premium_yearly': {
+    'label': 'Premium Annual',
+    'price': '\$90/year • Save 24%'
+  },
 };
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
@@ -78,7 +82,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
     );
 
-    if (confirm == true) await _setPlan(plan);
+    if (confirm == true) await _startCheckout(plan);
   }
 
   void _showChangePlan(String? currentPlan) {
@@ -103,17 +107,65 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const SizedBox(height: 16),
             for (final entry in subscriptionPlans.entries) ...[
               _planTile(entry.key, entry.value['label']!, entry.value['price']!,
-                  isCurrent: entry.key == currentPlan,
-                  onSelect: () {
-                    Navigator.pop(context);
-                    if (entry.key != currentPlan) _setPlan(entry.key);
-                  }),
+                  isCurrent: entry.key == currentPlan, onSelect: () {
+                Navigator.pop(context);
+                if (entry.key != currentPlan) _setPlan(entry.key);
+              }),
               const SizedBox(height: 10),
             ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _startCheckout(String plan) async {
+    setState(() => _busy = true);
+
+    try {
+      final user = SupabaseService.client.auth.currentUser;
+
+      final response = await SupabaseService.client.functions.invoke(
+        'create-checkout-session',
+        body: {
+          'plan': plan,
+          'user_id': user?.id,
+          'email': user?.email,
+        },
+      );
+
+      final data = response.data;
+
+      if (data is! Map || data['url'] == null) {
+        throw Exception(
+          data is Map
+              ? data['error'] ?? data['message'] ?? 'No checkout URL returned.'
+              : 'Invalid checkout response.',
+        );
+      }
+
+      final checkoutUrl = Uri.parse(data['url'].toString());
+
+      final opened = await launchUrl(
+        checkoutUrl,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!opened) {
+        throw Exception('Could not open Stripe Checkout.');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _confirmCancel() async {
@@ -203,7 +255,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               for (final entry in subscriptionPlans.entries) ...[
-                _planTile(entry.key, entry.value['label']!, entry.value['price']!,
+                _planTile(
+                    entry.key, entry.value['label']!, entry.value['price']!,
                     onSelect: _busy ? null : () => _confirmUpgrade(entry.key)),
                 const SizedBox(height: 10),
               ],
@@ -272,8 +325,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               onPressed: onSelect,
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.teal,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
               child: const Text('Select', style: TextStyle(fontSize: 13)),
             ),
         ],

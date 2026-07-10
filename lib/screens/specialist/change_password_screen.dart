@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -15,7 +14,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _currentPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
-  
+
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -98,8 +97,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     icon: Icon(_obscureCurrentPassword
                         ? Icons.visibility_off
                         : Icons.visibility),
-                    onPressed: () => setState(
-                        () => _obscureCurrentPassword = !_obscureCurrentPassword),
+                    onPressed: () => setState(() =>
+                        _obscureCurrentPassword = !_obscureCurrentPassword),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -129,8 +128,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     icon: Icon(_obscureNewPassword
                         ? Icons.visibility_off
                         : Icons.visibility),
-                    onPressed: () =>
-                        setState(() => _obscureNewPassword = !_obscureNewPassword),
+                    onPressed: () => setState(
+                        () => _obscureNewPassword = !_obscureNewPassword),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -163,8 +162,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     icon: Icon(_obscureConfirmPassword
                         ? Icons.visibility_off
                         : Icons.visibility),
-                    onPressed: () => setState(
-                        () => _obscureConfirmPassword = !_obscureConfirmPassword),
+                    onPressed: () => setState(() =>
+                        _obscureConfirmPassword = !_obscureConfirmPassword),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
