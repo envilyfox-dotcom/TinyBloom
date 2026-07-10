@@ -410,10 +410,13 @@ class SupabaseService {
   // an UPDATE blocked by a missing RLS policy doesn't throw by default, it
   // just silently affects zero rows, which would otherwise look like a
   // successful cancel that didn't actually happen.
-  static Future<void> cancelConsultation(String id) async {
+  static Future<void> cancelConsultation(String id, {String? reason}) async {
     final res = await client
         .from('consultations')
-        .update({'status': 'cancelled'})
+        .update({
+          'status': 'cancelled',
+          'cancellation_reason': reason?.trim().isEmpty == true ? null : reason?.trim(),
+        })
         .eq('id', id)
         .select();
     if (res.isEmpty) {

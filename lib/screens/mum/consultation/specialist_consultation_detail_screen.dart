@@ -234,8 +234,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                               const Text('Patient Details',
                                   style: TextStyle(
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 15)),
-                              const SizedBox(height: 12),
+                                      fontSize: 18)),
+                              const SizedBox(height: 10),
                               _detailRow(
                                   'Name',
                                   Text(patientName,
@@ -341,6 +341,29 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                             ],
                           ),
                         ),
+                        if (status == 'cancelled' &&
+                            (c['cancellation_reason'] as String? ?? '')
+                                .isNotEmpty) ...[
+                          const Divider(height: 1, color: AppColors.blush),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Reason for Cancellation',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: Colors.red)),
+                                const SizedBox(height: 6),
+                                Text(c['cancellation_reason'] as String,
+                                    style: const TextStyle(
+                                        color: AppColors.textDark,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

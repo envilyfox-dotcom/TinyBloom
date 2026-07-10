@@ -69,9 +69,14 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
       ),
     );
     if (confirm != true) return;
+
+    final reason = await _promptCancellationReason();
+    if (reason == null) return;
+
     setState(() => _cancelling = true);
     try {
-      await SupabaseService.cancelConsultation(widget.consultation['id']);
+      await SupabaseService.cancelConsultation(widget.consultation['id'],
+          reason: reason);
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
@@ -80,6 +85,62 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
+  }
+
+  // Matches the forum's "+ New Post" bottom sheet design so cancellation
+  // flows feel consistent with the rest of the app.
+  Future<String?> _promptCancellationReason() async {
+    final ctrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20),
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Reason for Cancellation',
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: 6),
+              const Text(
+                  'Let your specialist know why you\'re cancelling this appointment.',
+                  style: TextStyle(color: AppColors.textMid, fontSize: 13)),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: ctrl,
+                maxLines: 4,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    hintText: 'e.g. Something came up, need to reschedule...'),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Please share a reason before cancelling.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              TBButton(
+                label: 'Confirm Cancellation',
+                onPressed: () {
+                  if (!formKey.currentState!.validate()) return;
+                  Navigator.pop(sheetContext, ctrl.text.trim());
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _detailRow(String label, Widget value) {
@@ -206,6 +267,29 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             ],
                           ),
                         ),
+                        if (status == 'cancelled' &&
+                            (c['cancellation_reason'] as String? ?? '')
+                                .isNotEmpty) ...[
+                          const Divider(height: 1, color: AppColors.blush),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Reason for Cancellation',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: Colors.red)),
+                                const SizedBox(height: 6),
+                                Text(c['cancellation_reason'] as String,
+                                    style: const TextStyle(
+                                        color: AppColors.textDark,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

@@ -353,6 +353,8 @@ class _SpecialistConsultationsScreenState
         : '—';
     final timeStr = consultation['scheduled_time'] as String? ?? '—';
     final purpose = consultation['purpose'] as String? ?? '';
+    final cancellationReason =
+        consultation['cancellation_reason'] as String? ?? '';
     final platform = consultation['platform'] as String? ?? 'Zoom Meeting';
     final busy = _busyIds.contains(id);
 
@@ -376,7 +378,7 @@ class _SpecialistConsultationsScreenState
                   child: Text('Patient details',
                       style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                          fontSize: 20,
                           color: AppColors.textDark)),
                 ),
                 CircleAvatar(
@@ -396,7 +398,7 @@ class _SpecialistConsultationsScreenState
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _infoLine('Appointment ID', appointmentIdLabel(id)),
             _infoLine('Name', patientName),
             _infoLine('Age', patientAge == '—' ? '—' : '$patientAge yrs old'),
@@ -419,8 +421,29 @@ class _SpecialistConsultationsScreenState
               ),
             ),
             const SizedBox(height: 8),
-            Text('Descriptions: ${purpose.isEmpty ? 'No purpose specified.' : purpose}',
-                style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
+            effectiveKey == 'cancelled'
+                ? Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(
+                            text: 'Reason for Cancellation: ',
+                            style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13)),
+                        TextSpan(
+                            text: cancellationReason.isEmpty
+                                ? 'No reason given.'
+                                : cancellationReason,
+                            style: const TextStyle(
+                                color: AppColors.textDark, fontSize: 13)),
+                      ],
+                    ),
+                  )
+                : Text(
+                    'Descriptions: ${purpose.isEmpty ? 'No purpose specified.' : purpose}',
+                    style:
+                        const TextStyle(color: AppColors.textMid, fontSize: 13)),
             const SizedBox(height: 16),
             if (effectiveKey == 'confirmed')
               Center(
