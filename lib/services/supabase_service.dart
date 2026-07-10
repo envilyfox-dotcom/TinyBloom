@@ -404,15 +404,18 @@ class SupabaseService {
     });
   }
 
-  // Cancelling removes the booking outright rather than leaving a
-  // "cancelled" row behind — there's no need to keep a record once it's
-  // cancelled. .select() so we get back the rows that were actually
-  // deleted — a DELETE blocked by a missing RLS policy doesn't throw by
-  // default, it just silently affects zero rows, which would otherwise
-  // look like a successful cancel that didn't actually happen.
+  // Cancelling marks the row as "cancelled" rather than deleting it, so the
+  // specialist still sees it (as a Cancelled entry) instead of it vanishing
+  // outright. .select() so we get back the rows that were actually updated —
+  // an UPDATE blocked by a missing RLS policy doesn't throw by default, it
+  // just silently affects zero rows, which would otherwise look like a
+  // successful cancel that didn't actually happen.
   static Future<void> cancelConsultation(String id) async {
-    final res =
-        await client.from('consultations').delete().eq('id', id).select();
+    final res = await client
+        .from('consultations')
+        .update({'status': 'cancelled'})
+        .eq('id', id)
+        .select();
     if (res.isEmpty) {
       throw Exception(
           'Could not cancel this consultation — you may not have permission to.');

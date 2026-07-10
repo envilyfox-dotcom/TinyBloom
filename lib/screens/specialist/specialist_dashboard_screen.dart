@@ -90,13 +90,46 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
+  // Combines scheduled_date + scheduled_time into a single DateTime so
+  // consultations can be sorted soonest-first. scheduled_time is stored as
+  // "9:00 AM"-style text, not 24-hour time, so this defers to slotDateTime
+  // (shared with the booking screens) rather than DateTime.parse, which
+  // can't handle the AM/PM format and would silently fail for every row.
+  DateTime? _scheduledDateTime(Map<String, dynamic> c) {
+    final scheduled = c['scheduled_date'];
+    if (scheduled == null) return null;
+    try {
+      final date = DateTime.parse(scheduled.toString());
+      final timeStr = c['scheduled_time'] as String?;
+      if (timeStr == null || timeStr.isEmpty) {
+        return DateTime(date.year, date.month, date.day);
+      }
+      return slotDateTime(date, timeStr) ??
+          DateTime(date.year, date.month, date.day);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Map<String, dynamic>> _sortedByTime(List<Map<String, dynamic>> list) {
+    final sorted = [...list];
+    sorted.sort((a, b) {
+      final aTime = _scheduledDateTime(a);
+      final bTime = _scheduledDateTime(b);
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return aTime.compareTo(bTime);
+    });
+    return sorted;
+  }
+
   // Filter consultations for today
   List<Map<String, dynamic>> get _todayConsultations {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
 
-    return _consultations.where((c) {
+    final filtered = _consultations.where((c) {
       final scheduled = c['scheduled_date'];
       if (scheduled == null) return false;
       try {
@@ -109,6 +142,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         return false;
       }
     }).toList();
+
+    return _sortedByTime(filtered);
   }
 
   // Filter consultations for upcoming (after today)
@@ -116,7 +151,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    return _consultations.where((c) {
+    final filtered = _consultations.where((c) {
       final scheduled = c['scheduled_date'];
       if (scheduled == null) return false;
       try {
@@ -128,9 +163,9 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       } catch (_) {
         return false;
       }
-    }).toList()
-        .take(3)
-        .toList(); // Show only first 3 upcoming
+    }).toList();
+
+    return _sortedByTime(filtered).take(3).toList(); // Show only the 3 soonest
   }
 
   String get _firstName =>

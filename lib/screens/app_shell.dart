@@ -14,9 +14,9 @@ class AppShell extends StatelessWidget {
   static const _tabs = [
     '/home', '/logs', '/education', '/forum', '/profile'];
 
-  // Specialist tabs (unchanged)
+  // Specialist tabs — Home | Consultation | Learn | Forum | Profile
   static const _tabsNonMum = [
-    '/home', '/education', '/forum', '/profile'];
+    '/home', '/specialist/consultations', '/education', '/forum', '/profile'];
 
   // Volunteer tabs — Home | Services | Consultation | Request | More
   static const _tabsVolunteer = [
@@ -113,7 +113,7 @@ class AppShell extends StatelessWidget {
       );
     }
 
-    // ── Mum / Specialist bottom nav (unchanged) ───────────────────
+    // ── Mum / Specialist bottom nav ────────────────────────────────
     final items = [
       const BottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),
@@ -124,6 +124,11 @@ class AppShell extends StatelessWidget {
             icon: Icon(Icons.favorite_outline),
             activeIcon: Icon(Icons.favorite),
             label: 'Logs'),
+      if (!isMum)
+        const BottomNavigationBarItem(
+            icon: Icon(Icons.people_outline),
+            activeIcon: Icon(Icons.people),
+            label: 'Consultation'),
       const BottomNavigationBarItem(
           icon: Icon(Icons.menu_book_outlined),
           activeIcon: Icon(Icons.menu_book),

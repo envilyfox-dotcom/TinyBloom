@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -45,6 +46,8 @@ class _SpecialistEditProfileScreenState
 
   bool _saving = false;
   bool _loading = true;
+  String? _photoUrl;
+  bool _photoBusy = false;
 
   @override
   void initState() {
@@ -146,6 +149,7 @@ class _SpecialistEditProfileScreenState
       if (profile != null) {
         _nameCtrl.text = profile['full_name'] ?? '';
         _emailCtrl.text = profile['email'] ?? '';
+        _photoUrl = profile['profile_picture_url'] as String?;
       }
 
       final specialist = widget.specialistProfile ?? {};
@@ -189,6 +193,66 @@ class _SpecialistEditProfileScreenState
     }
 
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _pickPhoto() async {
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
+    if (picked == null) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final url = await SupabaseService.uploadProfilePicture(
+          bytes, ext.length <= 4 ? ext : 'jpg');
+      if (mounted) setState(() => _photoUrl = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+    if (mounted) setState(() => _photoBusy = false);
+  }
+
+  Future<void> _confirmRemovePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Photo'),
+        content: const Text(
+            'Are you sure you want to remove your profile photo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await _removePhoto();
+  }
+
+  Future<void> _removePhoto() async {
+    setState(() => _photoBusy = true);
+    try {
+      await SupabaseService.removeProfilePicture();
+      if (mounted) setState(() => _photoUrl = null);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+    if (mounted) setState(() => _photoBusy = false);
   }
 
   @override
@@ -276,6 +340,65 @@ class _SpecialistEditProfileScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Profile Photo ─────────────────────────────────────
+              Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                      backgroundImage:
+                          _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                      child: _photoBusy
+                          ? const CircularProgressIndicator(
+                              color: AppColors.rose)
+                          : (_photoUrl == null
+                              ? Text(
+                                  _nameCtrl.text.isNotEmpty
+                                      ? _nameCtrl.text[0].toUpperCase()
+                                      : 'D',
+                                  style: const TextStyle(
+                                      color: AppColors.roseDeep,
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w700))
+                              : null),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _photoBusy ? null : _pickPhoto,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.rose,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: AppColors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white, size: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_photoUrl != null) ...[
+                const SizedBox(height: 6),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _photoBusy ? null : _confirmRemovePhoto,
+                    icon: const Icon(Icons.delete_outline,
+                        color: Colors.red, size: 18),
+                    label: const Text('Remove Photo',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+
               // ── Name ──────────────────────────────────────────────
               _label('Full Name'),
               const SizedBox(height: 8),

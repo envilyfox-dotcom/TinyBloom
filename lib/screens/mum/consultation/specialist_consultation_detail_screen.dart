@@ -75,13 +75,6 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
     _load();
   }
 
-  String _trimesterLabel(int week) {
-    if (week >= 1 && week <= 12) return 'First Trimester';
-    if (week >= 13 && week <= 27) return 'Second Trimester';
-    if (week >= 28) return 'Third Trimester';
-    return 'Unknown Trimester';
-  }
-
   Future<void> _load() async {
     final specialistId = widget.consultation['specialist_id'] as String?;
     final patientId = widget.consultation['patient_id'] as String?;
@@ -197,7 +190,7 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
         '—';
     final patientCurrentWeek =
         (_patientPregnancy?['current_week'] as num?)?.toInt() ?? 0;
-    final trimester = _trimesterLabel(patientCurrentWeek);
+    final trimester = trimesterLabel(patientCurrentWeek);
     final dateStr = c['scheduled_date'] != null
         ? DateFormat('d MMMM yyyy (EEE)')
             .format(DateTime.parse(c['scheduled_date']))

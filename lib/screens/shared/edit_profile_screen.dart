@@ -72,6 +72,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (mounted) setState(() => _photoBusy = false);
   }
 
+  Future<void> _confirmRemovePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Photo'),
+        content: const Text(
+            'Are you sure you want to remove your profile photo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await _removePhoto();
+  }
+
   Future<void> _removePhoto() async {
     setState(() => _photoBusy = true);
     try {
@@ -322,7 +345,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             if (_photoUrl != null) ...[
               const SizedBox(height: 6),
               TextButton.icon(
-                onPressed: _photoBusy ? null : _removePhoto,
+                onPressed: _photoBusy ? null : _confirmRemovePhoto,
                 icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                 label: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
               ),

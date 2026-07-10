@@ -42,6 +42,7 @@ import 'specialist/submit_link_screen.dart';
 import 'specialist/specialist_dashboard_screen.dart';
 import 'specialist/specialist_profile_screen.dart';
 import 'specialist/specialist_edit_profile_screen.dart';
+import 'specialist/specialist_consultations_screen.dart';
 import 'specialist/change_password_screen.dart';
 import 'mum/consultation/specialist_consultation_detail_screen.dart';
 
@@ -116,11 +117,14 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/profile')) idx = 4;
         } else {
-          if (location.startsWith('/education'))
+          // Specialist: Home(0) | Consultation(1) | Learn(2) | Forum(3) | Profile(4)
+          if (location.startsWith('/specialist/consultations'))
             idx = 1;
-          else if (location.startsWith('/forum'))
+          else if (location.startsWith('/education'))
             idx = 2;
-          else if (location.startsWith('/profile')) idx = 3;
+          else if (location.startsWith('/forum'))
+            idx = 3;
+          else if (location.startsWith('/profile')) idx = 4;
         }
 
         return AppShell(selectedIndex: idx, child: child);
@@ -150,6 +154,9 @@ final router = GoRouter(
             path: '/education', builder: (_, __) => const EducationScreen()),
         GoRoute(path: '/logs', builder: (_, __) => const LogsScreen()),
         GoRoute(path: '/forum', builder: (_, __) => const ForumScreen()),
+        GoRoute(
+            path: '/specialist/consultations',
+            builder: (_, __) => const SpecialistConsultationsScreen()),
 
         // ── Volunteer main tabs (INSIDE ShellRoute so back works) ──
         GoRoute(

@@ -97,6 +97,40 @@ class _VolunteerEditProfileScreenState
     if (mounted) setState(() => _photoBusy = false);
   }
 
+  Future<void> _confirmRemovePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Photo'),
+        content: const Text(
+            'Are you sure you want to remove your profile photo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await _removePhoto();
+  }
+
+  Future<void> _removePhoto() async {
+    setState(() => _photoBusy = true);
+    try {
+      await SupabaseService.removeProfilePicture();
+      if (mounted) setState(() => _photoUrl = null);
+    } catch (e) {
+      if (mounted) _showSnack('Error: $e', isError: true);
+    }
+    if (mounted) setState(() => _photoBusy = false);
+  }
+
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
@@ -211,6 +245,16 @@ class _VolunteerEditProfileScreenState
             Text('Tap to change photo',
                 style: GoogleFonts.poppins(
                     fontSize: 12, color: _roseDark)),
+            if (_photoUrl != null && _photoUrl!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              TextButton.icon(
+                onPressed: _photoBusy ? null : _confirmRemovePhoto,
+                icon: const Icon(Icons.delete_outline,
+                    color: Colors.red, size: 18),
+                label: Text('Remove Photo',
+                    style: GoogleFonts.poppins(color: Colors.red)),
+              ),
+            ],
             const SizedBox(height: 24),
 
             // ── Form card — mirrors the Personal Information card

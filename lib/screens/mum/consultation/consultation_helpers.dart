@@ -49,6 +49,23 @@ String consultationTypeLabel(String? type) {
   return '${type[0].toUpperCase()}${type.substring(1)} Consultation';
 }
 
+String trimesterLabel(int week) {
+  if (week >= 1 && week <= 12) return 'First Trimester';
+  if (week >= 13 && week <= 27) return 'Second Trimester';
+  if (week >= 28) return 'Third Trimester';
+  return 'Unknown Trimester';
+}
+
+/// Shortens a consultation row's database id into a readable identifier
+/// like "APT-3F9A2B" for display.
+String appointmentIdLabel(dynamic id) {
+  final text = id?.toString() ?? '';
+  if (text.isEmpty) return 'APT-000000';
+  final compact = text.replaceAll('-', '');
+  final tail = compact.length > 6 ? compact.substring(compact.length - 6) : compact;
+  return 'APT-${tail.toUpperCase()}';
+}
+
 const List<String> defaultConsultationTimes = [
   '9:00 AM',
   '10:00 AM',
@@ -109,7 +126,9 @@ String _normaliseTime(String value) {
   return value.trim();
 }
 
-DateTime? _slotDateTime(DateTime date, String time) {
+/// Combines a [date] with a time-of-day string (e.g. "9:00 AM", "9am",
+/// "09:00") into a concrete [DateTime], or null if [time] can't be parsed.
+DateTime? slotDateTime(DateTime date, String time) {
   final clean = timeOnly(time).toUpperCase().replaceAll('.', '').trim();
 
   final formats = <DateFormat>[
@@ -268,7 +287,7 @@ List<String> futureTimesForDate(List<String> times, DateTime date) {
   if (!_isSameDay(date, now)) return times;
 
   return times.where((time) {
-    final slot = _slotDateTime(date, time);
+    final slot = slotDateTime(date, time);
     if (slot == null) return true;
     return slot.isAfter(now);
   }).toList();
