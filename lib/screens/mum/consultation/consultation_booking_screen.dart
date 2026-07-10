@@ -66,29 +66,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   }
 
   bool _isProviderAvailableOnDate(DateTime date) {
-    final availableHours = widget.provider['available_hours'];
-    if (availableHours is! String || availableHours.trim().isEmpty) {
-      return true;
-    }
-
-    final dayLine = availableHours
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .firstOrNull;
-
-    if (dayLine == null || dayLine.isEmpty) return true;
-
-    final availableDays = dayLine
-        .split(RegExp(r'[,-]'))
-        .map((part) => part.trim().toLowerCase())
-        .where((part) => part.isNotEmpty)
-        .toSet();
-
-    if (availableDays.isEmpty) return true;
-
-    return availableDays
-        .contains(DateFormat('EEEE').format(date).toLowerCase());
+    return isDateAvailableForHours(widget.provider['available_hours'], date);
   }
 
   List<String> get _providerTimeSlots {

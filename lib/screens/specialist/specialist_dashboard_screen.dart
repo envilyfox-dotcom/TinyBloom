@@ -185,23 +185,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                       Text(purpose,
                           style: const TextStyle(
                               color: AppColors.textMid, fontSize: 12)),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: statusColor(status).withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(statusLabel(status),
-                            style: TextStyle(
-                                color: statusColor(status),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700)),
-                      ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -218,13 +205,28 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text('View Details >',
-                  style: TextStyle(
-                      color: AppColors.teal.withValues(alpha: 0.7),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor(status).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(statusLabel(status),
+                      style: TextStyle(
+                          color: statusColor(status),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ),
+                Text('View Details >',
+                    style: TextStyle(
+                        color: AppColors.teal.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ],
             ),
           ],
         ),

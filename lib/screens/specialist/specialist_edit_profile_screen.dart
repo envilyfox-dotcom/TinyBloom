@@ -43,26 +43,6 @@ class _SpecialistEditProfileScreenState
     'Sunday',
   ];
 
-  static const Map<String, String> _weekDayAliases = {
-    'mon': 'Monday',
-    'monday': 'Monday',
-    'tue': 'Tuesday',
-    'tues': 'Tuesday',
-    'tuesday': 'Tuesday',
-    'wed': 'Wednesday',
-    'weds': 'Wednesday',
-    'wednesday': 'Wednesday',
-    'thu': 'Thursday',
-    'thurs': 'Thursday',
-    'thursday': 'Thursday',
-    'fri': 'Friday',
-    'friday': 'Friday',
-    'sat': 'Saturday',
-    'saturday': 'Saturday',
-    'sun': 'Sunday',
-    'sunday': 'Sunday',
-  };
-
   bool _saving = false;
   bool _loading = true;
 
@@ -98,12 +78,6 @@ class _SpecialistEditProfileScreenState
     final clean = value.replaceAll('\$', '').replaceAll(',', '').trim();
     if (clean.isEmpty) return null;
     return double.tryParse(clean);
-  }
-
-  String _parseWeekDay(String text) {
-    final clean = text.trim().toLowerCase();
-    if (_weekDayAliases.containsKey(clean)) return _weekDayAliases[clean]!;
-    return '';
   }
 
   String _formatSelectedDays() {
@@ -188,22 +162,16 @@ class _SpecialistEditProfileScreenState
 
       final availableHours = specialist['available_hours'];
       if (availableHours is String && availableHours.trim().isNotEmpty) {
+        final days = availableDaysFromHours(availableHours);
+        if (days.isNotEmpty) {
+          setState(() => _selectedDays.addAll(days));
+        }
+
         final lines = availableHours
             .split('\n')
             .map((line) => line.trim())
             .where((line) => line.isNotEmpty)
             .toList();
-        if (lines.isNotEmpty) {
-          final dayLine = lines.first;
-          final days = dayLine
-              .split(RegExp(r'[,-]'))
-              .map((part) => _parseWeekDay(part))
-              .where((day) => day.isNotEmpty)
-              .toSet();
-          if (days.isNotEmpty) {
-            setState(() => _selectedDays.addAll(days));
-          }
-        }
         if (lines.length > 1) {
           final timeLine = lines.sublist(1).join(', ');
           final parsedTimes = availableTimesOnly(timeLine);

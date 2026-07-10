@@ -158,12 +158,24 @@ const Map<String, String> _weekDayAliases = {
   'sunday': 'Sunday',
 };
 
+const List<String> _weekDayOrder = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
 String _parseWeekDay(String text) {
   final clean = text.trim().toLowerCase();
   return _weekDayAliases[clean] ?? '';
 }
 
-Set<String> _availableDaysFromHours(dynamic value) {
+/// Parses the day-line of an `available_hours` value (e.g. "Monday - Sunday"
+/// or "Mon, Wed, Fri") into the full set of weekday names it covers.
+Set<String> availableDaysFromHours(dynamic value) {
   if (value is! String || value.trim().isEmpty) return {};
 
   final lines = value
@@ -174,15 +186,49 @@ Set<String> _availableDaysFromHours(dynamic value) {
 
   if (lines.isEmpty) return {};
 
-  return lines.first
-      .split(RegExp(r'[,-]'))
-      .map((part) => _parseWeekDay(part))
-      .where((day) => day.isNotEmpty)
-      .toSet();
+  final days = <String>{};
+
+  for (final part in lines.first.split(',')) {
+    final trimmed = part.trim();
+    if (trimmed.isEmpty) continue;
+
+    if (trimmed.contains('-')) {
+      final bounds = trimmed.split('-').map((e) => e.trim()).toList();
+      final start = bounds.isNotEmpty ? _parseWeekDay(bounds.first) : '';
+      final end = bounds.length > 1 ? _parseWeekDay(bounds.last) : '';
+      final startIndex = _weekDayOrder.indexOf(start);
+      final endIndex = _weekDayOrder.indexOf(end);
+
+      if (startIndex != -1 && endIndex != -1) {
+        // Expand the range (e.g. "Monday - Sunday") into every day it spans,
+        // instead of just its two endpoints. Handles wrap-around ranges too.
+        var i = startIndex;
+        while (true) {
+          days.add(_weekDayOrder[i]);
+          if (i == endIndex) break;
+          i = (i + 1) % _weekDayOrder.length;
+        }
+        continue;
+      }
+
+      for (final piece in bounds) {
+        final day = _parseWeekDay(piece);
+        if (day.isNotEmpty) days.add(day);
+      }
+    } else {
+      final day = _parseWeekDay(trimmed);
+      if (day.isNotEmpty) days.add(day);
+    }
+  }
+
+  return days;
 }
 
-bool _isTodayAvailableForHours(dynamic value, DateTime date) {
-  final availableDays = _availableDaysFromHours(value);
+/// Whether the provider's `available_hours` value covers the weekday of
+/// [date]. Correctly expands day ranges (e.g. "Monday - Sunday" means every
+/// day from Monday through Sunday, not just those two days).
+bool isDateAvailableForHours(dynamic value, DateTime date) {
+  final availableDays = availableDaysFromHours(value);
   if (availableDays.isEmpty) return true;
   return availableDays.contains(DateFormat('EEEE').format(date));
 }
@@ -281,7 +327,7 @@ Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
   return providers.map((provider) {
     final providerId = provider['user_id']?.toString() ?? '';
     final providerTimes = availableTimesOnly(provider['available_today']);
-    final shouldShowToday = _isTodayAvailableForHours(
+    final shouldShowToday = isDateAvailableForHours(
       provider['available_hours'],
       today,
     );
