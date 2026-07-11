@@ -51,6 +51,13 @@ class _SpecialistEditProfileScreenState
   List<Map<String, dynamic>> _specialties = [];
   int? _specialtyId;
 
+  String get _specialtyName {
+    for (final s in _specialties) {
+      if (s['id'] == _specialtyId) return s['name'] as String? ?? 'Unset';
+    }
+    return 'Unset';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -300,22 +307,11 @@ class _SpecialistEditProfileScreenState
         'email': _emailCtrl.text.trim(),
       });
 
-      Map<String, dynamic>? selectedSpecialty;
-      for (final s in _specialties) {
-        if (s['id'] == _specialtyId) {
-          selectedSpecialty = s;
-          break;
-        }
-      }
-
       await SupabaseService.updateSpecialistProfile({
         'video_call_fee': videoCallFee,
         'in_person_fee': inPersonFee,
         'available_today': _selectedTimes.toList(),
         'available_hours': _availableHoursSummary(),
-        if (_specialtyId != null) 'specialty_id': _specialtyId,
-        if (selectedSpecialty != null)
-          'specialization': selectedSpecialty['name'],
       });
 
       if (mounted) {
@@ -448,23 +444,26 @@ class _SpecialistEditProfileScreenState
               _label('Specialty'),
               const SizedBox(height: 4),
               const Text(
-                'Determines which article review group(s) you belong to.',
+                'Determines which article review group(s) you belong to. ',
                 style: TextStyle(color: AppColors.textLight, fontSize: 12),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
-                initialValue: _specialtyId,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.medical_information_outlined),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.blush,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                hint: const Text('Select your specialty'),
-                items: _specialties
-                    .map((s) => DropdownMenuItem<int>(
-                          value: s['id'] as int,
-                          child: Text(s['name'] as String? ?? ''),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _specialtyId = v),
+                child: Row(
+                  children: [
+                    const Icon(Icons.medical_information_outlined,
+                        color: AppColors.textMid),
+                    const SizedBox(width: 12),
+                    Text(_specialtyName, style: const TextStyle(fontSize: 14)),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 
