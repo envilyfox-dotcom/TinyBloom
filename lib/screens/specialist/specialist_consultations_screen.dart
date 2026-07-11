@@ -83,7 +83,8 @@ class _SpecialistConsultationsScreenState
       final status = (c['status'] as String? ?? '').toLowerCase();
       return status == 'pending' ||
           status == 'confirmed' ||
-          status == 'cancelled';
+          status == 'cancelled' ||
+          status == 'expired';
     }).toList();
 
     final patientIds = consultations
@@ -359,7 +360,10 @@ class _SpecialistConsultationsScreenState
     final busy = _busyIds.contains(id);
 
     return GestureDetector(
-      onTap: () => context.push('/consultation/detail', extra: consultation),
+      onTap: () async {
+        await context.push('/consultation/detail', extra: consultation);
+        _load();
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),

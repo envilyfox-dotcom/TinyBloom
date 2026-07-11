@@ -75,7 +75,47 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
     _load();
   }
 
+  // A pending consultation whose scheduled time has already passed is
+  // expired — persist that the moment it's opened, same as cancelling
+  // persists "cancelled", so the Approve button disappears for good
+  // instead of just being hidden client-side.
+  DateTime? _scheduledDateTime() {
+    final scheduled = widget.consultation['scheduled_date'];
+    if (scheduled == null) return null;
+    try {
+      final date = DateTime.parse(scheduled.toString());
+      final timeStr = widget.consultation['scheduled_time'] as String?;
+      if (timeStr == null || timeStr.isEmpty) {
+        return DateTime(date.year, date.month, date.day);
+      }
+      return slotDateTime(date, timeStr) ??
+          DateTime(date.year, date.month, date.day);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _maybeMarkExpired() async {
+    final status = (widget.consultation['status'] as String? ?? '').toLowerCase();
+    if (status != 'pending') return;
+
+    final scheduled = _scheduledDateTime();
+    if (scheduled == null || !scheduled.isBefore(DateTime.now())) return;
+
+    try {
+      final id = widget.consultation['id']?.toString();
+      if (id == null) return;
+      await SupabaseService.updateConsultationStatus(id, 'expired');
+      widget.consultation['status'] = 'expired';
+    } catch (_) {
+      // If this fails (e.g. RLS/network), just leave it as pending — the
+      // Consultation tab still displays it as Expired client-side.
+    }
+  }
+
   Future<void> _load() async {
+    await _maybeMarkExpired();
+
     final specialistId = widget.consultation['specialist_id'] as String?;
     final patientId = widget.consultation['patient_id'] as String?;
     final provider = specialistId != null
@@ -234,8 +274,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                               const Text('Patient Details',
                                   style: TextStyle(
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 18)),
-                              const SizedBox(height: 10),
+                                      fontSize: 15)),
+                              const SizedBox(height: 12),
                               _detailRow(
                                   'Name',
                                   Text(patientName,

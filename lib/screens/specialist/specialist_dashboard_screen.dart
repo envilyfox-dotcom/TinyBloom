@@ -111,6 +111,16 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
+  // A pending consultation whose scheduled time has already passed is
+  // "Expired" (see the Consultation tab) — it shouldn't still show up here
+  // where the specialist could approve something that's already over.
+  bool _isExpiredPending(Map<String, dynamic> c) {
+    final status = (c['status'] as String? ?? '').toLowerCase();
+    if (status != 'pending') return false;
+    final scheduled = _scheduledDateTime(c);
+    return scheduled != null && scheduled.isBefore(DateTime.now());
+  }
+
   List<Map<String, dynamic>> _sortedByTime(List<Map<String, dynamic>> list) {
     final sorted = [...list];
     sorted.sort((a, b) {
@@ -137,7 +147,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         final consultationDate = DateTime(date.year, date.month, date.day);
         final status = (c['status'] as String? ?? '').toLowerCase();
         return consultationDate == today &&
-            (status == 'pending' || status == 'confirmed');
+            (status == 'pending' || status == 'confirmed') &&
+            !_isExpiredPending(c);
       } catch (_) {
         return false;
       }
@@ -427,7 +438,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: _consultationCard(c),
                             ))
-                        .toList(),
+                        ,
                     const SizedBox(height: 20),
                   ],
 
@@ -442,7 +453,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: _consultationCard(c),
                             ))
-                        .toList(),
+                        ,
                     const SizedBox(height: 20),
                   ],
 
@@ -458,10 +469,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: _reviewCard(t),
                             ))
-                        .toList(),
+                        ,
                   ] else
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 20),
                       child: TBEmptyState(
                           emoji: '⭐',
                           title: 'No reviews yet',

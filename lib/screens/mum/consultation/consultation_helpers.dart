@@ -13,6 +13,8 @@ Color statusColor(String status) {
       return AppColors.teal;
     case 'cancelled':
       return Colors.red;
+    case 'expired':
+      return Colors.red;
     default:
       return AppColors.gold;
   }
@@ -26,6 +28,8 @@ String statusEmoji(String status) {
       return '✔️';
     case 'cancelled':
       return '❌';
+    case 'expired':
+      return '⌛';
     default:
       return '⏳';
   }
@@ -39,6 +43,8 @@ String statusLabel(String status) {
       return 'Completed';
     case 'cancelled':
       return 'Cancelled';
+    case 'expired':
+      return 'Expired';
     default:
       return 'Pending Approval';
   }
