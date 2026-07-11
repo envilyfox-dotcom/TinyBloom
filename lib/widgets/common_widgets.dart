@@ -50,10 +50,15 @@ class TBButton extends StatelessWidget {
             strokeWidth: 2, color: AppColors.white))
       : Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 6)],
-            Text(label),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
           ],
         );
 }

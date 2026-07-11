@@ -94,8 +94,11 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TBCard(
-        onTap: () => context.push('/specialist/review/thread',
-            extra: item['id'] as String),
+        onTap: () async {
+          await context.push('/specialist/review/thread',
+              extra: item['id'] as String);
+          if (mounted) _load();
+        },
         child: Row(
           children: [
             Expanded(

@@ -391,13 +391,6 @@ class SupabaseService {
     await client.rpc('resubmit_content', params: {'p_content_id': contentId});
   }
 
-  static Future<void> updateArticleContent(
-      String contentId, {required String title, required String content}) async {
-    await client
-        .from('articles')
-        .update({'title': title, 'content': content}).eq('id', contentId);
-  }
-
   static Future<List<Map<String, dynamic>>> getMyArticleSubmissions() async {
     final user = currentUser;
     if (user == null) return [];
@@ -422,7 +415,7 @@ class SupabaseService {
       String contentId) async {
     final res = await client
         .from('articles')
-        .select('*, approvals(*)')
+        .select('*, approvals(*), author:profiles!created_by(full_name)')
         .eq('id', contentId)
         .maybeSingle();
     return res;
@@ -434,16 +427,18 @@ class SupabaseService {
         .from('review_comments')
         .select('*, profiles(full_name)')
         .eq('content_id', contentId)
-        .order('created_at');
+        .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
-  static Future<void> postReviewComment(String contentId, String body) async {
+  static Future<void> postReviewComment(String contentId, String body,
+      {String? approvalId}) async {
     final user = currentUser;
     await client.from('review_comments').insert({
       'content_id': contentId,
       'author_id': user?.id,
       'body': body,
+      if (approvalId != null) 'approval_id': approvalId,
     });
   }
 
@@ -462,6 +457,14 @@ class SupabaseService {
     });
   }
 
+  static Future<void> resolveReviewIssue(
+      String approvalId, String reply) async {
+    await client.rpc('resolve_review_issue', params: {
+      'p_approval_id': approvalId,
+      'p_reply': reply,
+    });
+  }
+
   static Future<void> triggerEmergencyPending(
       String contentId, String category, String reason) async {
     await client.rpc('trigger_emergency_pending', params: {
@@ -477,7 +480,7 @@ class SupabaseService {
         .from('public_comments')
         .select('*, profiles(full_name)')
         .eq('content_id', contentId)
-        .order('created_at');
+        .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
