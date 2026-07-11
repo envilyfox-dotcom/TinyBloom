@@ -21,7 +21,7 @@ class SpecialistConsultationsScreen extends StatefulWidget {
 
 class _SpecialistConsultationsScreenState
     extends State<SpecialistConsultationsScreen> {
-  static const _tagOptions = ['All Available', 'Cancelled', 'Expired', 'Done'];
+  static const _tagOptions = ['All Available', 'Cancelled', 'Expired', 'Completed'];
 
   List<Map<String, dynamic>> _consultations = [];
   final Map<String, Map<String, dynamic>> _patientProfiles = {};
@@ -53,7 +53,7 @@ class _SpecialistConsultationsScreenState
       final matchesTag = switch (_selectedTag) {
         'Cancelled' => key == 'cancelled',
         'Expired' => key == 'expired',
-        'Done' => key == 'done',
+        'Completed' => key == 'completed',
         _ => key == 'pending' || key == 'confirmed',
       };
       if (!matchesTag) return false;
@@ -148,7 +148,7 @@ class _SpecialistConsultationsScreenState
 
   // A pending consultation whose scheduled time has already passed without
   // the specialist approving it reads as "Expired"; a confirmed one that has
-  // already passed reads as "Done" — both distinct from a patient-initiated
+  // already passed reads as "Completed" — both distinct from a patient-initiated
   // "Cancelled".
   String _effectiveStatusKey(Map<String, dynamic> consultation) {
     final status = (consultation['status'] as String? ?? 'pending').toLowerCase();
@@ -157,12 +157,12 @@ class _SpecialistConsultationsScreenState
     final scheduled = _scheduledDateTime(consultation);
     final isPast = scheduled != null && scheduled.isBefore(DateTime.now());
     if (status == 'pending' && isPast) return 'expired';
-    if (status == 'confirmed' && isPast) return 'done';
+    if (status == 'confirmed' && isPast) return 'completed';
     return status;
   }
 
   bool _isInactiveKey(String key) =>
-      key == 'expired' || key == 'cancelled' || key == 'done';
+      key == 'expired' || key == 'cancelled' || key == 'completed';
 
   Future<void> _startSession(Map<String, dynamic> consultation) async {
     final link = consultation['meeting_link']?.toString().trim() ?? '';
@@ -511,10 +511,6 @@ class _SpecialistConsultationsScreenState
       case 'cancelled':
         label = 'Cancelled';
         color = Colors.red;
-        break;
-      case 'done':
-        label = 'Done';
-        color = AppColors.teal;
         break;
       default:
         label = statusLabel(key);
