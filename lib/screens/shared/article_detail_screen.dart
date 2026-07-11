@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/article_content.dart';
 
 // ── Article Detail ────────────────────────────────────────────────
 class ArticleDetailScreen extends StatefulWidget {
@@ -106,12 +107,10 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                     mode: LaunchMode.externalApplication),
               ),
             ] else
-              Text(
-                  article['content'] ??
+              ArticleContent(
+                  data: article['content'] ??
                       article['excerpt'] ??
-                      'No content available.',
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 15, height: 1.7)),
+                      'No content available.'),
             if (_articleId != null) ...[
               const SizedBox(height: 28),
               const Divider(),

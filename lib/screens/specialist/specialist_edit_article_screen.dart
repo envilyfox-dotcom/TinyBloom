@@ -30,6 +30,7 @@ class _SpecialistEditArticleScreenState
   bool _loading = true;
   String? _loadError;
   bool _saving = false;
+  bool _deleting = false;
   int? _trimester;
   String? _category;
 
@@ -117,10 +118,68 @@ class _SpecialistEditArticleScreenState
     if (mounted) setState(() => _saving = false);
   }
 
+  Future<void> _delete() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove Article'),
+        content: const Text(
+            'Are you sure you want to remove this article? This cannot be undone.'),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(children: [
+            Expanded(
+                child: OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep'),
+            )),
+            const SizedBox(width: 12),
+            Expanded(
+                child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Remove'),
+            )),
+          ]),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    setState(() => _deleting = true);
+    try {
+      await SupabaseService.deleteArticleDraft(widget.article['id'] as String);
+      if (mounted) context.pop('deleted');
+      return;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+    if (mounted) setState(() => _deleting = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Article')),
+      appBar: AppBar(
+        title: const Text('Edit Article'),
+        actions: [
+          IconButton(
+            icon: _deleting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.red))
+                : const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: (_saving || _deleting) ? null : _delete,
+          ),
+        ],
+      ),
       body: _loading
           ? const TBLoading()
           : _loadError != null

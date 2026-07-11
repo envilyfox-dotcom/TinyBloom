@@ -92,6 +92,20 @@ class SupabaseService {
     return url;
   }
 
+  static Future<String> uploadArticleImage(Uint8List bytes, String fileExt) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+
+    final ext = fileExt.toLowerCase();
+    final path = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    await client.storage.from('article-images').uploadBinary(
+        path, bytes,
+        fileOptions: FileOptions(contentType: contentType));
+
+    return client.storage.from('article-images').getPublicUrl(path);
+  }
+
   static Future<void> removeProfilePicture() async {
     final user = currentUser;
     if (user == null) return;

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/article_content.dart';
 
 // ── Review thread (Specialists) ──────────────────────────────────────────
 // The specialist-only thread for one piece of content: state, approval
@@ -226,9 +227,13 @@ class _SpecialistReviewThreadScreenState
   }
 
   Future<void> _editArticle() async {
-    final updated = await context.push<bool>('/specialist/edit-article',
+    final result = await context.push<Object?>('/specialist/edit-article',
         extra: _content);
-    if (updated == true) await _load();
+    if (result == 'deleted') {
+      if (mounted) context.pop();
+    } else if (result == true) {
+      await _load();
+    }
   }
 
   int get _unresolvedIssueCount => List<Map<String, dynamic>>.from(
@@ -526,7 +531,8 @@ class _SpecialistReviewThreadScreenState
               ),
             ],
             const SizedBox(height: 16),
-            Text(_content!['content'] as String? ?? '',
+            ArticleContent(
+                data: _content!['content'] as String? ?? '',
                 style: const TextStyle(
                     color: AppColors.textMid, fontSize: 14, height: 1.5)),
             const SizedBox(height: 20),
