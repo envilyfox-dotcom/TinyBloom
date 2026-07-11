@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 
 class VolunteerServicesScreen extends StatefulWidget {
@@ -296,10 +297,18 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   static const _pink = Color(0xFFE8A0B4);
   static const _cardBg = Color(0xFFCB9189);
 
+  static const _timingOptions = [
+    'Morning (9AM - 12PM)',
+    'Afternoon (12PM - 3PM)',
+    'Evening (3PM - 6PM)',
+    'Night (6PM - 9PM)',
+  ];
+
   late TextEditingController _titleCtrl;
   late TextEditingController _descCtrl;
-  late TextEditingController _availCtrl;
   late TextEditingController _catCtrl;
+  DateTime? _availDate;
+  String? _availTiming;
   bool _saving = false;
 
   @override
@@ -308,18 +317,40 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     _titleCtrl = TextEditingController(text: widget.service?['title'] ?? '');
     _descCtrl =
         TextEditingController(text: widget.service?['description'] ?? '');
-    _availCtrl =
-        TextEditingController(text: widget.service?['availability'] ?? '');
     _catCtrl = TextEditingController(text: widget.service?['category'] ?? '');
+
+    final avail = widget.service?['availability'] as String?;
+    if (avail != null && avail.contains(' | ')) {
+      final parts = avail.split(' | ');
+      _availDate = DateTime.tryParse(parts[0]);
+      if (parts.length > 1 && _timingOptions.contains(parts[1])) {
+        _availTiming = parts[1];
+      }
+    }
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _availCtrl.dispose();
     _catCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _availDate ?? DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: _pink),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _availDate = picked);
   }
 
   String get _formTitle {
@@ -345,19 +376,28 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   }
 
   Future<void> _handlePrimary() async {
-    if (widget.mode != ServiceMode.delete && _titleCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a service title.')));
-      return;
+    if (widget.mode != ServiceMode.delete) {
+      if (_titleCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a service title.')));
+        return;
+      }
+      if (_availDate == null || _availTiming == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Please select an availability date and time.')));
+        return;
+      }
     }
     setState(() => _saving = true);
     try {
+      final availability =
+          '${DateFormat('yyyy-MM-dd').format(_availDate ?? DateTime.now())} | $_availTiming';
       if (widget.mode == ServiceMode.create) {
         await SupabaseService.client.from('volunteer_services').insert({
           'volunteer_id': SupabaseService.currentUser!.id,
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
-          'availability': _availCtrl.text.trim(),
+          'availability': availability,
           'category': _catCtrl.text.trim(),
           'status': 'available',
         });
@@ -365,7 +405,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         await SupabaseService.client.from('volunteer_services').update({
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
-          'availability': _availCtrl.text.trim(),
+          'availability': availability,
           'category': _catCtrl.text.trim(),
         }).eq('id', widget.service!['id']);
       }
@@ -439,7 +479,64 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               const SizedBox(height: 12),
               _field('Description', _descCtrl, readOnly: isReadOnly),
               const SizedBox(height: 12),
-              _field('Availability', _availCtrl, readOnly: isReadOnly),
+              Text('Availability Date',
+                  style:
+                      GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: isReadOnly ? null : _pickDate,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _availDate != null
+                        ? DateFormat('d MMM yyyy').format(_availDate!)
+                        : 'Select Date',
+                    style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: _availDate != null
+                            ? const Color(0xFF6B4A46)
+                            : const Color(0xFF9B8B86)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Availability Time',
+                  style:
+                      GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _availTiming,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    hint: Text('Select Time',
+                        style: GoogleFonts.poppins(
+                            fontSize: 14, color: const Color(0xFF9B8B86))),
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, color: const Color(0xFF6B4A46)),
+                    items: _timingOptions
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: isReadOnly
+                        ? null
+                        : (v) => setState(() => _availTiming = v),
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               _field('Category', _catCtrl, readOnly: isReadOnly),
               const SizedBox(height: 20),

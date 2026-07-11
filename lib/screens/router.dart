@@ -10,7 +10,7 @@ import 'volunteer/volunteer_services_screen.dart';
 import 'volunteer/volunteer_sessions_screen.dart';
 import 'volunteer/volunteer_requests_screen.dart';
 import 'volunteer/volunteer_mums_helped_screen.dart';
-import 'volunteer/volunteer_more_screen.dart';
+import 'volunteer/volunteer_profile_screen.dart';
 import 'volunteer/volunteer_edit_profile_screen.dart';
 import 'next_of_kin/next_of_kin_dashboard_screen.dart';
 import 'next_of_kin/link_to_mum_screen.dart';
@@ -91,14 +91,14 @@ final router = GoRouter(
         final isNextOfKin = auth.isNextOfKin;
 
         if (isVolunteer) {
-          // Home(0) | Services(1) | Consultation(2) | Request(3) | More(4)
+          // Home(0) | Services(1) | Consultation(2) | Request(3) | Profile(4)
           if (location.startsWith('/volunteer/services')) {
             idx = 1;
           } else if (location.startsWith('/volunteer/sessions'))
             idx = 2;
           else if (location.startsWith('/volunteer/requests'))
             idx = 3;
-          else if (location.startsWith('/volunteer/more')) idx = 4;
+          else if (location.startsWith('/volunteer/profile')) idx = 4;
         } else if (isNextOfKin) {
           // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4)
           if (location.startsWith('/logs')) {
@@ -198,8 +198,8 @@ final router = GoRouter(
           builder: (_, __) => const VolunteerMumsHelpedScreen(),
         ),
         GoRoute(
-          path: '/volunteer/more',
-          builder: (_, __) => const VolunteerMoreScreen(),
+          path: '/volunteer/profile',
+          builder: (_, __) => const VolunteerProfileScreen(),
         ),
       ],
     ),

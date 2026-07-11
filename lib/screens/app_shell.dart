@@ -18,9 +18,9 @@ class AppShell extends StatelessWidget {
   static const _tabsNonMum = [
     '/home', '/specialist/consultations', '/education', '/forum', '/profile'];
 
-  // Volunteer tabs — Home | Services | Consultation | Request | More
+  // Volunteer tabs — Home | Services | Consultation | Request | Profile
   static const _tabsVolunteer = [
-    '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/more'];
+    '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/profile'];
 
   // Next-of-kin tabs — Home | Logs | Consultation | AI Chatbot | Articles
   static const _tabsNextOfKin = [
@@ -104,9 +104,9 @@ class AppShell extends StatelessWidget {
               label: 'Request',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.more_horiz),
-              activeIcon: Icon(Icons.more_horiz),
-              label: 'More',
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),

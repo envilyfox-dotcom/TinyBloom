@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
+import 'volunteer_requests_screen.dart';
 
 class VolunteerDashboardScreen extends StatefulWidget {
   const VolunteerDashboardScreen({super.key});
@@ -50,7 +51,15 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
               DateTime.now().toIso8601String().split('T').first)
           .order('scheduled_date')
           .limit(5);
-      sessions = List<Map<String, dynamic>>.from(data);
+      // A mum's booking only counts as an upcoming consultation once it's
+      // been accepted — while pending it belongs on the Request tab instead,
+      // and a declined/cancelled one never counts as a session at all.
+      sessions = List<Map<String, dynamic>>.from(data).where((s) {
+        final isBooking = s['patient_id'] != null;
+        if (!isBooking) return true;
+        final status = s['status'] as String? ?? 'pending';
+        return status != 'pending' && status != 'cancelled';
+      }).toList();
     } catch (_) {}
 
     try {
@@ -59,9 +68,49 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .select('*, profiles(full_name)')
           .eq('volunteer_id', SupabaseService.currentUser!.id)
           .eq('status', 'pending')
-          .limit(5);
-      requests = List<Map<String, dynamic>>.from(data);
+          .order('created_at', ascending: false);
+      requests.addAll(List<Map<String, dynamic>>.from(data)
+          .map((r) => {...r, '_kind': 'question'}));
     } catch (_) {}
+
+    try {
+      final bookings = await SupabaseService.client
+          .from('consultations')
+          .select()
+          .eq('specialist_id', SupabaseService.currentUser!.id)
+          .eq('consultation_type', 'volunteer')
+          .eq('status', 'pending')
+          .not('patient_id', 'is', null)
+          .order('created_at', ascending: false);
+      final bookingList = List<Map<String, dynamic>>.from(bookings);
+
+      final patientIds = bookingList
+          .map((b) => b['patient_id'] as String?)
+          .whereType<String>()
+          .toSet();
+      final names = <String, String>{};
+      await Future.wait(patientIds.map((id) async {
+        try {
+          final profile = await SupabaseService.getProfileById(id);
+          final name = profile?['full_name'] as String?;
+          if (name != null) names[id] = name;
+        } catch (_) {}
+      }));
+
+      requests.addAll(bookingList.map((b) => {
+            ...b,
+            '_kind': 'booking',
+            '_mumName': names[b['patient_id']] ?? 'A mum',
+          }));
+    } catch (_) {}
+
+    requests.sort((a, b) {
+      final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
+      final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
+      if (aDate == null || bDate == null) return 0;
+      return bDate.compareTo(aDate);
+    });
+    requests = requests.take(5).toList();
 
     int completedCount = 0;
     int mumsHelpedCount = 0;
@@ -278,8 +327,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            _actionButton(context, 'My Sessions', Icons.calendar_today_outlined,
-                '/volunteer/sessions'),
+            _actionButton(context, 'My Consultations',
+                Icons.calendar_today_outlined, '/volunteer/sessions'),
             const SizedBox(width: 12),
             _actionButton(context, 'Requests', Icons.inbox_outlined,
                 '/volunteer/requests'),
@@ -325,7 +374,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Upcoming Sessions',
+            Text('Upcoming Consultations',
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -339,7 +388,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         ),
         const SizedBox(height: 8),
         if (_upcomingSessions.isEmpty)
-          _emptyCard('No upcoming sessions.\nAdd a new session to get started.')
+          _emptyCard('No upcoming consultations.\nAdd a new session to get started.')
         else
           ..._upcomingSessions.map((s) => _sessionCard(s)),
         const SizedBox(height: 8),
@@ -440,10 +489,20 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   }
 
   Widget _requestCard(BuildContext context, Map<String, dynamic> request) {
-    final mumName =
-        (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
+    final isBooking = request['_kind'] == 'booking';
+    final mumName = isBooking
+        ? (request['_mumName'] as String? ?? 'A mum')
+        : (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
+    final title = isBooking
+        ? '📅 Booking · ${request['purpose'] ?? 'Consultation'}'
+        : (request['question'] ?? '');
     return GestureDetector(
-      onTap: () => context.push('/volunteer/requests', extra: request),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequestDetailScreen(request: request),
+        ),
+      ).then((_) => _loadData()),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -454,7 +513,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(request['question'] ?? '',
+            Text(title,
                 style: GoogleFonts.poppins(
                     color: Colors.white,
                     fontSize: 13,

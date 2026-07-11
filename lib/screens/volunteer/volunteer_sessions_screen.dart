@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
+import 'volunteer_requests_screen.dart';
 
 class VolunteerSessionsScreen extends StatefulWidget {
   final int initialTab;
@@ -46,9 +47,19 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
           .select()
           .eq('specialist_id', SupabaseService.currentUser!.id)
           .order('scheduled_date');
+      // A mum's booking (has a patient_id) only belongs here once it's been
+      // accepted — while pending it's a request, surfaced on the Request tab
+      // instead, so it doesn't show as a session before it's confirmed.
+      // A declined/cancelled booking never becomes a session at all.
+      final sessions = List<Map<String, dynamic>>.from(data).where((s) {
+        final isBooking = s['patient_id'] != null;
+        if (!isBooking) return true;
+        final status = s['status'] as String? ?? 'pending';
+        return status != 'pending' && status != 'cancelled';
+      }).toList();
       if (mounted) {
         setState(() {
-          _sessions = List<Map<String, dynamic>>.from(data);
+          _sessions = sessions;
           _loading = false;
         });
       }
@@ -182,10 +193,20 @@ class _SessionList extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         itemCount: sessions.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (ctx, i) => _SessionCard(
-            session: sessions[i],
-            cardBg: cardBg,
-            onMarkCompleted: onMarkCompleted),
+        itemBuilder: (ctx, i) {
+          final session = sessions[i];
+          // A mum's booking gets the same rich "Patient details" card used on
+          // the Request tab; a self-published session keeps the simple card.
+          if (session['patient_id'] != null) {
+            return BookingDetailCard(
+              request: session,
+              onUpdated: onRefresh,
+              onMarkCompleted: onMarkCompleted,
+            );
+          }
+          return _SessionCard(
+              session: session, cardBg: cardBg, onMarkCompleted: onMarkCompleted);
+        },
       ),
     );
   }
