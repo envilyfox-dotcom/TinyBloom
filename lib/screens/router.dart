@@ -46,6 +46,7 @@ import 'specialist/change_password_screen.dart';
 import 'specialist/specialist_consultation_detail_screen.dart';
 import 'specialist/specialist_learn_screen.dart';
 import 'specialist/specialist_create_article_screen.dart';
+import 'specialist/specialist_edit_article_screen.dart';
 import 'specialist/specialist_review_screen.dart';
 import 'specialist/specialist_review_thread_screen.dart';
 
@@ -288,6 +289,10 @@ final router = GoRouter(
     GoRoute(
         path: '/specialist/create-article',
         builder: (_, __) => const SpecialistCreateArticleScreen()),
+    GoRoute(
+        path: '/specialist/edit-article',
+        builder: (context, state) => SpecialistEditArticleScreen(
+            article: state.extra as Map<String, dynamic>)),
     GoRoute(
         path: '/specialist/review/thread',
         builder: (context, state) => SpecialistReviewThreadScreen(

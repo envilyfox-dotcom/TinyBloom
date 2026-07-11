@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -224,6 +225,12 @@ class _SpecialistReviewThreadScreenState
     await _run(() => SupabaseService.submitContentForReview(widget.contentId));
   }
 
+  Future<void> _editArticle() async {
+    final updated = await context.push<bool>('/specialist/edit-article',
+        extra: _content);
+    if (updated == true) await _load();
+  }
+
   int get _unresolvedIssueCount => List<Map<String, dynamic>>.from(
           _content?['approvals'] ?? [])
       .where((a) => a['decision'] == 'reject' && a['resolved'] != true)
@@ -302,8 +309,45 @@ class _SpecialistReviewThreadScreenState
     }
   }
 
+  // Why an approval was superseded (approvals.superseded_reason) — set by
+  // edit_article_content and trigger_emergency_pending, the only two RPCs
+  // that void an approval outside its own reject/reset flow.
+  String _supersededReasonLabel(String reason) {
+    switch (reason) {
+      case 'edited':
+        return 'Article edited';
+      case 'emergency_recall':
+        return 'Recalled during publish buffer';
+      default:
+        return reason;
+    }
+  }
+
+  IconData _supersededReasonIcon(String reason) {
+    switch (reason) {
+      case 'edited':
+        return Icons.edit_outlined;
+      case 'emergency_recall':
+        return Icons.flag_outlined;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
   Widget _actionsForStatus(String status) {
     if (_isAuthor) {
+      if (status == 'published') {
+        return const SizedBox.shrink();
+      }
+      // Editing is always available to the author pre-publish, not just
+      // after a rejection — edit_article_content resets any in-progress
+      // review itself if the edit lands mid-review, so the button doesn't
+      // need to wait for a changes_requested warning first.
+      final editButton = OutlinedButton.icon(
+        onPressed: _acting ? null : _editArticle,
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        label: const Text('Edit Article'),
+      );
       if (status == 'changes_requested') {
         final unresolved = _unresolvedIssueCount;
         return Column(
@@ -320,16 +364,22 @@ class _SpecialistReviewThreadScreenState
               ),
             ),
             const SizedBox(height: 8),
-            TBButton(
-              label: 'Submit',
-              loading: _acting,
-              onPressed:
-                  (_acting || unresolved > 0) ? null : _resubmit,
-            ),
+            Row(children: [
+              Expanded(child: editButton),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TBButton(
+                  label: 'Submit',
+                  loading: _acting,
+                  onPressed:
+                      (_acting || unresolved > 0) ? null : _resubmit,
+                ),
+              ),
+            ]),
           ],
         );
       }
-      return const SizedBox.shrink();
+      return SizedBox(width: double.infinity, child: editButton);
     }
 
     if (status == 'pending_approval_1' || status == 'pending_approval_2') {
@@ -337,12 +387,15 @@ class _SpecialistReviewThreadScreenState
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.08),
+            color: AppColors.gold.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Text(
-              'You already reviewed this at approval 1 — a different reviewer is needed for approval 2.',
-              style: TextStyle(color: Colors.red, fontSize: 12)),
+              'Awaiting second approval. Each qualified user can only approve one time.',
+              style: TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
         );
       }
       // Approval 1 is primary-group only (Article_System §3.2). A
@@ -515,6 +568,29 @@ class _SpecialistReviewThreadScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (a['superseded'] == true &&
+                                  a['superseded_reason'] != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                          _supersededReasonIcon(
+                                              a['superseded_reason'] as String),
+                                          size: 12,
+                                          color: AppColors.textLight),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                          _supersededReasonLabel(
+                                              a['superseded_reason'] as String),
+                                          style: const TextStyle(
+                                              color: AppColors.textLight,
+                                              fontSize: 11,
+                                              fontStyle: FontStyle.italic)),
+                                    ],
+                                  ),
+                                ),
                               Text(
                                 'Stage ${a['stage']} • ${a['decision']}${a['superseded'] == true ? ' (superseded)' : ''}',
                                 style: const TextStyle(

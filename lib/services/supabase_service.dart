@@ -406,6 +406,28 @@ class SupabaseService {
     await client.from('articles').delete().eq('id', id);
   }
 
+  // Edits an article's own fields (title/content/category/trimester) —
+  // never primary_group_id, which stays whatever it was tagged at
+  // submission. Available to the author at any point before publish; if a
+  // review is already in progress, edit_article_content voids any approval
+  // already granted (it was given for the old text) and resets to
+  // pending_approval_1 for a fresh review of the edited text.
+  static Future<void> updateArticleDraft(
+    String id, {
+    required String title,
+    required String content,
+    required String category,
+    int? trimester,
+  }) async {
+    await client.rpc('edit_article_content', params: {
+      'p_content_id': id,
+      'p_title': title,
+      'p_content': content,
+      'p_category': category,
+      'p_trimester': trimester,
+    });
+  }
+
   static Future<List<Map<String, dynamic>>> getReviewQueue() async {
     final res = await client.rpc('get_review_queue');
     return List<Map<String, dynamic>>.from(res);
