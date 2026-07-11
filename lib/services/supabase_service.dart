@@ -288,51 +288,6 @@ class SupabaseService {
     return res;
   }
 
-  // Article links submitted by specialists — a title + an external URL.
-  static Future<void> submitArticleLink({
-    required String title,
-    required String url,
-    String? category,
-    int? trimester,
-  }) async {
-    final user = currentUser;
-    final slug =
-        '${title.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s-]"), '').trim().replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
-    await client.from('articles').insert({
-      'title': title,
-      'slug': slug,
-      'url': url,
-      'category': category,
-      'trimester': trimester,
-      'content':
-          'This is an external article shared by a specialist. Tap "Open Article" to read it.',
-      'status': 'published',
-      'published_at': DateTime.now().toIso8601String(),
-      'created_by': user?.id,
-    });
-  }
-
-  static Future<List<Map<String, dynamic>>> getMySubmittedLinks() async {
-    final user = currentUser;
-    if (user == null) return [];
-    final res = await client
-        .from('articles')
-        .select('*')
-        .eq('created_by', user.id)
-        .order('published_at', ascending: false);
-    return List<Map<String, dynamic>>.from(res);
-  }
-
-  static Future<void> deleteArticleLink(String id) async {
-    final user = currentUser;
-    if (user == null) return;
-    await client
-        .from('articles')
-        .delete()
-        .eq('id', id)
-        .eq('created_by', user.id);
-  }
-
   // Articles
   static Future<List<Map<String, dynamic>>> getArticles(
       {String? category}) async {
@@ -352,6 +307,187 @@ class SupabaseService {
           .order('published_at', ascending: false);
     }
     return res;
+  }
+
+  // ── Specialist article review pipeline ──────────────────────────────
+  // See Article_System_specialist.md. All state transitions (submit,
+  // approve, reject, emergency-pending) go through the security-definer RPC
+  // functions in add_review_pipeline_functions.sql — the client never writes
+  // `status`/`approvals`/`emergency_pending_clicks` rows directly.
+
+  static Future<List<Map<String, dynamic>>> getReviewGroups() async {
+    final res = await client.from('review_groups').select('*').order('id');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<List<Map<String, dynamic>>> getSpecialties() async {
+    final res = await client.from('specialties').select('*').order('name');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  // The current specialist's primary review group, derived from their
+  // specialty (specialist_profiles.specialty_id -> specialty_group_map),
+  // never chosen manually — see Article_System_specialist.md §2.
+  static Future<Map<String, dynamic>?> getMyPrimaryGroup() async {
+    final user = currentUser;
+    if (user == null) return null;
+    final profile = await client
+        .from('specialist_profiles')
+        .select('specialty_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+    final specialtyId = profile?['specialty_id'] as int?;
+    if (specialtyId == null) return null;
+    // specialty_group_map is many-to-many at the schema level (future-
+    // proofing per the doc), but every specialty maps to exactly one group
+    // today — take the first if there's ever more than one row.
+    final rows = await client
+        .from('specialty_group_map')
+        .select('group_id, review_groups(id, name)')
+        .eq('specialty_id', specialtyId)
+        .limit(1);
+    if (rows.isEmpty) return null;
+    return rows.first['review_groups'] as Map<String, dynamic>?;
+  }
+
+  // Existing category tags, sourced from the same published articles shown
+  // on the Learn tab — so specialists pick from what's actually in use
+  // there instead of typing free text.
+  static Future<List<String>> getArticleCategories() async {
+    final articles = await getArticles();
+    final cats = <String>{};
+    for (final a in articles) {
+      final c = a['category'] as String?;
+      if (c != null && c.trim().isNotEmpty) cats.add(c.trim());
+    }
+    final list = cats.toList()..sort();
+    return list;
+  }
+
+  static Future<Map<String, dynamic>> createArticleDraft({
+    required String title,
+    required String content,
+    required int primaryGroupId,
+    required String category,
+    int? trimester,
+  }) async {
+    final user = currentUser;
+    final slug =
+        '${title.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s-]"), '').trim().replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
+    final res = await client.from('articles').insert({
+      'title': title,
+      'slug': slug,
+      'content': content,
+      'category': category,
+      'trimester': trimester,
+      'primary_group_id': primaryGroupId,
+      'status': 'draft',
+      'created_by': user?.id,
+    }).select().single();
+    return res;
+  }
+
+  static Future<void> submitContentForReview(String contentId) async {
+    await client.rpc('resubmit_content', params: {'p_content_id': contentId});
+  }
+
+  static Future<void> updateArticleContent(
+      String contentId, {required String title, required String content}) async {
+    await client
+        .from('articles')
+        .update({'title': title, 'content': content}).eq('id', contentId);
+  }
+
+  static Future<List<Map<String, dynamic>>> getMyArticleSubmissions() async {
+    final user = currentUser;
+    if (user == null) return [];
+    final res = await client
+        .from('articles')
+        .select('*')
+        .eq('created_by', user.id)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<void> deleteArticleDraft(String id) async {
+    await client.from('articles').delete().eq('id', id);
+  }
+
+  static Future<List<Map<String, dynamic>>> getReviewQueue() async {
+    final res = await client.rpc('get_review_queue');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<Map<String, dynamic>?> getReviewThreadContent(
+      String contentId) async {
+    final res = await client
+        .from('articles')
+        .select('*, approvals(*)')
+        .eq('id', contentId)
+        .maybeSingle();
+    return res;
+  }
+
+  static Future<List<Map<String, dynamic>>> getReviewComments(
+      String contentId) async {
+    final res = await client
+        .from('review_comments')
+        .select('*, profiles(full_name)')
+        .eq('content_id', contentId)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<void> postReviewComment(String contentId, String body) async {
+    final user = currentUser;
+    await client.from('review_comments').insert({
+      'content_id': contentId,
+      'author_id': user?.id,
+      'body': body,
+    });
+  }
+
+  static Future<void> approveContent(String contentId, int stage) async {
+    await client.rpc('approve_content',
+        params: {'p_content_id': contentId, 'p_stage': stage});
+  }
+
+  static Future<void> rejectContent(
+      String contentId, int stage, String category, String reason) async {
+    await client.rpc('reject_content', params: {
+      'p_content_id': contentId,
+      'p_stage': stage,
+      'p_category': category,
+      'p_reason': reason,
+    });
+  }
+
+  static Future<void> triggerEmergencyPending(
+      String contentId, String category, String reason) async {
+    await client.rpc('trigger_emergency_pending', params: {
+      'p_content_id': contentId,
+      'p_category': category,
+      'p_reason': reason,
+    });
+  }
+
+  static Future<List<Map<String, dynamic>>> getPublicComments(
+      String contentId) async {
+    final res = await client
+        .from('public_comments')
+        .select('*, profiles(full_name)')
+        .eq('content_id', contentId)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<void> postPublicComment(String contentId, String body) async {
+    final user = currentUser;
+    await client.from('public_comments').insert({
+      'content_id': contentId,
+      'user_id': user?.id,
+      'body': body,
+    });
   }
 
   // Testimonials

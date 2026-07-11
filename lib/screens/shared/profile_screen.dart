@@ -228,9 +228,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _divider(),
                       if (role == 'specialist') ...[
                         _menuItem(
-                          Icons.link,
-                          'Submit Article Link',
-                          onTap: () => context.push('/submit-link'),
+                          Icons.edit_note,
+                          'Create Article',
+                          onTap: () => context.push('/specialist/create-article'),
                         ),
                         _divider(),
                       ],

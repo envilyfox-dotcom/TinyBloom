@@ -748,7 +748,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final notesText = notes.trim().isNotEmpty ? 'Notes: ${notes.trim()}\n' : '';
 
     final fullContent = '${issues.map((issue) => '• $issue').join('\n')}\n\n'
-        '${bpText}${symptomsText}${notesText}'
+        '$bpText$symptomsText$notesText'
         'This alert was generated from your latest health log. If symptoms are severe, worsening, or you feel unsafe, contact your doctor, clinic, maternity unit, or local emergency services immediately.';
 
     return [

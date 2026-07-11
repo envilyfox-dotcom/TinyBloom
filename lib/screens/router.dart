@@ -38,13 +38,16 @@ import 'mum/consultation/consultation_booking_screen.dart';
 import 'mum/consultation/confirm_consultation_screen.dart';
 import 'app_shell.dart';
 import 'mum/onboarding/mum_onboarding_screen.dart';
-import 'specialist/submit_link_screen.dart';
 import 'specialist/specialist_dashboard_screen.dart';
 import 'specialist/specialist_profile_screen.dart';
 import 'specialist/specialist_edit_profile_screen.dart';
 import 'specialist/specialist_consultations_screen.dart';
 import 'specialist/change_password_screen.dart';
 import 'specialist/specialist_consultation_detail_screen.dart';
+import 'specialist/specialist_learn_screen.dart';
+import 'specialist/specialist_create_article_screen.dart';
+import 'specialist/specialist_review_screen.dart';
+import 'specialist/specialist_review_thread_screen.dart';
 
 import 'mum/forum/forum_screen.dart';
 import 'mum/forum/post_detail_screen.dart';
@@ -117,12 +120,12 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/profile')) idx = 4;
         } else {
-          // Specialist: Home(0) | Consultation(1) | Learn(2) | Forum(3) | Profile(4)
+          // Specialist: Home(0) | Consultation(1) | Learn(2) | Review(3) | Profile(4)
           if (location.startsWith('/specialist/consultations')) {
             idx = 1;
           } else if (location.startsWith('/education'))
             idx = 2;
-          else if (location.startsWith('/forum'))
+          else if (location.startsWith('/specialist/review'))
             idx = 3;
           else if (location.startsWith('/profile')) idx = 4;
         }
@@ -152,12 +155,20 @@ final router = GoRouter(
               return const ProfileScreen();
             }),
         GoRoute(
-            path: '/education', builder: (_, __) => const EducationScreen()),
+            path: '/education',
+            builder: (context, __) {
+              final auth = context.read<AuthProvider>();
+              if (auth.isSpecialist) return const SpecialistLearnScreen();
+              return const EducationScreen();
+            }),
         GoRoute(path: '/logs', builder: (_, __) => const LogsScreen()),
         GoRoute(path: '/forum', builder: (_, __) => const ForumScreen()),
         GoRoute(
             path: '/specialist/consultations',
             builder: (_, __) => const SpecialistConsultationsScreen()),
+        GoRoute(
+            path: '/specialist/review',
+            builder: (_, __) => const SpecialistReviewScreen()),
 
         // ── Volunteer main tabs (INSIDE ShellRoute so back works) ──
         GoRoute(
@@ -274,7 +285,13 @@ final router = GoRouter(
     GoRoute(
         path: '/milestone-journey',
         builder: (_, __) => const MilestoneJourneyScreen()),
-    GoRoute(path: '/submit-link', builder: (_, __) => const SubmitLinkScreen()),
+    GoRoute(
+        path: '/specialist/create-article',
+        builder: (_, __) => const SpecialistCreateArticleScreen()),
+    GoRoute(
+        path: '/specialist/review/thread',
+        builder: (context, state) => SpecialistReviewThreadScreen(
+            contentId: state.extra as String)),
 
     GoRoute(
         path: '/specialist/edit-profile',

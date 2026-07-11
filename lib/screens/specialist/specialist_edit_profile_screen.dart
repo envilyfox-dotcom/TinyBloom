@@ -48,6 +48,8 @@ class _SpecialistEditProfileScreenState
   bool _loading = true;
   String? _photoUrl;
   bool _photoBusy = false;
+  List<Map<String, dynamic>> _specialties = [];
+  int? _specialtyId;
 
   @override
   void initState() {
@@ -155,6 +157,8 @@ class _SpecialistEditProfileScreenState
       final specialist = widget.specialistProfile ?? {};
       _videoCallFeeCtrl.text = _formatFeeValue(specialist['video_call_fee']);
       _inPersonFeeCtrl.text = _formatFeeValue(specialist['in_person_fee']);
+      _specialtyId = specialist['specialty_id'] as int?;
+      _specialties = await SupabaseService.getSpecialties();
 
       final availableToday = specialist['available_today'];
       if (availableToday != null) {
@@ -296,11 +300,22 @@ class _SpecialistEditProfileScreenState
         'email': _emailCtrl.text.trim(),
       });
 
+      Map<String, dynamic>? selectedSpecialty;
+      for (final s in _specialties) {
+        if (s['id'] == _specialtyId) {
+          selectedSpecialty = s;
+          break;
+        }
+      }
+
       await SupabaseService.updateSpecialistProfile({
         'video_call_fee': videoCallFee,
         'in_person_fee': inPersonFee,
         'available_today': _selectedTimes.toList(),
         'available_hours': _availableHoursSummary(),
+        if (_specialtyId != null) 'specialty_id': _specialtyId,
+        if (selectedSpecialty != null)
+          'specialization': selectedSpecialty['name'],
       });
 
       if (mounted) {
@@ -429,6 +444,30 @@ class _SpecialistEditProfileScreenState
               ),
               const SizedBox(height: 16),
 
+              // ── Specialty ─────────────────────────────────────────
+              _label('Specialty'),
+              const SizedBox(height: 4),
+              const Text(
+                'Determines which article review group(s) you belong to.',
+                style: TextStyle(color: AppColors.textLight, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                initialValue: _specialtyId,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.medical_information_outlined),
+                ),
+                hint: const Text('Select your specialty'),
+                items: _specialties
+                    .map((s) => DropdownMenuItem<int>(
+                          value: s['id'] as int,
+                          child: Text(s['name'] as String? ?? ''),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _specialtyId = v),
+              ),
+              const SizedBox(height: 16),
+
               // ── Edit Password ────────────────────────────────────
               SizedBox(
                 width: double.infinity,
@@ -441,9 +480,9 @@ class _SpecialistEditProfileScreenState
                     side: BorderSide(
                         color: AppColors.teal.withValues(alpha: 0.4)),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
+                    children: [
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

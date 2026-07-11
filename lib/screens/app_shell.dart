@@ -15,8 +15,18 @@ class AppShell extends StatelessWidget {
     '/home', '/logs', '/education', '/forum', '/profile'];
 
   // Specialist tabs — Home | Consultation | Learn | Forum | Profile
+  // (used only as a fallback; specialists use _tabsSpecialist below)
   static const _tabsNonMum = [
     '/home', '/specialist/consultations', '/education', '/forum', '/profile'];
+
+  // Specialist tabs — Home | Consultation | Learn | Review | Profile
+  static const _tabsSpecialist = [
+    '/home',
+    '/specialist/consultations',
+    '/education',
+    '/specialist/review',
+    '/profile'
+  ];
 
   // Volunteer tabs — Home | Services | Consultation | Request | Profile
   static const _tabsVolunteer = [
@@ -32,6 +42,7 @@ class AppShell extends StatelessWidget {
     final isMum = auth.isMum;
     final isVolunteer = auth.isVolunteer;
     final isNextOfKin = auth.isNextOfKin;
+    final isSpecialist = auth.isSpecialist;
 
     // ── Next-of-kin bottom nav ─────────────────────────────────────
     if (isNextOfKin) {
@@ -133,10 +144,16 @@ class AppShell extends StatelessWidget {
           icon: Icon(Icons.menu_book_outlined),
           activeIcon: Icon(Icons.menu_book),
           label: 'Learn'),
-      const BottomNavigationBarItem(
-          icon: Icon(Icons.forum_outlined),
-          activeIcon: Icon(Icons.forum),
-          label: 'Forum'),
+      if (isSpecialist)
+        const BottomNavigationBarItem(
+            icon: Icon(Icons.rate_review_outlined),
+            activeIcon: Icon(Icons.rate_review),
+            label: 'Review')
+      else
+        const BottomNavigationBarItem(
+            icon: Icon(Icons.forum_outlined),
+            activeIcon: Icon(Icons.forum),
+            label: 'Forum'),
       const BottomNavigationBarItem(
           icon: Icon(Icons.person_outline),
           activeIcon: Icon(Icons.person),
@@ -150,8 +167,12 @@ class AppShell extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         items: items,
         onTap: (i) {
-          final routes = isMum ? _tabs : _tabsNonMum;
-          context.go(routes[i]);
+          if (isSpecialist) {
+            context.go(_tabsSpecialist[i]);
+          } else {
+            final routes = isMum ? _tabs : _tabsNonMum;
+            context.go(routes[i]);
+          }
         },
       ),
     );

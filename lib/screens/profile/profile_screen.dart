@@ -142,8 +142,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           .then((_) => _load())),
                     _divider(),
                     if (role == 'specialist') ...[
-                      _menuItem(Icons.link, 'Submit Article Link',
-                        onTap: () => context.push('/submit-link')),
+                      _menuItem(Icons.edit_note, 'Create Article',
+                        onTap: () => context.push('/specialist/create-article')),
                       _divider(),
                     ],
                     if (role == 'free_user' || role == 'premium_user') ...[
