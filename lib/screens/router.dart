@@ -44,7 +44,7 @@ import 'specialist/specialist_profile_screen.dart';
 import 'specialist/specialist_edit_profile_screen.dart';
 import 'specialist/specialist_consultations_screen.dart';
 import 'specialist/change_password_screen.dart';
-import 'mum/consultation/specialist_consultation_detail_screen.dart';
+import 'specialist/specialist_consultation_detail_screen.dart';
 
 import 'mum/forum/forum_screen.dart';
 import 'mum/forum/post_detail_screen.dart';
@@ -92,35 +92,35 @@ final router = GoRouter(
 
         if (isVolunteer) {
           // Home(0) | Services(1) | Consultation(2) | Request(3) | More(4)
-          if (location.startsWith('/volunteer/services'))
+          if (location.startsWith('/volunteer/services')) {
             idx = 1;
-          else if (location.startsWith('/volunteer/sessions'))
+          } else if (location.startsWith('/volunteer/sessions'))
             idx = 2;
           else if (location.startsWith('/volunteer/requests'))
             idx = 3;
           else if (location.startsWith('/volunteer/more')) idx = 4;
         } else if (isNextOfKin) {
           // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4)
-          if (location.startsWith('/logs'))
+          if (location.startsWith('/logs')) {
             idx = 1;
-          else if (location.startsWith('/consultation'))
+          } else if (location.startsWith('/consultation'))
             idx = 2;
           else if (location.startsWith('/chatbot'))
             idx = 3;
           else if (location.startsWith('/education')) idx = 4;
         } else if (isMum) {
-          if (location.startsWith('/logs'))
+          if (location.startsWith('/logs')) {
             idx = 1;
-          else if (location.startsWith('/education'))
+          } else if (location.startsWith('/education'))
             idx = 2;
           else if (location.startsWith('/forum'))
             idx = 3;
           else if (location.startsWith('/profile')) idx = 4;
         } else {
           // Specialist: Home(0) | Consultation(1) | Learn(2) | Forum(3) | Profile(4)
-          if (location.startsWith('/specialist/consultations'))
+          if (location.startsWith('/specialist/consultations')) {
             idx = 1;
-          else if (location.startsWith('/education'))
+          } else if (location.startsWith('/education'))
             idx = 2;
           else if (location.startsWith('/forum'))
             idx = 3;
@@ -146,8 +146,9 @@ final router = GoRouter(
             path: '/profile',
             builder: (context, __) {
               final auth = context.read<AuthProvider>();
-              if (auth.role == 'specialist')
+              if (auth.role == 'specialist') {
                 return const SpecialistProfileScreen();
+              }
               return const ProfileScreen();
             }),
         GoRoute(

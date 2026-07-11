@@ -3,11 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../services/auth_provider.dart';
-import '../../../services/supabase_service.dart';
-import '../../../utils/app_theme.dart';
-import '../../../widgets/common_widgets.dart';
-import 'consultation_helpers.dart';
+import '../../services/auth_provider.dart';
+import '../../services/supabase_service.dart';
+import '../../utils/app_theme.dart';
+import '../../widgets/common_widgets.dart';
+import '../mum/consultation/consultation_helpers.dart';
 
 // ── Specialist Consultation Details ───────────────────────────────────
 class SpecialistConsultationDetailScreen extends StatefulWidget {

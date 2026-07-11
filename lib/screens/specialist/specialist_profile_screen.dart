@@ -393,15 +393,15 @@ if (licenseNumber.isNotEmpty ||
       setState(() => _loading = true);
       _load();
     },
-    child: TBCard(
+    child: const TBCard(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(12),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Icon(Icons.edit_outlined,
                     size: 18, color: AppColors.textMid),
                 SizedBox(width: 8),
@@ -415,7 +415,7 @@ if (licenseNumber.isNotEmpty ||
                 ),
               ],
             ),
-            const Icon(Icons.chevron_right,
+            Icon(Icons.chevron_right,
                 size: 18, color: AppColors.textMid),
           ],
         ),
@@ -427,15 +427,15 @@ const SizedBox(width: 12),
 Expanded(
   child: GestureDetector(
     onTap: _showLogoutDialog,
-    child: TBCard(
+    child: const TBCard(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(12),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
   mainAxisAlignment: MainAxisAlignment.center,
-  children: const [
+  children: [
     Icon(Icons.logout, size: 18, color: Colors.red),
     SizedBox(width: 8),
     Text(
