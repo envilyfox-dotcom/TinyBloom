@@ -15,6 +15,12 @@ String _timeAgo(DateTime date) {
   return DateFormat('d MMM').format(date);
 }
 
+int _embeddedCount(Map<String, dynamic> row, String key) {
+  final list = row[key] as List?;
+  if (list == null || list.isEmpty) return 0;
+  return (list.first as Map)['count'] as int? ?? 0;
+}
+
 // ── Article Detail ────────────────────────────────────────────────
 class ArticleDetailScreen extends StatefulWidget {
   final Map<String, dynamic> article;
@@ -32,13 +38,51 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   // The comment being replied to — the fixed bottom bar doubles as the
   // reply box, with a "Replying to X" chip shown above it while set.
   Map<String, dynamic>? _replyingTo;
+  bool _isLiked = false;
+  late int _likeCount;
 
   String? get _articleId => widget.article['id'] as String?;
 
   @override
   void initState() {
     super.initState();
+    _likeCount = _embeddedCount(widget.article, 'article_likes');
     _loadComments();
+    _loadLikeStatus();
+  }
+
+  Future<void> _loadLikeStatus() async {
+    final id = _articleId;
+    if (id == null) return;
+    try {
+      final liked = await SupabaseService.getLikedArticleIds([id]);
+      if (mounted) setState(() => _isLiked = liked.contains(id));
+    } catch (_) {}
+  }
+
+  Future<void> _toggleLike() async {
+    final id = _articleId;
+    if (id == null) return;
+    final wasLiked = _isLiked;
+    // Optimistic update so the tap feels instant.
+    setState(() {
+      _isLiked = !wasLiked;
+      _likeCount = (_likeCount + (wasLiked ? -1 : 1)).clamp(0, 1 << 30);
+    });
+    try {
+      if (wasLiked) {
+        await SupabaseService.unlikeArticle(id);
+      } else {
+        await SupabaseService.likeArticle(id);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLiked = wasLiked;
+          _likeCount = (_likeCount + (wasLiked ? 1 : -1)).clamp(0, 1 << 30);
+        });
+      }
+    }
   }
 
   @override
@@ -93,9 +137,59 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     FocusScope.of(context).requestFocus(_commentFocusNode);
   }
 
+  Future<void> _deleteComment(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Comment'),
+        content: const Text('Are you sure you want to delete this comment?'),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(children: [
+            Expanded(
+                child: OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep'),
+            )),
+            const SizedBox(width: 12),
+            Expanded(
+                child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete'),
+            )),
+          ]),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await SupabaseService.deletePublicComment(id);
+      await _loadComments();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final article = widget.article;
+    final author = article['author'] as Map<String, dynamic>?;
+    final authorName = author?['full_name'] as String? ?? 'TinyBloom Team';
+    final authorPhoto = author?['profile_picture_url'] as String?;
+    final authorSpecialization = (author?['specialist_profiles']
+        as Map<String, dynamic>?)?['specialization'] as String?;
+    final createdAt = DateTime.tryParse(
+        article['published_at'] as String? ??
+            article['created_at'] as String? ??
+            '');
 
     final topLevel =
         _comments.where((c) => c['parent_comment_id'] == null).toList();
@@ -108,57 +202,156 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(article['category'] ?? 'Article')),
+      appBar: AppBar(title: const Text('Educational Post')),
       body: Column(
         children: [
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                if (article['category'] != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: AppColors.tealLight,
-                        borderRadius: BorderRadius.circular(50)),
-                    child: Text(article['category'],
-                        style: const TextStyle(
-                            color: AppColors.teal,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border:
+                        Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
                   ),
-                const SizedBox(height: 12),
-                Text(article['title'] ?? '',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontSize: 22)),
-                const SizedBox(height: 16),
-                if ((article['url'] as String?)?.isNotEmpty == true) ...[
-                  if (article['excerpt'] != null) ...[
-                    Text(article['excerpt'],
-                        style: const TextStyle(
-                            color: AppColors.textMid,
-                            fontSize: 15,
-                            height: 1.7)),
-                    const SizedBox(height: 20),
-                  ],
-                  TBButton(
-                    label: 'Open Article',
-                    icon: Icons.open_in_new,
-                    onPressed: () => launchUrl(Uri.parse(article['url']),
-                        mode: LaunchMode.externalApplication),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor:
+                                AppColors.rose.withValues(alpha: 0.15),
+                            backgroundImage: authorPhoto != null
+                                ? NetworkImage(authorPhoto)
+                                : null,
+                            child: authorPhoto == null
+                                ? Text(
+                                    authorName.isNotEmpty
+                                        ? authorName[0].toUpperCase()
+                                        : '?',
+                                    style: const TextStyle(
+                                        color: AppColors.roseDeep,
+                                        fontWeight: FontWeight.w700),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(authorName,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: AppColors.textDark)),
+                                Text(
+                                  [
+                                    if (authorSpecialization != null)
+                                      authorSpecialization,
+                                    if (createdAt != null) _timeAgo(createdAt),
+                                  ].join(' • '),
+                                  style: const TextStyle(
+                                      color: AppColors.textLight,
+                                      fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      if (article['category'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: AppColors.tealLight,
+                                borderRadius: BorderRadius.circular(50)),
+                            child: Text(article['category'],
+                                style: const TextStyle(
+                                    color: AppColors.teal,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                      Text(article['title'] ?? '',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 18)),
+                      const SizedBox(height: 14),
+                      if ((article['url'] as String?)?.isNotEmpty == true) ...[
+                        if (article['excerpt'] != null) ...[
+                          Text(article['excerpt'],
+                              style: const TextStyle(
+                                  color: AppColors.textMid,
+                                  fontSize: 15,
+                                  height: 1.7)),
+                          const SizedBox(height: 20),
+                        ],
+                        TBButton(
+                          label: 'Open Article',
+                          icon: Icons.open_in_new,
+                          onPressed: () => launchUrl(Uri.parse(article['url']),
+                              mode: LaunchMode.externalApplication),
+                        ),
+                      ] else
+                        ArticleContent(
+                            data: article['content'] ??
+                                article['excerpt'] ??
+                                'No content available.',
+                            style: const TextStyle(
+                                color: AppColors.textMid,
+                                fontSize: 14,
+                                height: 1.5)),
+                      const SizedBox(height: 14),
+                      const Divider(),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _toggleLike,
+                            child: Row(
+                              children: [
+                                Icon(
+                                    _isLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: _isLiked
+                                        ? AppColors.rose
+                                        : AppColors.textLight,
+                                    size: 20),
+                                const SizedBox(width: 4),
+                                Text('$_likeCount',
+                                    style: const TextStyle(
+                                        color: AppColors.textMid,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          const Icon(Icons.chat_bubble_outline,
+                              color: AppColors.textLight, size: 18),
+                          const SizedBox(width: 4),
+                          Text(
+                              '${_loadingComments ? _embeddedCount(article, 'public_comments') : _comments.length}',
+                              style: const TextStyle(
+                                  color: AppColors.textMid, fontSize: 13)),
+                        ],
+                      ),
+                    ],
                   ),
-                ] else
-                  ArticleContent(
-                      data: article['content'] ??
-                          article['excerpt'] ??
-                          'No content available.'),
+                ),
                 if (_articleId != null) ...[
-                  const SizedBox(height: 28),
-                  const Divider(),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                   const Text('Comments',
                       style:
                           TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
@@ -206,6 +399,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     final name = profile?['full_name'] as String? ?? 'A mum';
     final photoUrl = profile?['profile_picture_url'] as String?;
     final createdAt = DateTime.tryParse(c['created_at'] as String? ?? '');
+    final isMine = c['user_id'] == SupabaseService.currentUser?.id;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,7 +417,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
               : null,
         ),
         const SizedBox(width: 10),
-        Expanded(
+        Flexible(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -234,8 +428,10 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(name,
                         style: const TextStyle(
@@ -252,13 +448,41 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                         color: AppColors.textMid, fontSize: 13)),
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: GestureDetector(
-                    onTap: () => _startReply(c),
-                    child: const Text('Reply',
-                        style: TextStyle(
-                            color: AppColors.teal,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _startReply(c),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 2),
+                          child: Text('Reply',
+                              style: TextStyle(
+                                  color: AppColors.teal,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      if (isMine) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Text('•',
+                              style: TextStyle(
+                                  color: AppColors.textLight, fontSize: 12)),
+                        ),
+                        GestureDetector(
+                          onTap: () =>
+                              _deleteComment(c['id'] as String),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 2),
+                            child: Text('Delete',
+                                style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

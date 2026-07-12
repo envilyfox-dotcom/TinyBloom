@@ -448,7 +448,8 @@ class SupabaseService {
     if (user == null) return [];
     final res = await client
         .from('articles')
-        .select('*')
+        .select('*, author:profiles!created_by(full_name, profile_picture_url, '
+            'specialist_profiles(specialization))')
         .eq('created_by', user.id)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(res);
@@ -581,6 +582,10 @@ class SupabaseService {
       'body': body,
       'parent_comment_id': parentCommentId,
     });
+  }
+
+  static Future<void> deletePublicComment(String id) async {
+    await client.from('public_comments').delete().eq('id', id);
   }
 
   // Testimonials

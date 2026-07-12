@@ -30,7 +30,6 @@ class EducationScreen extends StatefulWidget {
 
 class _EducationScreenState extends State<EducationScreen> {
   List<Map<String, dynamic>> _articles = [];
-  Set<String> _likedIds = {};
   bool _loading = true;
   String _search = '';
   String _selectedCat = 'All';
@@ -44,43 +43,14 @@ class _EducationScreenState extends State<EducationScreen> {
   Future<void> _load() async {
     try {
       final a = await SupabaseService.getArticles();
-      final ids = a.map((e) => e['id'] as String).toList();
-      final liked = await SupabaseService.getLikedArticleIds(ids);
       if (mounted) {
         setState(() {
           _articles = a;
-          _likedIds = liked;
           _loading = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _toggleLike(Map<String, dynamic> article) async {
-    final id = article['id'] as String;
-    final wasLiked = _likedIds.contains(id);
-    // Optimistic update so the tap feels instant.
-    setState(() {
-      if (wasLiked) {
-        _likedIds.remove(id);
-      } else {
-        _likedIds.add(id);
-      }
-      final current = _embeddedCount(article, 'article_likes');
-      article['article_likes'] = [
-        {'count': wasLiked ? (current - 1).clamp(0, 1 << 30) : current + 1}
-      ];
-    });
-    try {
-      if (wasLiked) {
-        await SupabaseService.unlikeArticle(id);
-      } else {
-        await SupabaseService.likeArticle(id);
-      }
-    } catch (_) {
-      _load(); // out of sync with the server — just refetch the truth.
     }
   }
 
@@ -358,9 +328,6 @@ class _EducationScreenState extends State<EducationScreen> {
                               const SizedBox(height: 12),
                           itemBuilder: (ctx, i) => _ArticleCard(
                             article: filtered[i],
-                            isLiked: _likedIds
-                                .contains(filtered[i]['id'] as String),
-                            onToggleLike: () => _toggleLike(filtered[i]),
                             onReport: () => _showReportDialog(filtered[i]),
                             onReturn: _load,
                           ),
@@ -380,15 +347,11 @@ class _EducationScreenState extends State<EducationScreen> {
 // and a like/comment footer — all in the app's existing rose/teal palette.
 class _ArticleCard extends StatefulWidget {
   final Map<String, dynamic> article;
-  final bool isLiked;
-  final VoidCallback onToggleLike;
   final VoidCallback onReport;
   final VoidCallback onReturn;
 
   const _ArticleCard({
     required this.article,
-    required this.isLiked,
-    required this.onToggleLike,
     required this.onReport,
     required this.onReturn,
   });
@@ -553,25 +516,12 @@ class _ArticleCardState extends State<_ArticleCard> {
           const SizedBox(height: 10),
           Row(
             children: [
-              GestureDetector(
-                onTap: widget.onToggleLike,
-                child: Row(
-                  children: [
-                    Icon(
-                        widget.isLiked
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        color: widget.isLiked
-                            ? AppColors.rose
-                            : AppColors.textLight,
-                        size: 18),
-                    const SizedBox(width: 4),
-                    Text('$likeCount',
-                        style: const TextStyle(
-                            color: AppColors.textMid, fontSize: 12)),
-                  ],
-                ),
-              ),
+              const Icon(Icons.favorite_border,
+                  color: AppColors.textLight, size: 18),
+              const SizedBox(width: 4),
+              Text('$likeCount',
+                  style: const TextStyle(
+                      color: AppColors.textMid, fontSize: 12)),
               const SizedBox(width: 20),
               const Icon(Icons.chat_bubble_outline,
                   color: AppColors.textLight, size: 16),

@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+
+String _timeAgo(DateTime date) {
+  final diff = DateTime.now().difference(date);
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return DateFormat('d MMM').format(date);
+}
 
 // ── Review tab (Specialists) ─────────────────────────────────────────────
 // Replaces the community Forum tab for specialists. Shows the peer-review
@@ -91,6 +101,12 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
   Widget _item(Map<String, dynamic> item) {
     final status = item['status'] as String? ?? '';
     final needsAction = item['needs_action'] == true;
+    final author = item['author'] as Map<String, dynamic>?;
+    final authorName = author?['full_name'] as String? ?? 'Author';
+    final authorPhoto = author?['profile_picture_url'] as String?;
+    final authorSpecialization = (author?['specialist_profiles']
+        as Map<String, dynamic>?)?['specialization'] as String?;
+    final createdAt = DateTime.tryParse(item['created_at'] as String? ?? '');
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TBCard(
@@ -99,54 +115,92 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
               extra: item['id'] as String);
           if (mounted) _load();
         },
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['title'] as String? ?? 'Untitled',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                  backgroundImage:
+                      authorPhoto != null ? NetworkImage(authorPhoto) : null,
+                  child: authorPhoto == null
+                      ? Text(
+                          authorName.isNotEmpty
+                              ? authorName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                              color: AppColors.roseDeep,
+                              fontWeight: FontWeight.w700),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(authorName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.textDark)),
+                      Text(
+                        [
+                          if (authorSpecialization != null)
+                            authorSpecialization,
+                          if (createdAt != null) _timeAgo(createdAt),
+                        ].join(' • '),
+                        style: const TextStyle(
+                            color: AppColors.textLight, fontSize: 11),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Wrap(spacing: 6, runSpacing: 6, children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _statusColor(status).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Text(_statusLabel(status),
-                          style: TextStyle(
-                              color: _statusColor(status),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                    if (needsAction)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.rose.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        child: const Text('Needs your action',
-                            style: TextStyle(
-                                color: AppColors.roseDeep,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700)),
-                      ),
-                  ]),
-                ],
-              ),
+                ),
+                const Icon(Icons.chevron_right,
+                    color: AppColors.textLight, size: 18),
+              ],
             ),
-            const Icon(Icons.chevron_right,
-                color: AppColors.textLight, size: 18),
+            const SizedBox(height: 10),
+            Text(
+              item['title'] as String? ?? 'Untitled',
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _statusColor(status).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Text(_statusLabel(status),
+                    style: TextStyle(
+                        color: _statusColor(status),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+              ),
+              if (needsAction)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.rose.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Text('Needs your action',
+                      style: TextStyle(
+                          color: AppColors.roseDeep,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                ),
+            ]),
           ],
         ),
       ),
