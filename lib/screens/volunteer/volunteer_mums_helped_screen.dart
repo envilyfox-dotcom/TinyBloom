@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/app_theme.dart';
 
 class VolunteerMumsHelpedScreen extends StatefulWidget {
   const VolunteerMumsHelpedScreen({super.key});
@@ -14,10 +15,6 @@ class VolunteerMumsHelpedScreen extends StatefulWidget {
 
 class _VolunteerMumsHelpedScreenState
     extends State<VolunteerMumsHelpedScreen> {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _roseDark = Color(0xFF9B8B86);
-  static const _cardBg = Color(0xFFCB9189);
-
   List<Map<String, dynamic>> _mums = [];
   bool _loading = true;
 
@@ -81,29 +78,29 @@ class _VolunteerMumsHelpedScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Color(0xFF6B4A46)),
+          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
           onPressed: () => context.pop(),
         ),
         title: Text('Mums Helped',
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: const Color(0xFF6B4A46))),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _pink))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
           : _mums.isEmpty
               ? Center(
                   child: Text('No completed sessions yet.',
                       style: GoogleFonts.poppins(
-                          color: _roseDark, fontSize: 14)),
+                          color: AppColors.textLight, fontSize: 14)),
                 )
               : RefreshIndicator(
-                  color: _pink,
+                  color: AppColors.rose,
                   onRefresh: _load,
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
@@ -119,16 +116,18 @@ class _VolunteerMumsHelpedScreenState
                       final sessionCount = mum['sessionCount'] as int;
                       return Container(
                         decoration: BoxDecoration(
-                          color: _cardBg,
+                          color: AppColors.white,
                           borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: AppColors.rose.withValues(alpha: 0.18)),
                         ),
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            const CircleAvatar(
+                            CircleAvatar(
                               radius: 20,
-                              backgroundColor: Colors.white24,
-                              child: Icon(Icons.person, color: Colors.white),
+                              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                              child: const Icon(Icons.person, color: AppColors.rose),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -137,14 +136,14 @@ class _VolunteerMumsHelpedScreenState
                                 children: [
                                   Text(mum['name'] as String,
                                       style: GoogleFonts.poppins(
-                                          color: Colors.white,
+                                          color: AppColors.textDark,
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 4),
                                   Text(
                                     '$sessionCount completed session${sessionCount == 1 ? '' : 's'} · Last: $dateStr',
                                     style: GoogleFonts.poppins(
-                                        color: Colors.white70, fontSize: 12),
+                                        color: AppColors.textLight, fontSize: 12),
                                   ),
                                 ],
                               ),

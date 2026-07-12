@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/app_theme.dart';
 
 class VolunteerProfileScreen extends StatefulWidget {
   const VolunteerProfileScreen({super.key});
@@ -15,10 +16,6 @@ class VolunteerProfileScreen extends StatefulWidget {
 }
 
 class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _roseDark = Color(0xFF9B8B86);
-  static const _cardBg = Color(0xFFCB9189);
-
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _volunteerProfile;
   bool _loading = true;
@@ -59,12 +56,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                 fontWeight: FontWeight.w600, color: Colors.red.shade400)),
         content: Text(
             'This will permanently delete your account and all your data. This cannot be undone.',
-            style: GoogleFonts.poppins(fontSize: 14, color: _roseDark)),
+            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel',
-                style: GoogleFonts.poppins(color: _roseDark)),
+                style: GoogleFonts.poppins(color: AppColors.textLight)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -107,12 +104,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         title: Text('Logout',
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         content: Text('Are you sure you want to logout?',
-            style: GoogleFonts.poppins(fontSize: 14, color: _roseDark)),
+            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text('Cancel',
-                style: GoogleFonts.poppins(color: _roseDark)),
+                style: GoogleFonts.poppins(color: AppColors.textLight)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -120,7 +117,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               await context.read<AuthProvider>().signOut();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: _pink,
+              backgroundColor: AppColors.rose,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
@@ -145,14 +142,14 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     final avatarUrl = _profile?['profile_picture_url'] as String?;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         // ← goes to home (not pop) because Profile is a tab, not a pushed screen
         leading: IconButton(
           icon: const Icon(Icons.chevron_left,
-              color: Color(0xFF6B4A46), size: 28),
+              color: AppColors.textDark, size: 28),
           onPressed: () => context.go('/home'),
         ),
         actions: [
@@ -160,16 +157,16 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             onPressed: () => _logout(context),
             child: Text('Logout',
                 style: GoogleFonts.poppins(
-                    color: _roseDark,
+                    color: AppColors.textLight,
                     fontSize: 13,
                     fontWeight: FontWeight.w500)),
           ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _pink))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
           : RefreshIndicator(
-              color: _pink,
+              color: AppColors.rose,
               onRefresh: _load,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -182,28 +179,31 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                         style: GoogleFonts.poppins(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF6B4A46))),
+                            color: AppColors.textDark)),
                     const SizedBox(height: 20),
 
                     // ── Avatar ───────────────────────────────────
                     CircleAvatar(
                       radius: 52,
-                      backgroundColor: _pink.withValues(alpha: 0.2),
+                      backgroundColor: AppColors.rose.withValues(alpha: 0.2),
                       backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
                           ? CachedNetworkImageProvider(avatarUrl)
                           : null,
                       child: avatarUrl == null || avatarUrl.isEmpty
-                          ? const Icon(Icons.person, size: 52, color: _pink)
+                          ? const Icon(Icons.person,
+                              size: 52, color: AppColors.rose)
                           : null,
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Info card — matches wireframe exactly ─────
+                    // ── Info card ──────────────────────────────────
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: _cardBg,
+                        color: AppColors.white,
                         borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: AppColors.rose.withValues(alpha: 0.18)),
                       ),
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -212,7 +212,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           Center(
                             child: Text('Personal Information',
                                 style: GoogleFonts.poppins(
-                                    color: Colors.white,
+                                    color: AppColors.textDark,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14)),
                           ),
@@ -237,8 +237,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                                       extra: {...?_profile, ...?_volunteerProfile}
                                   ).then((_) => _load()),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: const BorderSide(color: Colors.white),
+                                    foregroundColor: AppColors.rose,
+                                    side: BorderSide(color: AppColors.rose),
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 12),
                                     shape: RoundedRectangleBorder(
@@ -255,7 +255,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                                   onPressed: () =>
                                       context.push('/change-password'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF6B4A46),
+                                    backgroundColor: AppColors.rose,
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 12),
@@ -307,13 +307,13 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         children: [
           Text(label,
               style: GoogleFonts.poppins(
-                  color: Colors.white,
+                  color: AppColors.textDark,
                   fontSize: 12,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(value,
               style: GoogleFonts.poppins(
-                  color: Colors.white70, fontSize: 14)),
+                  color: AppColors.textMid, fontSize: 14)),
         ],
       ),
     );
@@ -325,18 +325,18 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     required VoidCallback onTap,
     Color? color,
   }) {
-    final c = color ?? const Color(0xFF6B4A46);
+    final c = color ?? AppColors.textDark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-                color: _pink.withValues(alpha: 0.08),
+                color: AppColors.rose.withValues(alpha: 0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],

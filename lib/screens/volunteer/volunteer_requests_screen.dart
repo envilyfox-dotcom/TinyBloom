@@ -7,6 +7,23 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
+// Confirmed and Completed share a similar green/teal color, so a small icon
+// tells them apart at a glance without needing to change either color.
+IconData _statusIcon(String status) {
+  switch (status.toLowerCase()) {
+    case 'confirmed':
+      return Icons.check_circle_outline;
+    case 'completed':
+      return Icons.task_alt;
+    case 'cancelled':
+      return Icons.cancel_outlined;
+    case 'expired':
+      return Icons.hourglass_bottom;
+    default:
+      return Icons.hourglass_empty;
+  }
+}
+
 class VolunteerRequestsScreen extends StatefulWidget {
   const VolunteerRequestsScreen({super.key});
 
@@ -17,10 +34,6 @@ class VolunteerRequestsScreen extends StatefulWidget {
 
 class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     with SingleTickerProviderStateMixin {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _roseDark = Color(0xFF9B8B86);
-  static const _cardBg = Color(0xFFCB9189);
-
   late TabController _tabs;
   List<Map<String, dynamic>> _requests = [];
   bool _loading = true;
@@ -79,7 +92,12 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           }));
     } catch (_) {}
 
+    // Pending requests need action, so they surface first regardless of
+    // date; everything else stays sorted newest-first behind them.
     merged.sort((a, b) {
+      final aPending = _isPending(a);
+      final bPending = _isPending(b);
+      if (aPending != bPending) return aPending ? -1 : 1;
       final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
       final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
       if (aDate == null || bDate == null) return 0;
@@ -103,12 +121,12 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Color(0xFF6B4A46)),
+          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -119,13 +137,13 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
         ),
         title: Text('User Requests',
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: const Color(0xFF6B4A46))),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
         bottom: TabBar(
           controller: _tabs,
-          indicatorColor: _pink,
-          labelColor: _pink,
-          unselectedLabelColor: _roseDark,
+          indicatorColor: AppColors.rose,
+          labelColor: AppColors.rose,
+          unselectedLabelColor: AppColors.textLight,
           labelStyle: GoogleFonts.poppins(fontSize: 13),
           tabs: const [
             Tab(text: 'All'),
@@ -135,18 +153,13 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _pink))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
           : TabBarView(
               controller: _tabs,
               children: [
-                _RequestList(
-                    requests: _requests, cardBg: _cardBg, onRefresh: _load),
-                _RequestList(
-                    requests: _filter(true), cardBg: _cardBg, onRefresh: _load),
-                _RequestList(
-                    requests: _filter(false),
-                    cardBg: _cardBg,
-                    onRefresh: _load),
+                _RequestList(requests: _requests, onRefresh: _load),
+                _RequestList(requests: _filter(true), onRefresh: _load),
+                _RequestList(requests: _filter(false), onRefresh: _load),
               ],
             ),
     );
@@ -155,43 +168,81 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
 
 class _RequestList extends StatelessWidget {
   final List<Map<String, dynamic>> requests;
-  final Color cardBg;
   final Future<void> Function() onRefresh;
 
-  const _RequestList(
-      {required this.requests, required this.cardBg, required this.onRefresh});
+  const _RequestList({required this.requests, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
     if (requests.isEmpty) {
       return Center(
         child: Text('No requests here.',
-            style: GoogleFonts.poppins(
-                color: const Color(0xFF9B8B86), fontSize: 14)),
+            style: GoogleFonts.poppins(color: AppColors.textLight, fontSize: 14)),
       );
     }
     return RefreshIndicator(
-      color: const Color(0xFFE8A0B4),
+      color: AppColors.rose,
       onRefresh: onRefresh,
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: requests.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (ctx, i) =>
-            _RequestCard(request: requests[i], cardBg: cardBg),
+          _RequestCard(request: requests[i], onRefresh: onRefresh),
       ),
     );
   }
 }
 
-class _RequestCard extends StatelessWidget {
+class _RequestCard extends StatefulWidget {
   final Map<String, dynamic> request;
-  final Color cardBg;
+  final Future<void> Function() onRefresh;
 
-  const _RequestCard({required this.request, required this.cardBg});
+  const _RequestCard({required this.request, required this.onRefresh});
+
+  @override
+  State<_RequestCard> createState() => _RequestCardState();
+}
+
+class _RequestCardState extends State<_RequestCard> {
+  bool _saving = false;
+
+  Future<void> _acceptBooking() async {
+    setState(() => _saving = true);
+    try {
+      await SupabaseService.updateConsultationStatus(
+          widget.request['id'].toString(), 'confirmed');
+      await widget.onRefresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _declineBooking() async {
+    setState(() => _saving = true);
+    try {
+      await SupabaseService.cancelConsultation(
+          widget.request['id'].toString(),
+          reason: 'Declined by volunteer');
+      await widget.onRefresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final request = widget.request;
     final isBooking = request['_kind'] == 'booking';
     final mumName = isBooking
         ? (request['_mumName'] as String? ?? 'A mum')
@@ -204,67 +255,129 @@ class _RequestCard extends StatelessWidget {
     final badgeLabel = isBooking ? statusLabel(status) : (isPending ? 'Pending' : 'Responded');
     final badgeColor = isBooking
         ? statusColor(status)
-        : (isPending ? Colors.orange : Colors.green);
+        : (isPending ? AppColors.gold : AppColors.sage);
 
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RequestDetailScreen(request: request),
-        ),
-      ).then((_) {}),
-      child: Container(
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RequestDetailScreen(request: request),
+              ),
+            ).then((_) => widget.onRefresh()),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(title,
+                          style: GoogleFonts.poppins(
+                              color: AppColors.textDark,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isBooking) ...[
+                            Icon(_statusIcon(status),
+                                size: 11, color: badgeColor),
+                            const SizedBox(width: 3),
+                          ],
+                          Text(
+                            badgeLabel,
+                            style: GoogleFonts.poppins(
+                                color: badgeColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.circle, size: 6, color: AppColors.textLight),
+                    const SizedBox(width: 4),
+                    Text(mumName,
+                        style: GoogleFonts.poppins(
+                            color: AppColors.textLight, fontSize: 12)),
+                    if (isBooking && request['scheduled_date'] != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                          '${DateFormat('d MMM').format(DateTime.tryParse(request['scheduled_date'].toString()) ?? DateTime.now())} · ${request['scheduled_time'] ?? ''}',
+                          style: GoogleFonts.poppins(
+                              color: AppColors.textLight, fontSize: 12)),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Inline accept/decline so a pending booking can be actioned right
+          // from the list, without opening the full detail screen first.
+          if (isBooking && isPending) ...[
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: Text(title,
-                      style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500)),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: badgeColor.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    badgeLabel,
-                    style:
-                        GoogleFonts.poppins(color: Colors.white, fontSize: 10),
+                  child: OutlinedButton(
+                    onPressed: _saving ? null : _declineBooking,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red.shade400,
+                      side: BorderSide(color: Colors.red.shade400),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text('Decline',
+                        style: GoogleFonts.poppins(fontSize: 12)),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.circle, size: 6, color: Colors.white70),
-                const SizedBox(width: 4),
-                Text(mumName,
-                    style: GoogleFonts.poppins(
-                        color: Colors.white70, fontSize: 12)),
-                if (isBooking && request['scheduled_date'] != null) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                      '${DateFormat('d MMM').format(DateTime.tryParse(request['scheduled_date'].toString()) ?? DateTime.now())} · ${request['scheduled_time'] ?? ''}',
-                      style: GoogleFonts.poppins(
-                          color: Colors.white70, fontSize: 12)),
-                ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _acceptBooking,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.rose,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: _saving
+                        ? const SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : Text('Accept',
+                            style: GoogleFonts.poppins(fontSize: 12)),
+                  ),
+                ),
               ],
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -281,9 +394,6 @@ class RequestDetailScreen extends StatefulWidget {
 }
 
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _cardBg = Color(0xFFCB9189);
-
   final _ctrl = TextEditingController();
   bool _saving = false;
   // Requests loaded from the Request tab are tagged '_kind: booking'; a
@@ -341,12 +451,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             'A mum';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Color(0xFF6B4A46)),
+          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -357,7 +467,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         ),
         title: Text('User Request',
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: const Color(0xFF6B4A46))),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
       ),
       body: Padding(
@@ -367,8 +477,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: _cardBg,
+                color: AppColors.white,
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
               ),
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -376,44 +487,45 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 children: [
                   Text(widget.request['question'] ?? '',
                       style: GoogleFonts.poppins(
-                          color: Colors.white,
+                          color: AppColors.textDark,
                           fontSize: 14,
                           fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   Row(children: [
-                    const Icon(Icons.circle, size: 6, color: Colors.white70),
+                    Icon(Icons.circle, size: 6, color: AppColors.textLight),
                     const SizedBox(width: 4),
                     Text(mumName,
                         style: GoogleFonts.poppins(
-                            color: Colors.white70, fontSize: 12)),
+                            color: AppColors.textLight, fontSize: 12)),
                   ]),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _ctrl,
                     maxLines: 5,
                     enabled: !_isResponded,
-                    style:
-                        GoogleFonts.poppins(color: Colors.white, fontSize: 13),
+                    style: GoogleFonts.poppins(
+                        color: AppColors.textDark, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: _isResponded ? null : 'Type your response...',
                       hintStyle: GoogleFonts.poppins(
-                          color: Colors.white38, fontSize: 13),
+                          color: AppColors.textLight, fontSize: 13),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                        borderSide: BorderSide(
+                            color: AppColors.textLight.withValues(alpha: 0.3)),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Colors.white),
+                      focusedBorder: const OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(10)),
+                        borderSide:
+                            BorderSide(color: AppColors.rose, width: 1.5),
                       ),
                       disabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        borderSide: BorderSide(
+                            color: AppColors.textLight.withValues(alpha: 0.2)),
                       ),
                       filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.1),
+                      fillColor: AppColors.cream,
                     ),
                   ),
                 ],
@@ -426,7 +538,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 child: ElevatedButton(
                   onPressed: _saving ? null : _send,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _pink,
+                    backgroundColor: AppColors.rose,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
@@ -498,8 +610,6 @@ class BookingDetailCard extends StatefulWidget {
 }
 
 class _BookingDetailCardState extends State<BookingDetailCard> {
-  static const _pink = Color(0xFFE8A0B4);
-
   Map<String, dynamic>? _patientProfile;
   Map<String, dynamic>? _patientPregnancy;
   int _patientWeek = 0;
@@ -633,7 +743,7 @@ class _BookingDetailCardState extends State<BookingDetailCard> {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator(color: _pink)),
+        child: Center(child: CircularProgressIndicator(color: AppColors.rose)),
       );
     }
 
@@ -725,11 +835,19 @@ class _BookingDetailCardState extends State<BookingDetailCard> {
                       decoration: BoxDecoration(
                           color: statusColor(status).withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(20)),
-                      child: Text(statusLabel(status),
-                          style: TextStyle(
-                              color: statusColor(status),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_statusIcon(status),
+                              size: 13, color: statusColor(status)),
+                          const SizedBox(width: 4),
+                          Text(statusLabel(status),
+                              style: TextStyle(
+                                  color: statusColor(status),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ],
                 ),

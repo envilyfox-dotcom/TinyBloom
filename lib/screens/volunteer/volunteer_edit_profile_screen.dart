@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/app_theme.dart';
 
 class VolunteerEditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? profile;
@@ -16,10 +17,6 @@ class VolunteerEditProfileScreen extends StatefulWidget {
 
 class _VolunteerEditProfileScreenState
     extends State<VolunteerEditProfileScreen> {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _roseDark = Color(0xFF9B8B86);
-  static const _cardBg = Color(0xFFCB9189);
-
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -178,7 +175,7 @@ class _VolunteerEditProfileScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : _roseDark,
+        backgroundColor: isError ? Colors.red : AppColors.textLight,
       ),
     );
   }
@@ -186,24 +183,24 @@ class _VolunteerEditProfileScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.chevron_left,
-              color: Color(0xFF6B4A46), size: 28),
+              color: AppColors.textDark, size: 28),
           onPressed: () => context.pop(),
         ),
         title: Text('Edit Profile',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
-                color: const Color(0xFF6B4A46))),
+                color: AppColors.textDark)),
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _pink))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
           : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -218,20 +215,21 @@ class _VolunteerEditProfileScreenState
                 children: [
                   CircleAvatar(
                     radius: 52,
-                    backgroundColor: _pink.withValues(alpha: 0.2),
+                    backgroundColor: AppColors.rose.withValues(alpha: 0.2),
                     backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty
                         ? NetworkImage(_photoUrl!)
                         : null,
                     child: _photoBusy
-                        ? const CircularProgressIndicator(color: _pink)
+                        ? const CircularProgressIndicator(color: AppColors.rose)
                         : (_photoUrl == null || _photoUrl!.isEmpty
-                            ? const Icon(Icons.person, size: 52, color: _pink)
+                            ? const Icon(Icons.person,
+                                size: 52, color: AppColors.rose)
                             : null),
                   ),
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: _pink,
+                      color: AppColors.rose,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
@@ -244,7 +242,7 @@ class _VolunteerEditProfileScreenState
             const SizedBox(height: 8),
             Text('Tap to change photo',
                 style: GoogleFonts.poppins(
-                    fontSize: 12, color: _roseDark)),
+                    fontSize: 12, color: AppColors.textLight)),
             if (_photoUrl != null && _photoUrl!.isNotEmpty) ...[
               const SizedBox(height: 4),
               TextButton.icon(
@@ -257,13 +255,13 @@ class _VolunteerEditProfileScreenState
             ],
             const SizedBox(height: 24),
 
-            // ── Form card — mirrors the Personal Information card
-            // shown on the account details screen ─────────────────
+            // ── Form card ──────────────────────────────────────────
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: _cardBg,
+                color: AppColors.white,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
               ),
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -272,7 +270,7 @@ class _VolunteerEditProfileScreenState
                   Center(
                     child: Text('Personal Information',
                         style: GoogleFonts.poppins(
-                            color: Colors.white,
+                            color: AppColors.textDark,
                             fontWeight: FontWeight.w600,
                             fontSize: 14)),
                   ),
@@ -294,7 +292,7 @@ class _VolunteerEditProfileScreenState
                   ElevatedButton(
                     onPressed: _saving ? null : _save,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6B4A46),
+                      backgroundColor: AppColors.rose,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -316,8 +314,9 @@ class _VolunteerEditProfileScreenState
                   OutlinedButton(
                     onPressed: () => context.pop(),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white),
+                      foregroundColor: AppColors.textMid,
+                      side: BorderSide(
+                          color: AppColors.textLight.withValues(alpha: 0.4)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -344,19 +343,27 @@ class _VolunteerEditProfileScreenState
       children: [
         Text(label,
             style: GoogleFonts.poppins(
-                color: Colors.white70, fontSize: 12)),
+                color: AppColors.textMid, fontSize: 12)),
         const SizedBox(height: 4),
         TextField(
           controller: ctrl,
           maxLines: maxLines,
           keyboardType: keyboardType,
-          style: GoogleFonts.poppins(fontSize: 14),
+          style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppColors.white,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none),
+                borderSide:
+                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.rose, width: 1.5)),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),

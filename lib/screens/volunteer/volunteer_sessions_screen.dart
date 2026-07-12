@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/app_theme.dart';
 import 'volunteer_requests_screen.dart';
 
 class VolunteerSessionsScreen extends StatefulWidget {
@@ -18,10 +19,6 @@ class VolunteerSessionsScreen extends StatefulWidget {
 
 class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
     with SingleTickerProviderStateMixin {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _roseDark = Color(0xFF9B8B86);
-  static const _cardBg = Color(0xFFCB9189);
-
   late TabController _tabs;
   List<Map<String, dynamic>> _sessions = [];
   bool _loading = true;
@@ -97,12 +94,12 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Color(0xFF6B4A46)),
+          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -113,15 +110,15 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
         ),
         title: Text(widget.completedOnly ? 'Completed Sessions' : 'My Sessions',
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: const Color(0xFF6B4A46))),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
         bottom: widget.completedOnly
             ? null
             : TabBar(
                 controller: _tabs,
-                indicatorColor: _pink,
-                labelColor: _pink,
-                unselectedLabelColor: _roseDark,
+                indicatorColor: AppColors.rose,
+                labelColor: AppColors.rose,
+                unselectedLabelColor: AppColors.textLight,
                 labelStyle: GoogleFonts.poppins(fontSize: 13),
                 tabs: const [
                   Tab(text: 'Upcoming'),
@@ -133,7 +130,7 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
       floatingActionButton: widget.completedOnly
           ? null
           : FloatingActionButton(
-              backgroundColor: _pink,
+              backgroundColor: AppColors.rose,
               onPressed: () async {
                 await context.push('/volunteer/sessions/new');
                 _load();
@@ -141,24 +138,18 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
               child: const Icon(Icons.add, color: Colors.white),
             ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _pink))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
           : widget.completedOnly
-              ? _SessionList(
-                  sessions: _completed, cardBg: _cardBg, onRefresh: _load)
+              ? _SessionList(sessions: _completed, onRefresh: _load)
               : TabBarView(
                   controller: _tabs,
                   children: [
-                    _SessionList(
-                        sessions: _upcoming, cardBg: _cardBg, onRefresh: _load),
+                    _SessionList(sessions: _upcoming, onRefresh: _load),
                     _SessionList(
                         sessions: _past,
-                        cardBg: _cardBg,
                         onRefresh: _load,
                         onMarkCompleted: _markCompleted),
-                    _SessionList(
-                        sessions: _completed,
-                        cardBg: _cardBg,
-                        onRefresh: _load),
+                    _SessionList(sessions: _completed, onRefresh: _load),
                   ],
                 ),
     );
@@ -167,27 +158,22 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
 
 class _SessionList extends StatelessWidget {
   final List<Map<String, dynamic>> sessions;
-  final Color cardBg;
   final Future<void> Function() onRefresh;
   final void Function(String id)? onMarkCompleted;
 
   const _SessionList(
-      {required this.sessions,
-      required this.cardBg,
-      required this.onRefresh,
-      this.onMarkCompleted});
+      {required this.sessions, required this.onRefresh, this.onMarkCompleted});
 
   @override
   Widget build(BuildContext context) {
     if (sessions.isEmpty) {
       return Center(
         child: Text('No sessions here yet.',
-            style: GoogleFonts.poppins(
-                color: const Color(0xFF9B8B86), fontSize: 14)),
+            style: GoogleFonts.poppins(color: AppColors.textLight, fontSize: 14)),
       );
     }
     return RefreshIndicator(
-      color: const Color(0xFFE8A0B4),
+      color: AppColors.rose,
       onRefresh: onRefresh,
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
@@ -204,8 +190,7 @@ class _SessionList extends StatelessWidget {
               onMarkCompleted: onMarkCompleted,
             );
           }
-          return _SessionCard(
-              session: session, cardBg: cardBg, onMarkCompleted: onMarkCompleted);
+          return _SessionCard(session: session, onMarkCompleted: onMarkCompleted);
         },
       ),
     );
@@ -214,11 +199,9 @@ class _SessionList extends StatelessWidget {
 
 class _SessionCard extends StatelessWidget {
   final Map<String, dynamic> session;
-  final Color cardBg;
   final void Function(String id)? onMarkCompleted;
 
-  const _SessionCard(
-      {required this.session, required this.cardBg, this.onMarkCompleted});
+  const _SessionCard({required this.session, this.onMarkCompleted});
 
   @override
   Widget build(BuildContext context) {
@@ -228,8 +211,9 @@ class _SessionCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cardBg,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -237,30 +221,27 @@ class _SessionCard extends StatelessWidget {
         children: [
           Text(session['purpose'] ?? 'Session',
               style: GoogleFonts.poppins(
-                  color: Colors.white,
+                  color: AppColors.textDark,
                   fontSize: 14,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Row(children: [
-            const Icon(Icons.calendar_today_outlined,
-                size: 13, color: Colors.white70),
+            Icon(Icons.calendar_today_outlined,
+                size: 13, color: AppColors.textLight),
             const SizedBox(width: 4),
             Text(dateStr,
-                style:
-                    GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+                style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
             const SizedBox(width: 12),
-            const Icon(Icons.access_time, size: 13, color: Colors.white70),
+            Icon(Icons.access_time, size: 13, color: AppColors.textLight),
             const SizedBox(width: 4),
             Text(session['scheduled_time'] ?? '',
-                style:
-                    GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+                style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
           ]),
           if (session['meeting_link'] != null &&
               session['meeting_link'].toString().isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(session['meeting_link'],
-                style:
-                    GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+                style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
           ],
           if (onMarkCompleted != null &&
               (session['status'] as String? ?? '') != 'completed') ...[
@@ -270,8 +251,8 @@ class _SessionCard extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: () => onMarkCompleted!(session['id'] as String),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white),
+                  foregroundColor: AppColors.rose,
+                  side: BorderSide(color: AppColors.rose),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: Size.zero,
@@ -299,9 +280,6 @@ class NewVolunteerSessionScreen extends StatefulWidget {
 }
 
 class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _cardBg = Color(0xFFCB9189);
-
   final _topicCtrl = TextEditingController();
   final _timeCtrl = TextEditingController();
   final _remarksCtrl = TextEditingController();
@@ -324,7 +302,7 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: _pink),
+          colorScheme: const ColorScheme.light(primary: AppColors.rose),
         ),
         child: child!,
       ),
@@ -368,12 +346,12 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF5F7),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF5F7),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: Color(0xFF6B4A46)),
+          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -384,15 +362,16 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
         ),
         title: Text('New Session',
             style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: const Color(0xFF6B4A46))),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Container(
           decoration: BoxDecoration(
-            color: _cardBg,
+            color: AppColors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
           ),
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -401,7 +380,7 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
               Text('New Consultation',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
-                      color: Colors.white,
+                      color: AppColors.textDark,
                       fontSize: 16,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 20),
@@ -412,8 +391,8 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Date',
-                      style: GoogleFonts.poppins(
-                          color: Colors.white70, fontSize: 12)),
+                      style:
+                          GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
                   const SizedBox(height: 4),
                   GestureDetector(
                     onTap: _pickDate,
@@ -421,8 +400,10 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 14),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.white,
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.textLight.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         _date != null
@@ -431,8 +412,8 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
                         style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: _date != null
-                                ? const Color(0xFF6B4A46)
-                                : const Color(0xFF9B8B86)),
+                                ? AppColors.textDark
+                                : AppColors.textLight),
                       ),
                     ),
                   ),
@@ -446,8 +427,8 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
               ElevatedButton(
                 onPressed: _saving ? null : _publish,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF6B4A46),
+                  backgroundColor: AppColors.rose,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
@@ -456,7 +437,8 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
                     ? const SizedBox(
                         height: 18,
                         width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : Text('Publish Session',
                         style:
                             GoogleFonts.poppins(fontWeight: FontWeight.w600)),
@@ -473,18 +455,26 @@ class _NewVolunteerSessionScreenState extends State<NewVolunteerSessionScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+            style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
         const SizedBox(height: 4),
         TextField(
           controller: ctrl,
           maxLines: maxLines,
-          style: GoogleFonts.poppins(fontSize: 14),
+          style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppColors.white,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none),
+                borderSide:
+                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.rose, width: 1.5)),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),

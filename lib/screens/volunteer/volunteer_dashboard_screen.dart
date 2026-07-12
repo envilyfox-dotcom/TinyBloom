@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/app_theme.dart';
+import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
 
 class VolunteerDashboardScreen extends StatefulWidget {
@@ -15,10 +17,9 @@ class VolunteerDashboardScreen extends StatefulWidget {
 }
 
 class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
-  static const _pink = Color(0xFFE8A0B4);
-  static const _roseDark = Color(0xFF9B8B86);
-  static const _bg = Color(0xFFFFF5F7);
-  static const _cardBg = Color(0xFFCB9189);
+  static const _pink = AppColors.rose;
+  static const _roseDark = AppColors.textLight;
+  static const _bg = AppColors.background;
 
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _upcomingSessions = [];
@@ -49,17 +50,25 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .eq('specialist_id', SupabaseService.currentUser!.id)
           .gte('scheduled_date',
               DateTime.now().toIso8601String().split('T').first)
-          .order('scheduled_date')
-          .limit(5);
+          .order('scheduled_date');
+      final now = DateTime.now();
       // A mum's booking only counts as an upcoming consultation once it's
       // been accepted — while pending it belongs on the Request tab instead,
-      // and a declined/cancelled one never counts as a session at all.
+      // and a declined/cancelled one never counts as a session at all. A
+      // same-day appointment whose time has already passed isn't "upcoming"
+      // either, even though its date still matches today.
       sessions = List<Map<String, dynamic>>.from(data).where((s) {
         final isBooking = s['patient_id'] != null;
-        if (!isBooking) return true;
-        final status = s['status'] as String? ?? 'pending';
-        return status != 'pending' && status != 'cancelled';
-      }).toList();
+        if (isBooking) {
+          final status = s['status'] as String? ?? 'pending';
+          if (status == 'pending' || status == 'cancelled') return false;
+        }
+        final date = DateTime.tryParse(s['scheduled_date']?.toString() ?? '');
+        if (date == null) return false;
+        final timeStr = s['scheduled_time'] as String?;
+        final at = timeStr != null ? slotDateTime(date, timeStr) : null;
+        return (at ?? date).isAfter(now);
+      }).take(5).toList();
     } catch (_) {}
 
     try {
@@ -253,7 +262,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
             style: GoogleFonts.poppins(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF6B4A46))),
+                color: AppColors.textDark)),
         Text('Thank you for supporting mums today.',
             style: GoogleFonts.poppins(fontSize: 13, color: _roseDark)),
       ],
@@ -304,7 +313,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                   style: GoogleFonts.poppins(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF6B4A46))),
+                      color: AppColors.textDark)),
               Text(label,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(fontSize: 10, color: _roseDark)),
@@ -323,7 +332,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
             style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF6B4A46))),
+                color: AppColors.textDark)),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -348,17 +357,23 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: _cardBg,
+            color: AppColors.white,
             borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: _pink.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
           ),
           child: Column(
             children: [
-              Icon(icon, color: Colors.white, size: 24),
+              Icon(icon, color: _pink, size: 24),
               const SizedBox(height: 6),
               Text(label,
                   style: GoogleFonts.poppins(
                       fontSize: 11,
-                      color: Colors.white,
+                      color: AppColors.textDark,
                       fontWeight: FontWeight.w500)),
             ],
           ),
@@ -378,7 +393,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B4A46))),
+                    color: AppColors.textDark)),
             TextButton(
               onPressed: () => context.push('/volunteer/sessions'),
               child: Text('See all',
@@ -388,25 +403,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         ),
         const SizedBox(height: 8),
         if (_upcomingSessions.isEmpty)
-          _emptyCard('No upcoming consultations.\nAdd a new session to get started.')
+          _emptyCard('No upcoming consultations.')
         else
           ..._upcomingSessions.map((s) => _sessionCard(s)),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => context.push('/volunteer/sessions/new'),
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: Text('New Session',
-                style: GoogleFonts.poppins(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _pink,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -449,7 +448,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                     style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
-                        color: const Color(0xFF6B4A46))),
+                        color: AppColors.textDark)),
                 Text('$dateStr · ${session['scheduled_time'] ?? ''}',
                     style: GoogleFonts.poppins(fontSize: 11, color: _roseDark)),
               ],
@@ -471,7 +470,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B4A46))),
+                    color: AppColors.textDark)),
             TextButton(
               onPressed: () => context.push('/volunteer/requests'),
               child: Text('See all',
@@ -507,25 +506,31 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _cardBg,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+                color: _pink.withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2))
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
                 style: GoogleFonts.poppins(
-                    color: Colors.white,
+                    color: AppColors.textDark,
                     fontSize: 13,
                     fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.circle, size: 6, color: Colors.white70),
+                Icon(Icons.circle, size: 6, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(mumName,
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: Colors.white70)),
+                        fontSize: 12, color: AppColors.textLight)),
               ],
             ),
           ],
