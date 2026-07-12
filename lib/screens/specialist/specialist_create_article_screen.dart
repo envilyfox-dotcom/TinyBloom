@@ -276,7 +276,8 @@ class _SpecialistCreateArticleScreenState
                   ),
                 )
               : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                  20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
               child: Form(
                 key: _formKey,
                 child: Column(

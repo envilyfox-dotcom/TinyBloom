@@ -505,20 +505,21 @@ class SupabaseService {
       String contentId) async {
     final res = await client
         .from('review_comments')
-        .select('*, profiles(full_name)')
+        .select('*, profiles(full_name, profile_picture_url)')
         .eq('content_id', contentId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
   static Future<void> postReviewComment(String contentId, String body,
-      {String? approvalId}) async {
+      {String? approvalId, String? parentCommentId}) async {
     final user = currentUser;
     await client.from('review_comments').insert({
       'content_id': contentId,
       'author_id': user?.id,
       'body': body,
       if (approvalId != null) 'approval_id': approvalId,
+      if (parentCommentId != null) 'parent_comment_id': parentCommentId,
     });
   }
 

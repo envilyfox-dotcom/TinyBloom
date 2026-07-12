@@ -78,7 +78,7 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
       case 'emergency_pending':
         return 'Flagged for recall';
       case 'published':
-        return 'Live';
+        return 'Published';
       default:
         return status;
     }
@@ -88,6 +88,8 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
     switch (status) {
       case 'published':
         return AppColors.teal;
+      case 'publish_buffer':
+        return AppColors.sage;
       case 'changes_requested':
       case 'emergency_pending':
         return Colors.redAccent;

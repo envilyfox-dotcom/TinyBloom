@@ -49,6 +49,18 @@ class _SpecialistReviewThreadScreenState
   bool _acting = false;
   int? _myGroupId;
   final _commentCtrl = TextEditingController();
+  final _commentFocusNode = FocusNode();
+  // The discussion comment being replied to — the comment box above the
+  // discussion feed doubles as the reply box, with a "Replying to X" chip
+  // shown above it while set (mirrors the Educational Post comment flow).
+  Map<String, dynamic>? _replyingTo;
+
+  // Inline reply composer for a flagged (suggestion/issue) entry — same
+  // tap-to-reveal-inline-input interaction as the discussion feed, instead
+  // of a modal dialog. Only one entry's composer is open at a time.
+  final _issueReplyCtrl = TextEditingController();
+  final _issueReplyFocus = FocusNode();
+  String? _replyingToApprovalId;
 
   // Post verification panel state.
   String? _verificationChoice; // 'suggestion' | 'issues' | null
@@ -72,6 +84,9 @@ class _SpecialistReviewThreadScreenState
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _commentFocusNode.dispose();
+    _issueReplyCtrl.dispose();
+    _issueReplyFocus.dispose();
     _suggestionCtrl.dispose();
     _issueReasonCtrl.dispose();
     super.dispose();
@@ -304,36 +319,24 @@ class _SpecialistReviewThreadScreenState
   // discussion comment and never flips the issue's resolved state. Since
   // resolve_review_issue now also accepts suggestion rows, this same flow
   // covers both a rejection issue and an "approved with suggestion" note.
-  Future<void> _replyToIssue(String approvalId) async {
+  // Reply UI is inline (tap Reply -> composer opens in place), matching
+  // the discussion feed's reply interaction instead of a modal dialog.
+  void _startIssueReply(String approvalId) {
+    setState(() => _replyingToApprovalId = approvalId);
+    FocusScope.of(context).requestFocus(_issueReplyFocus);
+  }
+
+  void _cancelIssueReply() {
+    _issueReplyCtrl.clear();
+    setState(() => _replyingToApprovalId = null);
+  }
+
+  Future<void> _submitIssueReply(String approvalId) async {
+    final reply = _issueReplyCtrl.text.trim();
+    if (reply.isEmpty) return;
     final isAuthor = _isAuthor;
-    final replyCtrl = TextEditingController();
-    final reply = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reply'),
-        content: TextField(
-          controller: replyCtrl,
-          maxLines: 3,
-          autofocus: true,
-          decoration: InputDecoration(
-              labelText:
-                  isAuthor ? 'What did you change?' : 'Your reply'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              if (replyCtrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, replyCtrl.text.trim());
-            },
-            child: Text(isAuthor ? 'Mark Addressed' : 'Reply'),
-          ),
-        ],
-      ),
-    );
-    if (reply == null) return;
+    _issueReplyCtrl.clear();
+    setState(() => _replyingToApprovalId = null);
     if (isAuthor) {
       await _run(() => SupabaseService.resolveReviewIssue(approvalId, reply));
     } else {
@@ -343,11 +346,23 @@ class _SpecialistReviewThreadScreenState
     }
   }
 
+  String _topLevelParentId(Map<String, dynamic> comment) =>
+      (comment['parent_comment_id'] as String?) ?? comment['id'] as String;
+
+  void _startReply(Map<String, dynamic> comment) {
+    setState(() => _replyingTo = comment);
+    FocusScope.of(context).requestFocus(_commentFocusNode);
+  }
+
   Future<void> _postComment() async {
     final body = _commentCtrl.text.trim();
     if (body.isEmpty) return;
+    final parentId =
+        _replyingTo == null ? null : _topLevelParentId(_replyingTo!);
     _commentCtrl.clear();
-    await SupabaseService.postReviewComment(widget.contentId, body);
+    setState(() => _replyingTo = null);
+    await SupabaseService.postReviewComment(widget.contentId, body,
+        parentCommentId: parentId);
     final comments = await SupabaseService.getReviewComments(widget.contentId);
     if (mounted) setState(() => _comments = comments);
   }
@@ -730,9 +745,10 @@ class _SpecialistReviewThreadScreenState
 
   // Shared avatar + bubble frame for both the flagged feed and History
   // entries — reviewer identity/timestamp look the same either way, only
-  // the body content differs.
+  // the body content and (for the flagged feed) the border color differ.
   Widget _entryBubble(Map<String, dynamic>? reviewer, DateTime? createdAt,
-      Widget body) {
+      Widget body,
+      {Color? borderColor}) {
     final reviewerName = reviewer?['full_name'] as String? ?? 'Specialist';
     final reviewerPhoto = reviewer?['profile_picture_url'] as String?;
     final reviewerSpecialization = (reviewer?['specialist_profiles']
@@ -767,7 +783,9 @@ class _SpecialistReviewThreadScreenState
                 color: AppColors.white,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: AppColors.textLight.withValues(alpha: 0.3)),
+                    color: borderColor ??
+                        AppColors.textLight.withValues(alpha: 0.3),
+                    width: borderColor != null ? 1.5 : 1),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -814,8 +832,14 @@ class _SpecialistReviewThreadScreenState
     final status = _content!['status'] as String? ?? '';
     final isReject = a['decision'] == 'reject';
     final resolved = a['resolved'] == true;
-    final canReply =
-        !resolved && (isReject ? status == 'changes_requested' : true);
+    // Only the reviewer who sent it (to clarify) or the content's author
+    // (to resolve) can reply — every other specialist can just read it.
+    // Once published, the thread is closed to new replies entirely.
+    final isSender = a['reviewer_id'] == _myId;
+    final canReply = !resolved &&
+        status != 'published' &&
+        (_isAuthor || isSender) &&
+        (isReject ? status == 'changes_requested' : true);
     final issueReplies =
         _comments.where((c) => c['approval_id'] == a['id']).toList();
     final reviewer = a['reviewer'] as Map<String, dynamic>?;
@@ -910,21 +934,67 @@ class _SpecialistReviewThreadScreenState
               ),
             ),
           if (canReply)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 28),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                onPressed:
-                    _acting ? null : () => _replyToIssue(a['id'] as String),
-                child: Text(_isAuthor ? 'Reply and Resolve' : 'Reply',
-                    style: const TextStyle(fontSize: 12)),
-              ),
-            ),
+            _replyingToApprovalId == a['id']
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _issueReplyCtrl,
+                            focusNode: _issueReplyFocus,
+                            autofocus: true,
+                            maxLines: 3,
+                            minLines: 1,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              hintText: _isAuthor
+                                  ? 'What did you change?'
+                                  : 'Your reply',
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _cancelIssueReply,
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(Icons.close,
+                                size: 16, color: AppColors.textLight),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _acting
+                              ? null
+                              : () =>
+                                  _submitIssueReply(a['id'] as String),
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(Icons.send,
+                                size: 18, color: AppColors.rose),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      onPressed: _acting
+                          ? null
+                          : () => _startIssueReply(a['id'] as String),
+                      child: Text(_isAuthor ? 'Reply and Resolve' : 'Reply',
+                          style: const TextStyle(fontSize: 12)),
+                    ),
+                  ),
         ],
       ),
+      borderColor: isReject ? Colors.redAccent : AppColors.infoBlue,
     );
   }
 
@@ -1110,56 +1180,88 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  Widget _discussionEntry(Map<String, dynamic> c) {
-    final name = (c['profiles']?['full_name'] as String?) ?? 'Specialist';
-    final isAuthorComment = c['author_id'] == _content!['created_by'];
-    final createdAt = DateTime.tryParse(c['created_at'] as String? ?? '');
+  Widget _discussionTile(
+      Map<String, dynamic> comment, List<Map<String, dynamic>> replies) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-            child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                    color: AppColors.roseDeep,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color: AppColors.textLight.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Text('${isAuthorComment ? '★ ' : ''}$name',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 13)),
-                    const SizedBox(width: 6),
-                    Text(createdAt != null ? _timeAgo(createdAt) : '',
-                        style: const TextStyle(
-                            color: AppColors.textLight, fontSize: 11)),
-                  ]),
-                  const SizedBox(height: 2),
-                  Text(c['body'] as String? ?? '',
-                      style: const TextStyle(
-                          color: AppColors.textMid, fontSize: 13)),
-                ],
-              ),
+          _discussionEntry(comment),
+          for (final r in replies)
+            Padding(
+              padding: const EdgeInsets.only(left: 38, top: 10),
+              child: _discussionEntry(r),
             ),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _discussionEntry(Map<String, dynamic> c) {
+    final name = (c['profiles']?['full_name'] as String?) ?? 'Specialist';
+    final photoUrl = c['profiles']?['profile_picture_url'] as String?;
+    final isAuthorComment = c['author_id'] == _content!['created_by'];
+    final createdAt = DateTime.tryParse(c['created_at'] as String? ?? '');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+          child: photoUrl == null
+              ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                      color: AppColors.roseDeep,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12))
+              : null,
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: AppColors.textLight.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('${isAuthorComment ? '★ ' : ''}$name',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(width: 6),
+                  Text(createdAt != null ? _timeAgo(createdAt) : '',
+                      style: const TextStyle(
+                          color: AppColors.textLight, fontSize: 11)),
+                ]),
+                const SizedBox(height: 2),
+                Text(c['body'] as String? ?? '',
+                    style: const TextStyle(
+                        color: AppColors.textMid, fontSize: 13)),
+                if (_content!['status'] != 'published')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: GestureDetector(
+                      onTap: () => _startReply(c),
+                      child: const Text('Reply',
+                          style: TextStyle(
+                              color: AppColors.teal,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1196,6 +1298,15 @@ class _SpecialistReviewThreadScreenState
     final status = _content!['status'] as String? ?? '';
     final generalComments =
         _comments.where((c) => c['approval_id'] == null).toList();
+    final topLevelComments =
+        generalComments.where((c) => c['parent_comment_id'] == null).toList();
+    final generalRepliesByParent = <String, List<Map<String, dynamic>>>{};
+    for (final c in generalComments) {
+      final parentId = c['parent_comment_id'] as String?;
+      if (parentId != null) {
+        generalRepliesByParent.putIfAbsent(parentId, () => []).add(c);
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -1204,7 +1315,8 @@ class _SpecialistReviewThreadScreenState
         color: AppColors.rose,
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
           children: [
             _headerCard(status),
             const SizedBox(height: 20),
@@ -1213,25 +1325,69 @@ class _SpecialistReviewThreadScreenState
             _flaggedFeed(),
             const SizedBox(height: 20),
             _historySection(),
-            const SizedBox(height: 24),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentCtrl,
-                  decoration: const InputDecoration(hintText: 'Add a comment'),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            const Text('Discussion',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            const SizedBox(height: 12),
+            if (status != 'published') ...[
+              if (_replyingTo != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Replying to ${(_replyingTo!['profiles']?['full_name'] as String?) ?? 'comment'}',
+                                style: const TextStyle(
+                                    color: AppColors.textLight,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(() => _replyingTo = null),
+                              child: const Icon(Icons.close,
+                                  size: 16, color: AppColors.textLight),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Matches the send IconButton's width below, so the
+                      // close icon lands above the comment box's edge
+                      // instead of overlapping the send button beneath it.
+                      const SizedBox(width: 48),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.send, color: AppColors.rose),
-                onPressed: _postComment,
-              ),
-            ]),
-            const SizedBox(height: 16),
-            if (generalComments.isEmpty)
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentCtrl,
+                    focusNode: _commentFocusNode,
+                    decoration: InputDecoration(
+                        hintText: _replyingTo != null
+                            ? 'Write a reply...'
+                            : 'Add a comment'),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: AppColors.rose),
+                  onPressed: _postComment,
+                ),
+              ]),
+              const SizedBox(height: 16),
+            ],
+            if (topLevelComments.isEmpty)
               const Text('No comments yet.',
                   style: TextStyle(color: AppColors.textLight, fontSize: 13))
             else
-              ...generalComments.map(_discussionEntry),
+              ...topLevelComments.map((c) => _discussionTile(
+                  c, generalRepliesByParent[c['id']] ?? [])),
           ],
         ),
       ),
