@@ -10,7 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 // the Navigator try to register two pages with the same key and crash with
 // "!keyReservation.contains(key)". A short cooldown avoids that.
 DateTime? _lastArticleOpen;
-void openArticle(BuildContext context, Map<String, dynamic> article) {
+// Returns a Future so callers can await it (e.g. to refresh comment/like
+// counts once the in-app detail screen is popped).
+Future<void> openArticle(BuildContext context, Map<String, dynamic> article) async {
   final now = DateTime.now();
   if (_lastArticleOpen != null && now.difference(_lastArticleOpen!) < const Duration(milliseconds: 600)) {
     return;
@@ -19,8 +21,8 @@ void openArticle(BuildContext context, Map<String, dynamic> article) {
 
   final url = article['url'] as String?;
   if (url != null && url.isNotEmpty) {
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   } else {
-    context.push('/education/${article['id']}', extra: article);
+    await context.push('/education/${article['id']}', extra: article);
   }
 }

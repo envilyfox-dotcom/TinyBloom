@@ -11,6 +11,7 @@ class AppColors {
   static const Color cream = Color(0xFFF5F0EB);
   static const Color sage = Color(0xFF7A9E8E);
   static const Color gold = Color(0xFFD4A847);
+  static const Color infoBlue = Color(0xFF4A85C9);
 
   // Text
   static const Color textDark = Color(0xFF3D2B27);

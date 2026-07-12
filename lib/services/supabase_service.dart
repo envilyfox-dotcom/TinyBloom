@@ -303,24 +303,62 @@ class SupabaseService {
   }
 
   // Articles
+  // author/public_comments/article_likes are embedded so the Learn tab card
+  // can show the author's name, photo, specialization, and live comment/like
+  // counts without a round trip per article.
+  static const _articleSelect =
+      '*, author:profiles!created_by(full_name, profile_picture_url, specialist_profiles(specialization)), '
+      'public_comments(count), article_likes(count)';
+
   static Future<List<Map<String, dynamic>>> getArticles(
       {String? category}) async {
     List<Map<String, dynamic>> res;
     if (category != null) {
       res = await client
           .from('articles')
-          .select('*')
+          .select(_articleSelect)
           .eq('status', 'published')
           .eq('category', category)
           .order('published_at', ascending: false);
     } else {
       res = await client
           .from('articles')
-          .select('*')
+          .select(_articleSelect)
           .eq('status', 'published')
           .order('published_at', ascending: false);
     }
     return res;
+  }
+
+  static Future<Set<String>> getLikedArticleIds(List<String> articleIds) async {
+    final user = currentUser;
+    if (user == null || articleIds.isEmpty) return {};
+    final res = await client
+        .from('article_likes')
+        .select('article_id')
+        .eq('user_id', user.id)
+        .inFilter('article_id', articleIds);
+    return List<Map<String, dynamic>>.from(res)
+        .map((r) => r['article_id'] as String)
+        .toSet();
+  }
+
+  static Future<void> likeArticle(String articleId) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client
+        .from('article_likes')
+        .insert({'article_id': articleId, 'user_id': user.id});
+  }
+
+  static Future<void> unlikeArticle(String articleId) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client
+        .from('article_likes')
+        .delete()
+        .eq('article_id', articleId)
+        .eq('user_id', user.id);
   }
 
   // ── Specialist article review pipeline ──────────────────────────────
@@ -447,11 +485,16 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  static const _reviewThreadSelect = '*, '
+      'approvals(*, reviewer:profiles!reviewer_id(full_name, profile_picture_url, specialist_profiles(specialization))), '
+      'article_edit_history(*), '
+      'author:profiles!created_by(full_name, profile_picture_url, specialist_profiles(specialization))';
+
   static Future<Map<String, dynamic>?> getReviewThreadContent(
       String contentId) async {
     final res = await client
         .from('articles')
-        .select('*, approvals(*), author:profiles!created_by(full_name)')
+        .select(_reviewThreadSelect)
         .eq('id', contentId)
         .maybeSingle();
     return res;
@@ -481,6 +524,15 @@ class SupabaseService {
   static Future<void> approveContent(String contentId, int stage) async {
     await client.rpc('approve_content',
         params: {'p_content_id': contentId, 'p_stage': stage});
+  }
+
+  static Future<void> approveContentWithSuggestion(
+      String contentId, int stage, String comment) async {
+    await client.rpc('approve_content_with_suggestion', params: {
+      'p_content_id': contentId,
+      'p_stage': stage,
+      'p_comment': comment,
+    });
   }
 
   static Future<void> rejectContent(
@@ -514,18 +566,20 @@ class SupabaseService {
       String contentId) async {
     final res = await client
         .from('public_comments')
-        .select('*, profiles(full_name)')
+        .select('*, profiles(full_name, profile_picture_url)')
         .eq('content_id', contentId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
-  static Future<void> postPublicComment(String contentId, String body) async {
+  static Future<void> postPublicComment(String contentId, String body,
+      {String? parentCommentId}) async {
     final user = currentUser;
     await client.from('public_comments').insert({
       'content_id': contentId,
       'user_id': user?.id,
       'body': body,
+      'parent_comment_id': parentCommentId,
     });
   }
 
