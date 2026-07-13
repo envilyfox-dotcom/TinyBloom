@@ -340,13 +340,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       _divider(),
                       _menuItem(
-                        Icons.delete_outline,
-                        'Delete Profile',
-                        color: Colors.red,
-                        onTap: () => _confirmDeleteProfile(),
-                      ),
-                      _divider(),
-                      _menuItem(
                         Icons.logout,
                         'Sign Out',
                         color: Colors.red,
@@ -441,58 +434,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       builder: (ctx) => const _FeedbackSheet(),
     );
-  }
-
-  void _confirmDeleteProfile() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Profile'),
-        content: const Text(
-            'This will permanently delete your account and all your data. This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteAccount();
-            },
-            child: const Text('Delete Account',
-                style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteAccount() async {
-    final auth = context.read<AuthProvider>();
-    final userId = SupabaseService.currentUser?.id;
-    if (userId == null) return;
-
-    try {
-      await SupabaseService.client.from('profiles').delete().eq('id', userId);
-
-      if (!mounted) return;
-
-      await auth.signOut();
-
-      if (!mounted) return;
-
-      context.go('/login');
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not delete profile: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   void _confirmSignOut() {
