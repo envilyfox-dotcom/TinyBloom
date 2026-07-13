@@ -33,11 +33,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Future<void> _load() async {
     final comments =
         await SupabaseService.getForumComments(widget.post['id'] as String);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _comments = comments;
         _loading = false;
       });
+    }
   }
 
   Future<void> _send() async {

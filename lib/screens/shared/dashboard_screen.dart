@@ -1132,7 +1132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           slivers: [
             // App bar
             SliverAppBar(
-              expandedHeight: 160,
+              expandedHeight: isPremium ? 172 : 160,
               floating: false,
               pinned: true,
               backgroundColor: AppColors.blush,
@@ -1149,23 +1149,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('$_greeting, $_firstName! 🌸',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(fontSize: 20)),
-                              const SizedBox(height: 2),
-                              Text(
-                                  DateFormat('EEEE, d MMMM')
-                                      .format(DateTime.now()),
-                                  style: const TextStyle(
-                                      color: AppColors.textMid, fontSize: 13)),
-                            ],
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('$_greeting, $_firstName! 🌸',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(fontSize: 20)),
+                                const SizedBox(height: 2),
+                                Text(
+                                    DateFormat('EEEE, d MMMM')
+                                        .format(DateTime.now()),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: AppColors.textMid, fontSize: 13)),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 10),
                           GestureDetector(
                             onTap: () => context.push('/profile'),
                             child: CircleAvatar(

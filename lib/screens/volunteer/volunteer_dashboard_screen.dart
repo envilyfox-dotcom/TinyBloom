@@ -506,7 +506,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.circle, size: 6, color: AppColors.textLight),
+                const Icon(Icons.circle, size: 6, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(mumName,
                     style: GoogleFonts.poppins(

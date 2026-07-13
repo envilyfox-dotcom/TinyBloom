@@ -226,13 +226,13 @@ class _SessionCard extends StatelessWidget {
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Row(children: [
-            Icon(Icons.calendar_today_outlined,
+            const Icon(Icons.calendar_today_outlined,
                 size: 13, color: AppColors.textLight),
             const SizedBox(width: 4),
             Text(dateStr,
                 style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
             const SizedBox(width: 12),
-            Icon(Icons.access_time, size: 13, color: AppColors.textLight),
+            const Icon(Icons.access_time, size: 13, color: AppColors.textLight),
             const SizedBox(width: 4),
             Text(session['scheduled_time'] ?? '',
                 style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
@@ -252,7 +252,7 @@ class _SessionCard extends StatelessWidget {
                 onPressed: () => onMarkCompleted!(session['id'] as String),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.rose,
-                  side: BorderSide(color: AppColors.rose),
+                  side: const BorderSide(color: AppColors.rose),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: Size.zero,

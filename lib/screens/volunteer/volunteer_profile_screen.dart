@@ -238,7 +238,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                                   ).then((_) => _load()),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppColors.rose,
-                                    side: BorderSide(color: AppColors.rose),
+                                    side: const BorderSide(color: AppColors.rose),
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 12),
                                     shape: RoundedRectangleBorder(

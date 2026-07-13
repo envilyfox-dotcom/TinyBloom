@@ -78,7 +78,7 @@ Side states: `changes_requested`, `emergency_pending`
 
 ### 3.6 Live / public state
 
-- Article tab becomes visible only once state = `live`.
+- Article tab becomes visible only once state = `Article`.
 - The Review tab (specialist-only thread) persists after publishing — historical record, and available for future flagging.
 - A future "notify specialists" button on public comments will trigger a lightweight version of the approval-2 flow (visible to author + primary + secondary), treated as non-critical by default. Not required for MVP; design the comment schema so this can be added without migration pain (e.g. a `flagged_from_comment_id` nullable field on the review thread).
 

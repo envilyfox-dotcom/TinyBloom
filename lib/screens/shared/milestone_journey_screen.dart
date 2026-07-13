@@ -167,8 +167,9 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
     // The most recently reached milestone week, so far.
     int? currentMilestoneWeek;
     for (final m in _milestoneJourney) {
-      if ((m['week'] as int) <= _currentWeek)
+      if ((m['week'] as int) <= _currentWeek) {
         currentMilestoneWeek = m['week'] as int;
+      }
     }
     final progress =
         _currentWeek > 0 ? (_currentWeek / 40).clamp(0.0, 1.0) : 0.0;

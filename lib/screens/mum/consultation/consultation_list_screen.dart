@@ -59,11 +59,12 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = e.toString();
         });
+      }
     }
   }
 
@@ -170,9 +171,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                                                   fontSize: 11,
                                                   fontWeight: FontWeight.w700)),
                                           const SizedBox(height: 4),
-                                          Row(
+                                          const Row(
                                             mainAxisSize: MainAxisSize.min,
-                                            children: const [
+                                            children: [
                                               Icon(Icons.video_call,
                                                   color: AppColors.teal,
                                                   size: 15),
@@ -266,34 +267,44 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TBCard(
-                  color: AppColors.blush,
-                  onTap: () => context.push('/consultation/specialists'),
-                  child: Column(
-                    children: [
-                      if (!isPremium)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.gold.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
+                child: Opacity(
+                  opacity: isPremium ? 1 : 0.5,
+                  child: TBCard(
+                    color: AppColors.blush,
+                    onTap: isPremium
+                        ? () => context.push('/consultation/specialists')
+                        : () => ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Specialist consultations are a Premium feature. Upgrade to unlock.'),
+                              ),
                             ),
-                            child: const Icon(Icons.star,
-                                color: AppColors.gold, size: 12),
+                    child: Column(
+                      children: [
+                        if (!isPremium)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(Icons.lock,
+                                  color: AppColors.gold, size: 12),
+                            ),
                           ),
-                        ),
-                      const Text('👩‍⚕️', style: TextStyle(fontSize: 36)),
-                      const SizedBox(height: 8),
-                      const Text('Specialist',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      const Text('Verified doctors',
-                          style: TextStyle(
-                              fontSize: 12, color: AppColors.textLight)),
-                    ],
+                        const Text('👩‍⚕️', style: TextStyle(fontSize: 36)),
+                        const SizedBox(height: 8),
+                        const Text('Specialist',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        const Text('Verified doctors',
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.textLight)),
+                      ],
+                    ),
                   ),
                 ),
               ),

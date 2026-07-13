@@ -358,21 +358,27 @@ if (licenseNumber.isNotEmpty ||
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.edit_outlined,
-                    size: 18, color: AppColors.textMid),
-                SizedBox(width: 8),
-                Text(
-                  'Edit Profile',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.textDark,
+            Expanded(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit_outlined,
+                      size: 18, color: AppColors.textMid),
+                  SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Edit Profile',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppColors.textDark,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             Icon(Icons.chevron_right,
                 size: 18, color: AppColors.textMid),
@@ -392,23 +398,29 @@ Expanded(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-  mainAxisAlignment: MainAxisAlignment.center,
-  children: [
-    Icon(Icons.logout, size: 18, color: Colors.red),
-    SizedBox(width: 8),
-    Text(
-      'Sign Out',
-      style: TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-        color: Colors.red,
-      ),
-    ),
-    SizedBox(width: 8),
-    Icon(Icons.chevron_right, size: 18, color: Colors.red),
-  ],
-),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout, size: 18, color: Colors.red),
+                  SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Sign Out',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 8),
+            Icon(Icons.chevron_right, size: 18, color: Colors.red),
           ],
         ),
       ),
