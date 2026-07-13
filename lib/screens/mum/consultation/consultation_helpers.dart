@@ -384,7 +384,6 @@ Widget providerCard(
   final role = isSpecialist
       ? (provider['specialization'] as String? ?? 'Specialist')
       : (provider['expertise'] as String? ?? 'Volunteer');
-  final rating = (provider['rating'] as num?)?.toStringAsFixed(1);
   final years = provider['years_experience'];
   final organisation = isSpecialist
       ? (provider['hospital_affiliation'] as String? ?? '')
@@ -395,6 +394,10 @@ Widget providerCard(
   final helpsWith =
       (provider['helps_with'] as List?)?.map((e) => e.toString()).toList() ??
           const <String>[];
+  final services = (provider['_services'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ??
+      const <Map<String, dynamic>>[];
   final availableToday = (provider['available_today'] as List?)
           ?.map((e) => timeOnly(e))
           .where((e) => e.isNotEmpty)
@@ -456,9 +459,6 @@ Widget providerCard(
                       runSpacing: 6,
                       children: [
                         _providerChip(label, accent, Icons.verified_outlined),
-                        if (rating != null)
-                          _providerChip('$rating Rating', AppColors.gold,
-                              Icons.star_rounded),
                         if (years != null)
                           _providerChip('$years Years', AppColors.rose,
                               Icons.work_outline),
@@ -494,9 +494,9 @@ Widget providerCard(
           ],
           if (helpsWith.isNotEmpty) ...[
             const SizedBox(height: 14),
-            const Text(
-              'Helps with',
-              style: TextStyle(
+            Text(
+              isSpecialist ? 'Helps with' : 'Services Provided',
+              style: const TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 13,
                 color: AppColors.textDark,
@@ -506,25 +506,19 @@ Widget providerCard(
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: helpsWith
-                  .take(4)
-                  .map((h) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Text(
-                          h,
-                          style: TextStyle(
-                            color: accent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ))
-                  .toList(),
+              children: isSpecialist
+                  ? helpsWith
+                      .map((h) => _helpsChip(h, accent))
+                      .toList()
+                  : services
+                      .map((s) => GestureDetector(
+                            onTap: () =>
+                                _showServiceDetailsSheet(context, s, accent),
+                            child: _helpsChip(
+                                s['title']?.toString() ?? '', accent,
+                                tappable: true),
+                          ))
+                      .toList(),
             ),
           ],
           const SizedBox(height: 14),
@@ -629,6 +623,133 @@ Widget providerCard(
             ),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+Widget _helpsChip(String label, Color accent, {bool tappable = false}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: accent,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (tappable) ...[
+          const SizedBox(width: 3),
+          Icon(Icons.info_outline, size: 12, color: accent),
+        ],
+      ],
+    ),
+  );
+}
+
+// Shows a volunteer service's full details (description, category,
+// availability, consultation method) when its "Services Provided" chip is
+// tapped, since the chip itself only has room for the title.
+void _showServiceDetailsSheet(
+    BuildContext context, Map<String, dynamic> service, Color accent) {
+  final title = service['title'] as String? ?? 'Service';
+  final description = service['description'] as String? ?? '';
+  final category = service['category'] as String? ?? '';
+  final consultationMethod = service['consultation_method'] as String? ?? '';
+  final availability = service['availability'] as String?;
+
+  String availabilityLabel = '—';
+  if (availability != null && availability.contains(' | ')) {
+    final parts = availability.split(' | ');
+    final date = DateTime.tryParse(parts[0]);
+    final dateStr =
+        date != null ? DateFormat('d MMM yyyy').format(date) : parts[0];
+    availabilityLabel =
+        parts.length > 1 ? '$dateStr · ${parts[1]}' : dateStr;
+  }
+
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.textLight.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(title,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: AppColors.textDark)),
+            if (category.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _providerInfoLine(Icons.label_outline, category),
+            ],
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(description,
+                  style: const TextStyle(
+                      color: AppColors.textMid, fontSize: 14, height: 1.4)),
+            ],
+            const SizedBox(height: 14),
+            _providerInfoLine(Icons.schedule_outlined, availabilityLabel),
+            if (consultationMethod.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _providerInfoLine(
+                  consultationMethod == 'Video'
+                      ? Icons.videocam_outlined
+                      : Icons.chat_bubble_outline,
+                  consultationMethod),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: accent,
+                  side: BorderSide(color: accent),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                ),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );

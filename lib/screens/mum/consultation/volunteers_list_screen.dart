@@ -31,9 +31,23 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
       // are not already booked by another user for the same volunteer.
       final withAvailability = await attachAvailableTimingsForToday(data);
 
+      // "Services Provided" shows what the volunteer actually published
+      // under Manage Services, not a generic fixed list.
+      final withServices = await Future.wait(withAvailability.map((v) async {
+        final userId = v['user_id'] as String?;
+        final services = userId != null
+            ? await SupabaseService.getVolunteerServices(userId)
+            : <Map<String, dynamic>>[];
+        return {
+          ...v,
+          'helps_with': services.map((s) => s['title']).toList(),
+          '_services': services,
+        };
+      }));
+
       if (mounted) {
         setState(() {
-          _volunteers = withAvailability;
+          _volunteers = withServices;
           _loading = false;
           _error = null;
         });

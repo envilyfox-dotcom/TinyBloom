@@ -803,6 +803,23 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // The services a volunteer currently has published (excludes ones they've
+  // deleted or that have expired), shown as tappable "Services Provided"
+  // chips on their card in the mum-facing volunteer list.
+  static Future<List<Map<String, dynamic>>> getVolunteerServices(
+      String volunteerId) async {
+    try {
+      final res = await client
+          .from('volunteer_services')
+          .select()
+          .eq('volunteer_id', volunteerId)
+          .eq('status', 'available');
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
   // Get current specialist's profile (for their own dashboard)
   static Future<Map<String, dynamic>?> getMySpecialistProfile() async {
     final user = currentUser;
