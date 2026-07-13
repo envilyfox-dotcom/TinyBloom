@@ -6,9 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../mum/consultation/consultation_helpers.dart';
+import '../mum/forum/forum_shared.dart';
 
-// Confirmed and Completed share a similar green/teal color, so a small icon
-// tells them apart at a glance without needing to change either color.
+// Used by BookingDetailCard below, which shows a mum's historical booking
+// (a leftover from before the volunteer-scheduling feature was replaced by
+// this open Q&A board) inline on the Consultation tab.
 IconData _statusIcon(String status) {
   switch (status.toLowerCase()) {
     case 'confirmed':
@@ -24,6 +26,9 @@ IconData _statusIcon(String status) {
   }
 }
 
+// ── User Requests — open Q&A board ────────────────────────────────────────
+// Any mum can post a question; any volunteer can see every question and
+// reply to it (not tied to one specific volunteer).
 class VolunteerRequestsScreen extends StatefulWidget {
   const VolunteerRequestsScreen({super.key});
 
@@ -52,63 +57,59 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
   }
 
   Future<void> _load() async {
-    final merged = <Map<String, dynamic>>[];
-
     try {
+      // patient_id references auth.users, not public.profiles, so
+      // PostgREST has no FK to auto-embed profiles(full_name) through —
+      // fetch the asker's name as a separate lookup instead.
       final data = await SupabaseService.client
           .from('volunteer_requests')
-          .select('*, profiles(full_name)')
-          .eq('volunteer_id', SupabaseService.currentUser!.id)
-          .order('created_at', ascending: false);
-      merged.addAll(List<Map<String, dynamic>>.from(data)
-          .map((r) => {...r, '_kind': 'question'}));
-    } catch (_) {}
-
-    try {
-      final bookings = await SupabaseService.client
-          .from('consultations')
           .select()
-          .eq('specialist_id', SupabaseService.currentUser!.id)
-          .eq('consultation_type', 'volunteer')
-          .not('patient_id', 'is', null)
           .order('created_at', ascending: false);
-      final bookingList = List<Map<String, dynamic>>.from(bookings);
+      final rows = List<Map<String, dynamic>>.from(data);
 
-      final patientIds =
-          bookingList.map((b) => b['patient_id'] as String?).whereType<String>().toSet();
+      final patientIds = rows
+          .map((r) => r['patient_id'] as String?)
+          .whereType<String>()
+          .toSet();
       final names = <String, String>{};
+      final photos = <String, String?>{};
       await Future.wait(patientIds.map((id) async {
         try {
           final profile = await SupabaseService.getProfileById(id);
           final name = profile?['full_name'] as String?;
           if (name != null) names[id] = name;
+          photos[id] = profile?['profile_picture_url'] as String?;
         } catch (_) {}
       }));
 
-      merged.addAll(bookingList.map((b) => {
-            ...b,
-            '_kind': 'booking',
-            '_mumName': names[b['patient_id']] ?? 'A mum',
-          }));
-    } catch (_) {}
-
-    // Pending requests need action, so they surface first regardless of
-    // date; everything else stays sorted newest-first behind them.
-    merged.sort((a, b) {
-      final aPending = _isPending(a);
-      final bPending = _isPending(b);
-      if (aPending != bPending) return aPending ? -1 : 1;
-      final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
-      final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
-      if (aDate == null || bDate == null) return 0;
-      return bDate.compareTo(aDate);
-    });
-
-    if (mounted) {
-      setState(() {
-        _requests = merged;
-        _loading = false;
+      final requests = rows
+          .map((r) => {
+                ...r,
+                'profiles': {
+                  'full_name': names[r['patient_id']],
+                  'profile_picture_url': photos[r['patient_id']],
+                },
+              })
+          .toList();
+      // Pending questions need action, so they surface first; everything
+      // else stays sorted newest-first behind them.
+      requests.sort((a, b) {
+        final aPending = _isPending(a);
+        final bPending = _isPending(b);
+        if (aPending != bPending) return aPending ? -1 : 1;
+        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
+        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
+        if (aDate == null || bDate == null) return 0;
+        return bDate.compareTo(aDate);
       });
+      if (mounted) {
+        setState(() {
+          _requests = requests;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -187,76 +188,31 @@ class _RequestList extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         itemCount: requests.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (ctx, i) =>
-          _RequestCard(request: requests[i], onRefresh: onRefresh),
+        itemBuilder: (ctx, i) => _RequestCard(
+          request: requests[i],
+          onRefresh: onRefresh,
+        ),
       ),
     );
   }
 }
 
-class _RequestCard extends StatefulWidget {
+class _RequestCard extends StatelessWidget {
   final Map<String, dynamic> request;
   final Future<void> Function() onRefresh;
 
   const _RequestCard({required this.request, required this.onRefresh});
 
   @override
-  State<_RequestCard> createState() => _RequestCardState();
-}
-
-class _RequestCardState extends State<_RequestCard> {
-  bool _saving = false;
-
-  Future<void> _acceptBooking() async {
-    setState(() => _saving = true);
-    try {
-      await SupabaseService.updateConsultationStatus(
-          widget.request['id'].toString(), 'confirmed');
-      await widget.onRefresh();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _declineBooking() async {
-    setState(() => _saving = true);
-    try {
-      await SupabaseService.cancelConsultation(
-          widget.request['id'].toString(),
-          reason: 'Declined by volunteer');
-      await widget.onRefresh();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final request = widget.request;
-    final isBooking = request['_kind'] == 'booking';
-    final mumName = isBooking
-        ? (request['_mumName'] as String? ?? 'A mum')
-        : (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
+    final mumName =
+        (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
     final status = request['status'] as String? ?? 'pending';
     final isPending = status == 'pending';
-    final title = isBooking
-        ? '📅 Booking · ${request['purpose'] ?? 'Consultation'}'
-        : (request['question'] ?? '');
-    final badgeLabel = isBooking ? statusLabel(status) : (isPending ? 'Pending' : 'Responded');
-    final badgeColor = isBooking
-        ? statusColor(status)
-        : (isPending ? AppColors.gold : AppColors.sage);
+    final badgeLabel = isPending ? 'Pending' : 'Responded';
+    final badgeColor = isPending ? AppColors.gold : AppColors.sage;
 
+<<<<<<< Updated upstream
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -337,47 +293,63 @@ class _RequestCardState extends State<_RequestCard> {
           // from the list, without opening the full detail screen first.
           if (isBooking && isPending) ...[
             const SizedBox(height: 12),
+=======
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequestDetailScreen(request: request),
+        ),
+      ).then((_) => onRefresh()),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+>>>>>>> Stashed changes
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : _declineBooking,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade400,
-                      side: BorderSide(color: Colors.red.shade400),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: Text('Decline',
-                        style: GoogleFonts.poppins(fontSize: 12)),
-                  ),
+                  child: Text(request['question'] ?? '',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.textDark,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500)),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _saving ? null : _acceptBooking,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.rose,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: _saving
-                        ? const SizedBox(
-                            height: 14,
-                            width: 14,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : Text('Accept',
-                            style: GoogleFonts.poppins(fontSize: 12)),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badgeLabel,
+                    style: GoogleFonts.poppins(
+                        color: badgeColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.circle, size: 6, color: AppColors.textLight),
+                const SizedBox(width: 4),
+                Text(mumName,
+                    style: GoogleFonts.poppins(
+                        color: AppColors.textLight, fontSize: 12)),
+              ],
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -395,60 +367,178 @@ class RequestDetailScreen extends StatefulWidget {
 
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
   final _ctrl = TextEditingController();
-  bool _saving = false;
-  // Requests loaded from the Request tab are tagged '_kind: booking'; a
-  // consultation opened directly from the Consultation tab isn't tagged but
-  // still carries a patient_id, so it reads as a booking too.
-  bool get _isBooking =>
-      widget.request['_kind'] == 'booking' ||
-      widget.request['patient_id'] != null;
+  final _scrollCtrl = ScrollController();
+  List<Map<String, dynamic>> _messages = [];
+  bool _loading = true;
+  bool _sending = false;
+  // True once we discover (via a fresh fetch) that another volunteer
+  // claimed this thread first — locks out further replies from this side.
+  bool _lockedOut = false;
+  String? _myPhotoUrl;
+
+  String? get _myId => SupabaseService.currentUser?.id;
+  String? get _volunteerId => widget.request['volunteer_id'] as String?;
+  bool get _isMine => _volunteerId != null && _volunteerId == _myId;
+  bool get _isOpen => _volunteerId == null;
+  bool get _canReply => !_lockedOut && (_isOpen || _isMine);
 
   @override
   void initState() {
     super.initState();
-    if (widget.request['response'] != null) {
-      _ctrl.text = widget.request['response'];
-    }
+    _load();
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
-  bool get _isResponded => widget.request['status'] == 'responded';
+  Future<void> _load() async {
+    try {
+      // Re-fetch the request itself (not just messages) so a stale copy
+      // passed in via navigation can't show outdated claim/status info —
+      // e.g. if another volunteer claimed it since this list was loaded.
+      final fresh = await SupabaseService.client
+          .from('volunteer_requests')
+          .select()
+          .eq('id', widget.request['id'])
+          .maybeSingle();
+      if (fresh == null) {
+        if (mounted) setState(() { _lockedOut = true; _loading = false; });
+        return;
+      }
+      widget.request['volunteer_id'] = fresh['volunteer_id'];
+      widget.request['status'] = fresh['status'];
+      widget.request['question'] = fresh['question'];
+      final msgs =
+          await SupabaseService.getRequestMessages(widget.request['id'].toString());
+      if (_myPhotoUrl == null && _myId != null) {
+        try {
+          final me = await SupabaseService.getProfileById(_myId!);
+          _myPhotoUrl = me?['profile_picture_url'] as String?;
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() {
+          _messages = msgs;
+          _loading = false;
+        });
+        _scrollToEnd();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+      }
+    });
+  }
 
   Future<void> _send() async {
-    if (_ctrl.text.trim().isEmpty) return;
-    setState(() => _saving = true);
+    final text = _ctrl.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _sending = true);
     try {
-      await SupabaseService.client.from('volunteer_requests').update({
-        'response': _ctrl.text.trim(),
-        'status': 'responded',
-      }).eq('id', widget.request['id']);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Response sent!')));
-        Navigator.pop(context);
+      if (_isOpen) {
+        final claimed = await SupabaseService.claimAndReplyToRequest(
+            widget.request['id'].toString(), text);
+        if (!claimed) {
+          if (mounted) {
+            setState(() => _lockedOut = true);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content:
+                    Text('Another volunteer already answered this question.')));
+          }
+          return;
+        }
+        widget.request['volunteer_id'] = _myId;
+        widget.request['status'] = 'responded';
+      } else {
+        await SupabaseService.sendRequestMessage(
+            widget.request['id'].toString(), text);
       }
+      _ctrl.clear();
+      await _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Widget _messageTile(Map<String, dynamic> msg, String mumName, String? mumPhoto) {
+    final mine = msg['sender_id'] == _myId;
+    final name = mine ? 'You' : mumName;
+    final photo = mine ? _myPhotoUrl : mumPhoto;
+    final createdAt = DateTime.tryParse(msg['created_at']?.toString() ?? '');
+
+    final avatar = CircleAvatar(
+      radius: 14,
+      backgroundColor:
+          mine ? AppColors.rose.withValues(alpha: 0.15) : AppColors.tealLight,
+      backgroundImage:
+          (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+      child: (photo == null || photo.isEmpty)
+          ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                  color: mine ? AppColors.roseDeep : AppColors.teal,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11))
+          : null,
+    );
+
+    final textBlock = Expanded(
+      child: Column(
+        crossAxisAlignment:
+            mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment:
+                mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              Text(name,
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700, fontSize: 13)),
+              const SizedBox(width: 6),
+              Text(createdAt != null ? timeAgo(createdAt) : '',
+                  style: GoogleFonts.poppins(
+                      color: AppColors.textLight, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(msg['message'] ?? '',
+              textAlign: mine ? TextAlign.right : TextAlign.left,
+              style: GoogleFonts.poppins(
+                  color: AppColors.textMid, fontSize: 13)),
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: mine
+            ? [textBlock, const SizedBox(width: 10), avatar]
+            : [avatar, const SizedBox(width: 10), textBlock],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isBooking) return _buildBookingDetail(context);
-
-    final mumName =
-        (widget.request['profiles'] as Map?)?['full_name'] as String? ??
-            'A mum';
+    final mumProfile = widget.request['profiles'] as Map?;
+    final mumName = mumProfile?['full_name'] as String? ?? 'A mum';
+    final mumPhoto = mumProfile?['profile_picture_url'] as String?;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -470,6 +560,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
       ),
+<<<<<<< Updated upstream
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -526,78 +617,137 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       ),
                       filled: true,
                       fillColor: AppColors.cream,
+=======
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.rose))
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: AppColors.rose.withValues(alpha: 0.18)),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.request['question'] ?? '',
+                            style: GoogleFonts.poppins(
+                                color: AppColors.textDark,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          Icon(Icons.circle,
+                              size: 6, color: AppColors.textLight),
+                          const SizedBox(width: 4),
+                          Text(mumName,
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.textLight, fontSize: 12)),
+                        ]),
+                      ],
+>>>>>>> Stashed changes
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (!_isResponded) ...[
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _send,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.rose,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : Text('Send Response',
-                          style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600)),
                 ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBookingDetail(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go('/home');
-            }
-          },
-        ),
-        title: const Text('Booking Request',
-            style:
-                TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w700)),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: BookingDetailCard(
-          request: widget.request,
-          onUpdated: () => Navigator.pop(context),
-        ),
-      ),
+                Expanded(
+                  child: _messages.isEmpty
+                      ? Center(
+                          child: Text(
+                              _isOpen
+                                  ? 'No one has replied yet — be the first!'
+                                  : 'No messages yet.',
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.textLight, fontSize: 13)))
+                      : ListView.builder(
+                          controller: _scrollCtrl,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          itemCount: _messages.length,
+                          itemBuilder: (ctx, i) =>
+                              _messageTile(_messages[i], mumName, mumPhoto),
+                        ),
+                ),
+                if (_canReply)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _ctrl,
+                            maxLines: 4,
+                            minLines: 1,
+                            style: GoogleFonts.poppins(
+                                color: AppColors.textDark, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: _isOpen
+                                  ? 'Type your response...'
+                                  : 'Type a message...',
+                              hintStyle: GoogleFonts.poppins(
+                                  color: AppColors.textLight, fontSize: 13),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                    color:
+                                        AppColors.textLight.withValues(alpha: 0.3)),
+                              ),
+                              focusedBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(Radius.circular(10)),
+                                borderSide:
+                                    BorderSide(color: AppColors.rose, width: 1.5),
+                              ),
+                              filled: true,
+                              fillColor: AppColors.cream,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton.filled(
+                          onPressed: _sending ? null : _send,
+                          style: IconButton.styleFrom(
+                              backgroundColor: AppColors.rose,
+                              padding: const EdgeInsets.all(14)),
+                          icon: _sending
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.send, color: Colors.white, size: 18),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                        _lockedOut
+                            ? 'Another volunteer already answered this question.'
+                            : 'This question was claimed by another volunteer.',
+                        style: GoogleFonts.poppins(
+                            color: AppColors.textLight, fontSize: 12)),
+                  ),
+              ],
+            ),
     );
   }
 }
 
 // ── Booking Detail Card ──────────────────────────────────────────────────────
-// The "Patient details" card shared between the Request tab's full-page
-// detail screen and the Consultation tab's inline list, so both show the
-// exact same layout instead of drifting apart.
+// Shows a mum's booking from before the volunteer-scheduling feature was
+// replaced by the open Q&A board above. Kept only so the Consultation tab
+// can still display historical bookings that were made under the old flow.
 class BookingDetailCard extends StatefulWidget {
   final Map<String, dynamic> request;
   final VoidCallback? onUpdated;
