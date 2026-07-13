@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../../services/auth_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
@@ -107,18 +109,14 @@ class ViewLogScreen extends StatelessWidget {
       );
     }
 
+    final isNextOfKin = context.watch<AuthProvider>().isNextOfKin;
     final id = entry['id'] as String;
     final mood = entry['mood'] as String?;
     final symptoms = asStringList(entry['symptoms']);
     final milestones = asStringList(entry['milestones']);
     final notes = (entry['notes'] as String?) ?? '';
     final date =
-        entry['logged_at'] != null ? DateTime.parse(entry['logged_at']) : null;
-    final weight = entry['weight_kg'];
-    final kicks = entry['kick_count'];
-    final systolic = entry['blood_pressure_systolic'];
-    final diastolic = entry['blood_pressure_diastolic'];
-    final hasBloodPressure = systolic != null || diastolic != null;
+        entry['log_date'] != null ? DateTime.parse(entry['log_date']) : null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -183,46 +181,10 @@ class ViewLogScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (weight != null || kicks != null || hasBloodPressure) ...[
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        if (hasBloodPressure)
-                          Expanded(
-                            child: _metricCard(
-                              icon: Icons.favorite_border,
-                              label: 'Blood Pressure',
-                              value:
-                                  "${systolic ?? '—'}/${diastolic ?? '—'} mmHg",
-                            ),
-                          ),
-                        if (hasBloodPressure &&
-                            (weight != null || kicks != null))
-                          const SizedBox(width: 10),
-                        if (weight != null)
-                          Expanded(
-                            child: _metricCard(
-                              icon: Icons.monitor_weight_outlined,
-                              label: 'Weight',
-                              value: '$weight kg',
-                            ),
-                          ),
-                        if (weight != null && kicks != null)
-                          const SizedBox(width: 12),
-                        if (kicks != null)
-                          Expanded(
-                            child: _metricCard(
-                              icon: Icons.child_care,
-                              label: 'Movement',
-                              value: '$kicks kicks',
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
+            if (!isNextOfKin) ...[
             const SizedBox(height: 20),
             Row(
               children: [
@@ -248,6 +210,7 @@ class ViewLogScreen extends StatelessWidget {
                 ),
               ],
             ),
+            ],
           ],
         ),
       ),
@@ -306,47 +269,4 @@ class ViewLogScreen extends StatelessWidget {
     );
   }
 
-  Widget _metricCard({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.roseDeep, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(color: AppColors.textLight, fontSize: 11),
-                ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

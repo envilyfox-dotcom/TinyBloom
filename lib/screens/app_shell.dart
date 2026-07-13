@@ -32,9 +32,10 @@ class AppShell extends StatelessWidget {
   static const _tabsVolunteer = [
     '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/profile'];
 
-  // Next-of-kin tabs — Home | Logs | Consultation | AI Chatbot | Articles
+  // Next-of-kin tabs — Home | Logs | Consultation | AI Chatbot | Articles | Checklist
   static const _tabsNextOfKin = [
-    '/home', '/logs', '/consultation', '/chatbot', '/education'];
+    '/home', '/logs', '/consultation', '/chatbot', '/education',
+    '/next-of-kin/checklist'];
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +52,8 @@ class AppShell extends StatelessWidget {
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
           onTap: (i) => context.go(_tabsNextOfKin[i]),
           items: const [
             BottomNavigationBarItem(
@@ -77,6 +80,11 @@ class AppShell extends StatelessWidget {
               icon: Icon(Icons.menu_book_outlined),
               activeIcon: Icon(Icons.menu_book),
               label: 'Articles',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.checklist_outlined),
+              activeIcon: Icon(Icons.checklist),
+              label: 'Checklist',
             ),
           ],
         ),

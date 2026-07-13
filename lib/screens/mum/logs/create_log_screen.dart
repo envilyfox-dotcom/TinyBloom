@@ -18,10 +18,6 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   DateTime _date = DateTime.now();
   bool _loading = false;
 
-  final _weightCtrl = TextEditingController();
-  final _kickCtrl = TextEditingController();
-  final _systolicCtrl = TextEditingController();
-  final _diastolicCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
   final List<String> _allSymptoms = const [
@@ -116,24 +112,16 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     super.initState();
     if (widget.existing != null) {
       final log = widget.existing!;
-      _weightCtrl.text = log['weight_kg']?.toString() ?? '';
-      _kickCtrl.text = log['kick_count']?.toString() ?? '';
-      _systolicCtrl.text = log['blood_pressure_systolic']?.toString() ?? '';
-      _diastolicCtrl.text = log['blood_pressure_diastolic']?.toString() ?? '';
       _notesCtrl.text = log['notes'] ?? '';
       _selectedMood = log['mood'] ?? '';
       _selectedSymptoms.addAll(asStringList(log['symptoms']));
       _selectedMilestones.addAll(asStringList(log['milestones']));
-      if (log['logged_at'] != null) _date = DateTime.parse(log['logged_at']);
+      if (log['log_date'] != null) _date = DateTime.parse(log['log_date']);
     }
   }
 
   @override
   void dispose() {
-    _weightCtrl.dispose();
-    _kickCtrl.dispose();
-    _systolicCtrl.dispose();
-    _diastolicCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
@@ -155,20 +143,20 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   }
 
   Future<void> _save() async {
+    if (_selectedMood.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a mood.')));
+      return;
+    }
+
     setState(() => _loading = true);
 
     final data = <String, dynamic>{
-      'log_type': 'symptoms',
       'notes': _notesCtrl.text.trim(),
-      'mood': _selectedMood.isEmpty ? null : _selectedMood,
+      'mood': _selectedMood,
       'symptoms': _selectedSymptoms.isEmpty ? null : _selectedSymptoms.toList(),
       'milestones':
-          _selectedMilestones.isEmpty ? null : _selectedMilestones.join(', '),
-      'logged_at': _date.toIso8601String(),
-      'weight_kg': double.tryParse(_weightCtrl.text),
-      'kick_count': int.tryParse(_kickCtrl.text),
-      'blood_pressure_systolic': int.tryParse(_systolicCtrl.text),
-      'blood_pressure_diastolic': int.tryParse(_diastolicCtrl.text),
+          _selectedMilestones.isEmpty ? null : _selectedMilestones.toList(),
       'log_date': DateFormat('yyyy-MM-dd').format(_date),
     };
 
@@ -234,65 +222,6 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                 selectedColor: AppColors.blush,
                 selectedTextColor: AppColors.roseDeep,
                 selectedBorderColor: AppColors.rose,
-              ),
-            ]),
-            _sectionCard('🩺 Health Measurements', [
-              TextFormField(
-                controller: _weightCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Weight',
-                  suffixText: 'kg',
-                  hintText: 'e.g. 58.5',
-                  prefixIcon: Icon(Icons.monitor_weight_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _systolicCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Systolic',
-                        hintText: 'e.g. 120',
-                        suffixText: 'mmHg',
-                        prefixIcon: Icon(Icons.favorite_border),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _diastolicCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Diastolic',
-                        hintText: 'e.g. 80',
-                        suffixText: 'mmHg',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Blood pressure of 140/90 or above should be monitored and discussed with your healthcare provider.',
-                style: TextStyle(
-                    color: AppColors.textLight, fontSize: 11, height: 1.35),
-              ),
-            ]),
-            _sectionCard('👶 Baby Movement', [
-              TextFormField(
-                controller: _kickCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Number of kicks / movements',
-                  hintText: 'e.g. 10',
-                  prefixIcon: Icon(Icons.child_care_outlined),
-                ),
               ),
             ]),
             _sectionCard('🌟 Baby Milestones', [

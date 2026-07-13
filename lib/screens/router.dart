@@ -16,6 +16,8 @@ import 'next_of_kin/next_of_kin_dashboard_screen.dart';
 import 'next_of_kin/link_to_mum_screen.dart';
 import 'next_of_kin/gift_subscription_screen.dart';
 import 'next_of_kin/next_of_kin_faq_screen.dart';
+import 'next_of_kin/checklist_screen.dart';
+import 'next_of_kin/chat_volunteer_screen.dart';
 
 import 'shared/dashboard_screen.dart';
 import 'mum/logs/logs_screen.dart';
@@ -104,14 +106,16 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/volunteer/profile')) idx = 4;
         } else if (isNextOfKin) {
-          // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4)
+          // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4) | Checklist(5)
           if (location.startsWith('/logs')) {
             idx = 1;
           } else if (location.startsWith('/consultation'))
             idx = 2;
           else if (location.startsWith('/chatbot'))
             idx = 3;
-          else if (location.startsWith('/education')) idx = 4;
+          else if (location.startsWith('/education'))
+            idx = 4;
+          else if (location.startsWith('/next-of-kin/checklist')) idx = 5;
         } else if (isMum) {
           if (location.startsWith('/logs')) {
             idx = 1;
@@ -164,6 +168,9 @@ final router = GoRouter(
             }),
         GoRoute(path: '/logs', builder: (_, __) => const LogsScreen()),
         GoRoute(path: '/forum', builder: (_, __) => const ForumScreen()),
+        GoRoute(
+            path: '/next-of-kin/checklist',
+            builder: (_, __) => const NextOfKinChecklistScreen()),
         GoRoute(
             path: '/specialist/consultations',
             builder: (_, __) => const SpecialistConsultationsScreen()),
@@ -317,6 +324,9 @@ final router = GoRouter(
     GoRoute(
         path: '/next-of-kin/faq',
         builder: (_, __) => const NextOfKinFaqScreen()),
+    GoRoute(
+        path: '/next-of-kin/chat-volunteer',
+        builder: (_, __) => const ChatVolunteerScreen()),
     GoRoute(
         path: '/forum/post',
         builder: (context, state) =>

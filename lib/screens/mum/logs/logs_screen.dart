@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../../services/auth_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
@@ -15,22 +17,40 @@ class LogsScreen extends StatefulWidget {
 
 class _LogsScreenState extends State<LogsScreen> {
   List<Map<String, dynamic>> _logs = [];
+  Map<String, dynamic>? _linkedMum;
   bool _loading = true;
+  late final bool _isNextOfKin;
 
   @override
   void initState() {
     super.initState();
+    _isNextOfKin = context.read<AuthProvider>().isNextOfKin;
     _load();
   }
 
+  // Next-of-kin accounts see their linked mum's logs, read-only — everyone
+  // else sees (and can manage) their own.
   Future<void> _load() async {
     try {
-      final logs = await SupabaseService.getLogs();
-      if (!mounted) return;
-      setState(() {
-        _logs = logs;
-        _loading = false;
-      });
+      if (_isNextOfKin) {
+        final mum = await SupabaseService.getLinkedMum();
+        final logs = mum != null
+            ? await SupabaseService.getLogsForPatient(mum['id'] as String)
+            : <Map<String, dynamic>>[];
+        if (!mounted) return;
+        setState(() {
+          _linkedMum = mum;
+          _logs = logs;
+          _loading = false;
+        });
+      } else {
+        final logs = await SupabaseService.getLogs();
+        if (!mounted) return;
+        setState(() {
+          _logs = logs;
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -107,90 +127,109 @@ class _LogsScreenState extends State<LogsScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreate,
-        backgroundColor: AppColors.rose,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text(
-          'New Log',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
-      body: _loading
-          ? const TBLoading()
-          : RefreshIndicator(
-              onRefresh: _load,
-              color: AppColors.rose,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
-                children: [
-                  _HeaderCard(totalLogs: _logs.length, onAdd: _openCreate),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Recent Logs',
-                          style: TextStyle(
-                            color: AppColors.textDark,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${_logs.length} total',
-                        style: const TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_logs.isEmpty)
-                    TBEmptyState(
-                      emoji: '📋',
-                      title: 'No logs yet',
-                      subtitle:
-                          'Start tracking your health, mood, symptoms and baby milestones.',
-                      buttonLabel: 'Add First Log',
-                      onButton: _openCreate,
-                    )
-                  else
-                    ..._logs.map(
-                      (log) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _LogCard(
-                          log: log,
-                          onView: () async {
-                            await context.push('/logs/${log['id']}',
-                                extra: log);
-                            await _load();
-                          },
-                          onEdit: () async {
-                            await context.push('/logs/${log['id']}/edit',
-                                extra: log);
-                            await _load();
-                          },
-                          onDelete: () => _delete(log['id']),
-                        ),
-                      ),
-                    ),
-                ],
+      floatingActionButton: _isNextOfKin
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _openCreate,
+              backgroundColor: AppColors.rose,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text(
+                'New Log',
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
+      body: _loading
+          ? const TBLoading()
+          : (_isNextOfKin && _linkedMum == null)
+              ? TBEmptyState(
+                  emoji: '🔗',
+                  title: 'Not linked yet',
+                  subtitle:
+                      "Link to a pregnant user's account to view her logs.",
+                  buttonLabel: 'Link to Pregnant User',
+                  onButton: () => context.push('/next-of-kin/link'),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  color: AppColors.rose,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
+                    children: [
+                      _HeaderCard(
+                        totalLogs: _logs.length,
+                        mumName: _linkedMum?['full_name'] as String?,
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Recent Logs',
+                              style: TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_logs.length} total',
+                            style: const TextStyle(
+                              color: AppColors.textLight,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_logs.isEmpty)
+                        TBEmptyState(
+                          emoji: '📋',
+                          title: 'No logs yet',
+                          subtitle: _isNextOfKin
+                              ? "${_linkedMum?['full_name'] ?? 'She'} hasn't logged anything yet."
+                              : 'Start tracking your health, mood, symptoms and baby milestones.',
+                          buttonLabel: _isNextOfKin ? null : 'Add First Log',
+                          onButton: _isNextOfKin ? null : _openCreate,
+                        )
+                      else
+                        ..._logs.map(
+                          (log) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _LogCard(
+                              log: log,
+                              onView: () async {
+                                await context.push('/logs/${log['id']}',
+                                    extra: log);
+                                await _load();
+                              },
+                              onEdit: _isNextOfKin
+                                  ? null
+                                  : () async {
+                                      await context.push(
+                                          '/logs/${log['id']}/edit',
+                                          extra: log);
+                                      await _load();
+                                    },
+                              onDelete:
+                                  _isNextOfKin ? null : () => _delete(log['id']),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
     );
   }
 }
 
 class _HeaderCard extends StatelessWidget {
   final int totalLogs;
-  final VoidCallback onAdd;
+  final String? mumName;
 
-  const _HeaderCard({required this.totalLogs, required this.onAdd});
+  const _HeaderCard({required this.totalLogs, this.mumName});
 
   @override
   Widget build(BuildContext context) {
@@ -220,7 +259,7 @@ class _HeaderCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Health Logs',
+                  mumName != null ? "$mumName's Logs" : 'Health Logs',
                   style: Theme.of(context)
                       .textTheme
                       .headlineMedium
@@ -229,9 +268,11 @@ class _HeaderCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Track your mood, symptoms and baby milestones in one place.',
-                  style: TextStyle(
+                Text(
+                  mumName != null
+                      ? 'View her mood, symptoms and baby milestones.'
+                      : 'Track your mood, symptoms and baby milestones in one place.',
+                  style: const TextStyle(
                     color: AppColors.textMid,
                     fontSize: 13,
                     height: 1.35,
@@ -283,14 +324,14 @@ class _HeaderCard extends StatelessWidget {
 class _LogCard extends StatelessWidget {
   final Map<String, dynamic> log;
   final VoidCallback onView;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _LogCard({
     required this.log,
     required this.onView,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -299,15 +340,7 @@ class _LogCard extends StatelessWidget {
     final symptoms = asStringList(log['symptoms']);
     final milestones = asStringList(log['milestones']);
     final notes = (log['notes'] as String?)?.trim();
-    final weight = log['weight_kg'];
-    final kicks = log['kick_count'];
-    final systolic = log['blood_pressure_systolic'];
-    final diastolic = log['blood_pressure_diastolic'];
-    final hasMeasurements = weight != null ||
-        kicks != null ||
-        systolic != null ||
-        diastolic != null;
-    final rawDate = log['logged_at'] ?? log['log_date'] ?? log['created_at'];
+    final rawDate = log['log_date'] ?? log['created_at'];
     final date = rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
 
     return TBCard(
@@ -360,21 +393,25 @@ class _LogCard extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz, color: AppColors.textLight),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                onSelected: (value) {
-                  if (value == 'view') onView();
-                  if (value == 'edit') onEdit();
-                  if (value == 'delete') onDelete();
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'view', child: Text('View')),
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              ),
+              if (onEdit != null || onDelete != null)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz, color: AppColors.textLight),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  onSelected: (value) {
+                    if (value == 'view') onView();
+                    if (value == 'edit') onEdit?.call();
+                    if (value == 'delete') onDelete?.call();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'view', child: Text('View')),
+                    if (onEdit != null)
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    if (onDelete != null)
+                      const PopupMenuItem(
+                          value: 'delete', child: Text('Delete')),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -401,39 +438,6 @@ class _LogCard extends StatelessWidget {
               icon: Icons.auto_awesome,
               chips: milestones,
               color: AppColors.sage,
-            ),
-          ],
-          if (hasMeasurements) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (systolic != null || diastolic != null)
-                  _MiniMetric(
-                    icon: Icons.favorite_border,
-                    label: 'BP',
-                    value: "${systolic ?? '—'}/${diastolic ?? '—'}",
-                    color: ((systolic is num && systolic >= 140) ||
-                            (diastolic is num && diastolic >= 90))
-                        ? Colors.redAccent
-                        : AppColors.teal,
-                  ),
-                if (weight != null)
-                  _MiniMetric(
-                    icon: Icons.monitor_weight_outlined,
-                    label: 'Weight',
-                    value: '$weight kg',
-                    color: AppColors.rose,
-                  ),
-                if (kicks != null)
-                  _MiniMetric(
-                    icon: Icons.child_care_outlined,
-                    label: 'Kicks',
-                    value: '$kicks',
-                    color: AppColors.sage,
-                  ),
-              ],
             ),
           ],
           if (notes != null && notes.isNotEmpty) ...[
@@ -463,46 +467,6 @@ class _LogCard extends StatelessWidget {
   }
 }
 
-class _MiniMetric extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _MiniMetric({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(
-            '$label: $value',
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _SectionChips extends StatelessWidget {
   final String label;

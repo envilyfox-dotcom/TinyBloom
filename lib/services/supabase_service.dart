@@ -246,16 +246,35 @@ class SupabaseService {
     );
   }
 
-  // Health logs
+  // Pregnancy logs — mood/symptoms/milestones diary entries. Table is
+  // pregnancy_logs (id, user_id, mood, symptoms, milestones, notes,
+  // log_date, created_at); it has no vitals columns (weight/kicks/blood
+  // pressure), so callers must not send those.
   static Future<List<Map<String, dynamic>>> getLogs() async {
     final user = currentUser;
     if (user == null) return [];
     try {
       final res = await client
-          .from('health_logs')
+          .from('pregnancy_logs')
           .select('*')
           .eq('user_id', user.id)
-          .order('logged_at', ascending: false);
+          .order('log_date', ascending: false);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Best-effort: a linked mum's logs, for a next-of-kin's read-only view.
+  // Depending on RLS this may come back empty rather than erroring.
+  static Future<List<Map<String, dynamic>>> getLogsForPatient(
+      String patientId) async {
+    try {
+      final res = await client
+          .from('pregnancy_logs')
+          .select('*')
+          .eq('user_id', patientId)
+          .order('log_date', ascending: false);
       return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
@@ -265,21 +284,20 @@ class SupabaseService {
   static Future<void> createLog(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
-    await client.from('health_logs').insert({
+    await client.from('pregnancy_logs').insert({
       ...data,
       'user_id': user.id,
-      'logged_at': data['logged_at'] ?? DateTime.now().toIso8601String(),
       'log_date':
           data['log_date'] ?? DateTime.now().toIso8601String().split('T').first,
     });
   }
 
   static Future<void> updateLog(String id, Map<String, dynamic> data) async {
-    await client.from('health_logs').update(data).eq('id', id);
+    await client.from('pregnancy_logs').update(data).eq('id', id);
   }
 
   static Future<void> deleteLog(String id) async {
-    await client.from('health_logs').delete().eq('id', id);
+    await client.from('pregnancy_logs').delete().eq('id', id);
   }
 
   // FAQs
@@ -798,7 +816,7 @@ class SupabaseService {
   static Future<List<Map<String, dynamic>>> getVolunteers() async {
     final res = await client
         .from('volunteer_profiles')
-        .select('*, profiles(full_name, email)')
+        .select('*, profiles(full_name, email, profile_picture_url)')
         .eq('is_verified', true);
     return List<Map<String, dynamic>>.from(res);
   }

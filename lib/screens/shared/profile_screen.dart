@@ -17,6 +17,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _linkedMum;
   bool _loading = true;
 
   @override
@@ -28,11 +29,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     try {
       final p = await SupabaseService.getProfile();
+      Map<String, dynamic>? linkedMum;
+      if (p?['role'] == 'next_of_kin') {
+        try { linkedMum = await SupabaseService.getLinkedMum(); } catch (_) {}
+      }
 
       if (!mounted) return;
 
       setState(() {
         _profile = p;
+        _linkedMum = linkedMum;
         _loading = false;
       });
     } catch (e) {
@@ -76,6 +82,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final name = (_profile?['full_name'] ?? 'User').toString();
     final email = (_profile?['email'] ?? '').toString();
+    final phone =
+        (_profile?['phone'] ?? _profile?['phone_number'] ?? '').toString();
     final role = (_profile?['role'] ?? '').toString();
     final userCode = _profile?['user_code'];
     final photoUrl = _profile?['profile_picture_url']?.toString();
@@ -146,6 +154,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: TBCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Center(
+                        child: Text('Personal Information',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14,
+                            color: AppColors.textDark)),
+                      ),
+                      const SizedBox(height: 16),
+                      _infoRow('Full name', name),
+                      _infoRow('Email', email),
+                      if (phone.isNotEmpty) _infoRow('Phone number', phone),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => context
+                              .push('/profile/edit', extra: _profile)
+                              .then((_) => _load()),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Edit'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               if (userCode != null &&
                   (role == 'free_user' || role == 'premium_user'))
                 Padding(
@@ -208,6 +247,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
+              if (role == 'next_of_kin')
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TBCard(
+                    color: AppColors.blush,
+                    child: Row(
+                      children: [
+                        Icon(
+                          _linkedMum != null ? Icons.favorite : Icons.link_off,
+                          color: AppColors.roseDeep, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('CONNECTED TO',
+                                style: TextStyle(
+                                  fontSize: 10, fontWeight: FontWeight.w700,
+                                  color: AppColors.roseDeep, letterSpacing: 1)),
+                              const SizedBox(height: 4),
+                              Text(
+                                _linkedMum != null
+                                    ? (_linkedMum!['full_name'] as String? ?? 'Unnamed')
+                                    : 'Not linked to a pregnant user yet',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15)),
+                              if (_linkedMum?['relationship'] != null) ...[
+                                const SizedBox(height: 2),
+                                Text(_linkedMum!['relationship'] as String,
+                                  style: const TextStyle(
+                                    color: AppColors.textMid, fontSize: 12)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Material(
@@ -218,14 +296,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
-                      _menuItem(
-                        Icons.edit_outlined,
-                        'Edit Profile',
-                        onTap: () => context
-                            .push('/profile/edit', extra: _profile)
-                            .then((_) => _load()),
-                      ),
-                      _divider(),
                       if (role == 'specialist') ...[
                         _menuItem(
                           Icons.edit_note,
@@ -242,10 +312,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         _divider(),
                       ],
+                      if (role == 'next_of_kin') ...[
+                        _menuItem(
+                          Icons.link,
+                          'Link to Pregnant User',
+                          onTap: () => context.push('/next-of-kin/link')
+                              .then((_) => _load()),
+                        ),
+                        _divider(),
+                        _menuItem(
+                          Icons.card_giftcard_outlined,
+                          'Gift Subscription',
+                          onTap: () => context.push('/next-of-kin/gift-subscription'),
+                        ),
+                        _divider(),
+                        _menuItem(
+                          Icons.help_outline,
+                          'FAQ',
+                          onTap: () => context.push('/next-of-kin/faq'),
+                        ),
+                        _divider(),
+                      ],
                       _menuItem(
                         Icons.feedback_outlined,
                         'Feedback',
                         onTap: () => _showFeedback(),
+                      ),
+                      _divider(),
+                      _menuItem(
+                        Icons.delete_outline,
+                        'Delete Profile',
+                        color: Colors.red,
+                        onTap: () => _confirmDeleteProfile(),
                       ),
                       _divider(),
                       _menuItem(
@@ -261,6 +359,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+            style: const TextStyle(
+              color: AppColors.textDark, fontSize: 12,
+              fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(value,
+            style: const TextStyle(color: AppColors.textMid, fontSize: 14)),
+        ],
       ),
     );
   }
@@ -325,6 +441,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       builder: (ctx) => const _FeedbackSheet(),
     );
+  }
+
+  void _confirmDeleteProfile() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Profile'),
+        content: const Text(
+            'This will permanently delete your account and all your data. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteAccount();
+            },
+            child: const Text('Delete Account',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final auth = context.read<AuthProvider>();
+    final userId = SupabaseService.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      await SupabaseService.client.from('profiles').delete().eq('id', userId);
+
+      if (!mounted) return;
+
+      await auth.signOut();
+
+      if (!mounted) return;
+
+      context.go('/login');
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not delete profile: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _confirmSignOut() {

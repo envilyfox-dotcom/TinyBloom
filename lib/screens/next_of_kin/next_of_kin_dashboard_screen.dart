@@ -310,6 +310,12 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         label: 'Gift premium',
         onTap: () { if (_canNav()) context.push('/next-of-kin/gift-subscription'); },
       ),
+      (
+        emoji: '💬',
+        iconBg: AppColors.teal.withValues(alpha: 0.15),
+        label: 'Chat volunteer',
+        onTap: () { if (_canNav()) context.push('/next-of-kin/chat-volunteer'); },
+      ),
     ];
 
     return Row(

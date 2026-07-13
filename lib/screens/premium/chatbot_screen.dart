@@ -499,7 +499,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/home'),
         ),
         title: const Text(
           'AI Assistant',
