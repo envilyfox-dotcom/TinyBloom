@@ -705,6 +705,89 @@ class SupabaseService {
     }
   }
 
+  // Open Q&A board: a mum posts a question here and any volunteer can see
+  // and reply to it — it isn't addressed to one specific volunteer.
+  static Future<void> postVolunteerQuestion(String question) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client.from('volunteer_requests').insert({
+      'patient_id': user.id,
+      'question': question,
+      'status': 'pending',
+    });
+  }
+
+  // Only allowed while the question is still 'pending' — once a volunteer
+  // has replied, editing it out from under their answer would be confusing,
+  // and RLS blocks it server-side too (see the amend-question policy).
+  static Future<void> updateVolunteerQuestion(String id, String question) async {
+    final res = await client
+        .from('volunteer_requests')
+        .update({'question': question})
+        .eq('id', id)
+        .select();
+    if (res.isEmpty) {
+      throw Exception(
+          'Could not update — it may have already been answered.');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getMyVolunteerQuestions() async {
+    final user = currentUser;
+    if (user == null) return [];
+    try {
+      final res = await client
+          .from('volunteer_requests')
+          .select()
+          .eq('patient_id', user.id)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Every message after the original question — both the volunteer's
+  // replies and the mum's follow-ups — lives here so either side can keep
+  // the conversation going instead of it stopping at one response.
+  static Future<List<Map<String, dynamic>>> getRequestMessages(
+      String requestId) async {
+    final res = await client
+        .from('volunteer_request_messages')
+        .select()
+        .eq('request_id', requestId)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<void> sendRequestMessage(String requestId, String message) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client.from('volunteer_request_messages').insert({
+      'request_id': requestId,
+      'sender_id': user.id,
+      'message': message,
+    });
+  }
+
+  // A volunteer's first reply claims the thread: volunteer_id is only set
+  // if it was still null, so two volunteers racing to answer the same open
+  // question can't both win. Returns false if someone else got there first.
+  static Future<bool> claimAndReplyToRequest(
+      String requestId, String message) async {
+    final user = currentUser;
+    if (user == null) return false;
+    final claimed = await client
+        .from('volunteer_requests')
+        .update({'volunteer_id': user.id, 'status': 'responded'})
+        .eq('id', requestId)
+        .isFilter('volunteer_id', null)
+        .select();
+    if (claimed.isEmpty) return false;
+    await sendRequestMessage(requestId, message);
+    return true;
+  }
+
   // Cancelling marks the row as "cancelled" rather than deleting it, so the
   // specialist still sees it (as a Cancelled entry) instead of it vanishing
   // outright. .select() so we get back the rows that were actually updated —

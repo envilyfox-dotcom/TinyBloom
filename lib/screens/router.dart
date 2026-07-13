@@ -38,6 +38,8 @@ import 'mum/consultation/specialists_list_screen.dart';
 import 'mum/consultation/volunteers_list_screen.dart';
 import 'mum/consultation/consultation_booking_screen.dart';
 import 'mum/consultation/confirm_consultation_screen.dart';
+import 'mum/consultation/post_volunteer_question_screen.dart';
+import 'mum/consultation/volunteer_question_detail_screen.dart';
 import 'app_shell.dart';
 import 'mum/onboarding/mum_onboarding_screen.dart';
 import 'specialist/specialist_dashboard_screen.dart';
@@ -249,6 +251,13 @@ final router = GoRouter(
     GoRoute(
         path: '/consultation/volunteers',
         builder: (_, __) => const VolunteersListScreen()),
+    GoRoute(
+        path: '/ask-volunteer',
+        builder: (_, __) => const PostVolunteerQuestionScreen()),
+    GoRoute(
+        path: '/ask-volunteer/detail',
+        builder: (context, state) => VolunteerQuestionDetailScreen(
+            request: state.extra as Map<String, dynamic>)),
 
     GoRoute(
         path: '/consultation/book',

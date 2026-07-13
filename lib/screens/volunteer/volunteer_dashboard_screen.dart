@@ -72,29 +72,20 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     } catch (_) {}
 
     try {
+      // Open Q&A board — every volunteer sees every pending question, not
+      // just ones directed at them specifically. patient_id references
+      // auth.users, not public.profiles, so there's no FK for PostgREST to
+      // auto-embed profiles(full_name) through — look the name up separately.
       final data = await SupabaseService.client
           .from('volunteer_requests')
-          .select('*, profiles(full_name)')
-          .eq('volunteer_id', SupabaseService.currentUser!.id)
-          .eq('status', 'pending')
-          .order('created_at', ascending: false);
-      requests.addAll(List<Map<String, dynamic>>.from(data)
-          .map((r) => {...r, '_kind': 'question'}));
-    } catch (_) {}
-
-    try {
-      final bookings = await SupabaseService.client
-          .from('consultations')
           .select()
-          .eq('specialist_id', SupabaseService.currentUser!.id)
-          .eq('consultation_type', 'volunteer')
           .eq('status', 'pending')
-          .not('patient_id', 'is', null)
-          .order('created_at', ascending: false);
-      final bookingList = List<Map<String, dynamic>>.from(bookings);
+          .order('created_at', ascending: false)
+          .limit(5);
+      final rows = List<Map<String, dynamic>>.from(data);
 
-      final patientIds = bookingList
-          .map((b) => b['patient_id'] as String?)
+      final patientIds = rows
+          .map((r) => r['patient_id'] as String?)
           .whereType<String>()
           .toSet();
       final names = <String, String>{};
@@ -106,20 +97,13 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         } catch (_) {}
       }));
 
-      requests.addAll(bookingList.map((b) => {
-            ...b,
-            '_kind': 'booking',
-            '_mumName': names[b['patient_id']] ?? 'A mum',
-          }));
+      requests = rows
+          .map((r) => {
+                ...r,
+                'profiles': {'full_name': names[r['patient_id']]},
+              })
+          .toList();
     } catch (_) {}
-
-    requests.sort((a, b) {
-      final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
-      final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
-      if (aDate == null || bDate == null) return 0;
-      return bDate.compareTo(aDate);
-    });
-    requests = requests.take(5).toList();
 
     int completedCount = 0;
     int mumsHelpedCount = 0;
@@ -488,13 +472,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   }
 
   Widget _requestCard(BuildContext context, Map<String, dynamic> request) {
-    final isBooking = request['_kind'] == 'booking';
-    final mumName = isBooking
-        ? (request['_mumName'] as String? ?? 'A mum')
-        : (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
-    final title = isBooking
-        ? '📅 Booking · ${request['purpose'] ?? 'Consultation'}'
-        : (request['question'] ?? '');
+    final mumName =
+        (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
+    final title = request['question'] as String? ?? '';
     return GestureDetector(
       onTap: () => Navigator.push(
         context,

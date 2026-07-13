@@ -786,6 +786,12 @@ void _showServiceDetailsSheet(
                       ? Icons.videocam_outlined
                       : Icons.chat_bubble_outline,
                   consultationMethod),
+              const SizedBox(height: 6),
+              _providerInfoLine(
+                  Icons.info_outline,
+                  consultationMethod == 'Video'
+                      ? 'You\'ll get the video call link once your booking is confirmed.'
+                      : 'You\'ll get chat access once your booking is confirmed.'),
             ],
             const SizedBox(height: 20),
             SizedBox(

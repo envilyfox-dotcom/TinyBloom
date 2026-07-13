@@ -21,6 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _pregnancyProfile;
   List<Map<String, dynamic>> _consultations = [];
   List<Map<String, dynamic>> _notifications = [];
+  List<Map<String, dynamic>> _myQuestions = [];
   Map<String, String> _providerNames = {};
   bool _loading = true;
   DateTime? _lastNavTime;
@@ -1011,6 +1012,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       consultations = await SupabaseService.getConsultations();
     } catch (_) {}
 
+    List<Map<String, dynamic>> myQuestions = [];
+    try {
+      myQuestions = await SupabaseService.getMyVolunteerQuestions();
+    } catch (_) {}
+
     // Load latest notifications and active alerts for the dashboard preview.
     notifications = await _loadDashboardNotifications(profile, pp);
 
@@ -1041,6 +1047,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _pregnancyProfile = pp;
         _consultations = consultations;
         _notifications = notifications;
+        _myQuestions = myQuestions;
         _providerNames = providerNames;
         _loading = false;
       });
@@ -1205,6 +1212,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                     // Active alerts: milestones + upcoming consultations
                     _buildActiveAlerts(),
+
+                    // Mum-specific: her posted volunteer questions
+                    if (isMum && _myQuestions.isNotEmpty) ...[
+                      _buildMyQuestions(),
+                    ],
 
                     // Upcoming features
                     const TBSectionTitle(
@@ -1431,6 +1443,87 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+
+  Widget _buildMyQuestions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'My Questions to Volunteers',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.push('/consultation'),
+              child: const Text('View All'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._myQuestions.take(3).map((q) {
+          final isResponded = q['status'] == 'responded';
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TBCard(
+              onTap: () async {
+                await context.push('/ask-volunteer/detail', extra: q);
+                _load();
+              },
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor:
+                        (isResponded ? AppColors.sage : AppColors.gold)
+                            .withValues(alpha: 0.15),
+                    child: Text(isResponded ? '✅' : '⏳'),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          q['question'] as String? ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                        Text(
+                          isResponded
+                              ? 'A volunteer has replied'
+                              : 'Waiting for a volunteer to reply',
+                          style: TextStyle(
+                              color: isResponded
+                                  ? AppColors.sage
+                                  : AppColors.gold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.textLight, size: 18),
+                ],
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
 
   Widget _emptyAlertCard() {
     return Padding(

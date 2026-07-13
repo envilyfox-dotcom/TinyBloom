@@ -32,9 +32,28 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   Future<void> _load() async {
     try {
       final c = await SupabaseService.getConsultations();
+      List<Map<String, dynamic>> questions = [];
+      try {
+        questions = await SupabaseService.getMyVolunteerQuestions();
+      } catch (_) {}
+
+      // Volunteer bookings are a leftover from before the volunteer flow was
+      // replaced by the open Q&A board — volunteer interactions now show up
+      // as question cards instead, so drop the old booking rows here.
+      final merged = <Map<String, dynamic>>[
+        ...c.where((r) => r['consultation_type'] != 'volunteer'),
+        ...questions.map((q) => {...q, '_kind': 'question'}),
+      ];
+      merged.sort((a, b) {
+        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
+        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
+        if (aDate == null || bDate == null) return 0;
+        return bDate.compareTo(aDate);
+      });
+
       if (mounted) {
         setState(() {
-          _consultations = c;
+          _consultations = merged;
           _loading = false;
           _error = null;
         });
@@ -93,8 +112,8 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                           emoji: '👩‍⚕️',
                           title: 'No consultations yet',
                           subtitle: isPremium
-                              ? 'Book a consultation with a specialist or volunteer.'
-                              : 'Book a consultation with a volunteer.',
+                              ? 'Book a consultation with a specialist or ask a volunteer a question.'
+                              : 'Ask a community volunteer a question.',
                           buttonLabel: 'Book Now',
                           onButton: () => _tabs.animateTo(1))
                       : ListView.builder(
@@ -102,6 +121,12 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                           itemCount: _consultations.length,
                           itemBuilder: (ctx, i) {
                             final c = _consultations[i];
+                            if (c['_kind'] == 'question') {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _questionCard(context, c),
+                              );
+                            }
                             final status = c['status'] ?? 'pending';
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 10),
@@ -179,6 +204,50 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     );
   }
 
+  Widget _questionCard(BuildContext context, Map<String, dynamic> q) {
+    final status = q['status'] as String? ?? 'pending';
+    final isResponded = status == 'responded';
+    return TBCard(
+      onTap: () async {
+        await context.push('/ask-volunteer/detail', extra: q);
+        _load();
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+                color: (isResponded ? AppColors.sage : AppColors.gold)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10)),
+            child: const Center(
+                child: Text('🤝', style: TextStyle(fontSize: 20))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(q['question'] as String? ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                Text(isResponded ? 'RESPONDED' : 'PENDING',
+                    style: TextStyle(
+                        color: isResponded ? AppColors.sage : AppColors.gold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBookTab(bool isPremium) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -232,15 +301,18 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
               Expanded(
                 child: TBCard(
                   color: AppColors.tealLight,
-                  onTap: () => context.push('/consultation/volunteers'),
+                  onTap: () async {
+                    await context.push('/ask-volunteer');
+                    _load();
+                  },
                   child: const Column(
                     children: [
                       Text('🤝', style: TextStyle(fontSize: 36)),
                       SizedBox(height: 8),
-                      Text('Volunteer',
+                      Text('Ask a Volunteer',
                           style: TextStyle(fontWeight: FontWeight.w700)),
                       SizedBox(height: 4),
-                      Text('Community support',
+                      Text('Post your question',
                           style: TextStyle(
                               fontSize: 12, color: AppColors.textLight)),
                     ],
