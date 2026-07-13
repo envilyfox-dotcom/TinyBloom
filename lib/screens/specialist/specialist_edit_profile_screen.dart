@@ -24,15 +24,11 @@ class _SpecialistEditProfileScreenState
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameCtrl;
   late TextEditingController _emailCtrl;
-  late TextEditingController _videoCallFeeCtrl;
-  late TextEditingController _inPersonFeeCtrl;
 
   final Set<String> _selectedDays = {};
   final Set<String> _selectedTimes = {};
   String? _dayError;
   String? _timeError;
-  String? _videoCallFeeError;
-  String? _inPersonFeeError;
 
   static const List<String> _weekDays = [
     'Monday',
@@ -68,28 +64,6 @@ class _SpecialistEditProfileScreenState
   void _initControllers() {
     _nameCtrl = TextEditingController();
     _emailCtrl = TextEditingController();
-    _videoCallFeeCtrl = TextEditingController();
-    _inPersonFeeCtrl = TextEditingController();
-  }
-
-  String _formatFeeValue(dynamic value) {
-    if (value == null) return '\$0.0';
-    if (value is num) return '\$${value.toStringAsFixed(2)}';
-
-    final text = value.toString().trim();
-    if (text.isEmpty) return '\$0.0';
-
-    final parsed =
-        double.tryParse(text.replaceAll('\$', '').replaceAll(',', '').trim());
-    if (parsed == null) return '\$0.0';
-    return '\$${parsed.toStringAsFixed(2)}';
-  }
-
-  double? _parseFeeValue(String? value) {
-    if (value == null) return null;
-    final clean = value.replaceAll('\$', '').replaceAll(',', '').trim();
-    if (clean.isEmpty) return null;
-    return double.tryParse(clean);
   }
 
   String _formatSelectedDays() {
@@ -162,8 +136,6 @@ class _SpecialistEditProfileScreenState
       }
 
       final specialist = widget.specialistProfile ?? {};
-      _videoCallFeeCtrl.text = _formatFeeValue(specialist['video_call_fee']);
-      _inPersonFeeCtrl.text = _formatFeeValue(specialist['in_person_fee']);
       _specialtyId = specialist['specialty_id'] as int?;
       _specialties = await SupabaseService.getSpecialties();
 
@@ -270,31 +242,20 @@ class _SpecialistEditProfileScreenState
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
-    _videoCallFeeCtrl.dispose();
-    _inPersonFeeCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _saveChanges() async {
-    final videoCallFee = _parseFeeValue(_videoCallFeeCtrl.text);
-    final inPersonFee = _parseFeeValue(_inPersonFeeCtrl.text);
-
     setState(() {
       _dayError =
           _selectedDays.isEmpty ? 'Please select at least one day.' : null;
       _timeError =
           _selectedTimes.isEmpty ? 'Please select at least one time.' : null;
-      _videoCallFeeError =
-          videoCallFee == null ? 'Please enter a valid fee.' : null;
-      _inPersonFeeError =
-          inPersonFee == null ? 'Please enter a valid fee.' : null;
     });
 
     if (!_formKey.currentState!.validate() ||
         _dayError != null ||
-        _timeError != null ||
-        _videoCallFeeError != null ||
-        _inPersonFeeError != null) {
+        _timeError != null) {
       return;
     }
 
@@ -308,8 +269,6 @@ class _SpecialistEditProfileScreenState
       });
 
       await SupabaseService.updateSpecialistProfile({
-        'video_call_fee': videoCallFee,
-        'in_person_fee': inPersonFee,
         'available_today': _selectedTimes.toList(),
         'available_hours': _availableHoursSummary(),
       });
@@ -495,66 +454,6 @@ class _SpecialistEditProfileScreenState
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // ── Video Call Fee ────────────────────────────────────
-              _label('Video Call Fee'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _videoCallFeeCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  hintText: '0.0',
-                  prefixText: '\$',
-                  prefixIcon: Icon(Icons.videocam_outlined),
-                ),
-                validator: (v) {
-                  final parsed = _parseFeeValue(v);
-                  if (parsed == null) return 'Fee is required';
-                  return null;
-                },
-                onChanged: (value) {
-                  setState(() => _videoCallFeeError = null);
-                },
-              ),
-              if (_videoCallFeeError != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  _videoCallFeeError!,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
-              const SizedBox(height: 16),
-
-              // ── In-Person Fee ─────────────────────────────────────
-              _label('In-Person Consultation Fee'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _inPersonFeeCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  hintText: '0.0',
-                  prefixText: '\$',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                validator: (v) {
-                  final parsed = _parseFeeValue(v);
-                  if (parsed == null) return 'Fee is required';
-                  return null;
-                },
-                onChanged: (value) {
-                  setState(() => _inPersonFeeError = null);
-                },
-              ),
-              if (_inPersonFeeError != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  _inPersonFeeError!,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
               const SizedBox(height: 24),
 
               // ── Available Days ─────────────────────────────────
