@@ -311,6 +311,11 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                         ),
                         const Divider(height: 1, color: AppColors.blush),
                         _detailRow(
+                            'Appointment ID',
+                            appointmentIdValue(context, c['id'],
+                                c['consultation_type'] as String?)),
+                        const Divider(height: 1, color: AppColors.blush),
+                        _detailRow(
                             'Date',
                             Text(dateStr,
                                 style: const TextStyle(

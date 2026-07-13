@@ -64,7 +64,8 @@ class _SpecialistConsultationsScreenState
           ? (_patientProfiles[patientId]?['full_name'] as String?)
           : null;
       final patientName = name ?? (c['patient_name'] as String?) ?? '';
-      final apptId = appointmentIdLabel(c['id']);
+      final apptId =
+          appointmentIdLabel(c['id'], c['consultation_type'] as String?);
 
       return patientName.toLowerCase().contains(query) ||
           apptId.toLowerCase().contains(query);
@@ -403,7 +404,10 @@ class _SpecialistConsultationsScreenState
               ],
             ),
             const SizedBox(height: 10),
-            _infoLine('Appointment ID', appointmentIdLabel(id)),
+            _infoLine(
+                'Appointment ID',
+                appointmentIdLabel(
+                    id, consultation['consultation_type'] as String?)),
             _infoLine('Name', patientName),
             _infoLine('Age', patientAge == '—' ? '—' : '$patientAge yrs old'),
             _infoLine('Pregnancy',

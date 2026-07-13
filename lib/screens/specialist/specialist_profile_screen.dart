@@ -17,6 +17,8 @@ class SpecialistProfileScreen extends StatefulWidget {
 class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _specialistProfile;
+  int _articlesPublished = 0;
+  int _articlesReviewed = 0;
   bool _loading = true;
 
   @override
@@ -44,10 +46,19 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
       specialistProfile = await SupabaseService.getMySpecialistProfile();
     } catch (_) {}
 
+    final counts = await Future.wait([
+      SupabaseService.getMyPublishedArticlesCount(),
+      SupabaseService.getMyReviewActionsCount(),
+    ]);
+    final articlesPublished = counts[0];
+    final articlesReviewed = counts[1];
+
     if (mounted) {
       setState(() {
         _profile = profile;
         _specialistProfile = specialistProfile;
+        _articlesPublished = articlesPublished;
+        _articlesReviewed = articlesReviewed;
         _loading = false;
       });
     }
@@ -67,13 +78,7 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
     final bio = _specialistProfile?['bio'] as String? ?? '';
     final yearsExperience =
         _specialistProfile?['years_experience'] as int? ?? 0;
-    final videoCallFee = _numValue(_specialistProfile?['video_call_fee']) ?? 0;
-    final inPersonFee = _numValue(_specialistProfile?['in_person_fee']) ?? 0;
     final availableHours = _availableHoursText(_specialistProfile);
-    final articlesPublished =
-        (_specialistProfile?['articles_published'] as num?)?.toInt() ?? 0;
-    final articlesReviewed =
-        (_specialistProfile?['articles_reviewed'] as num?)?.toInt() ?? 0;
     final licenseNumber =
         _specialistProfile?['license_number'] as String? ?? '';
     final qualification = _specialistProfile?['qualification'] as String? ?? '';
@@ -249,52 +254,6 @@ if (licenseNumber.isNotEmpty ||
               const SizedBox(height: 12),
             ],
 
-            // Consultation Charges
-            Center(
-  child: SizedBox(
-    width: 270,
-    child: TBCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.videocam_outlined,
-                    size: 18, color: AppColors.textMid),
-                SizedBox(width: 8),
-                Text(
-                  'Consultation Charges:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.textMid,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Video call: \$${videoCallFee.toStringAsFixed(2)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'In-person: \$${inPersonFee.toStringAsFixed(2)}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    ),
-  ),
-),
-            const SizedBox(height: 12),
-
             // Available Hours
            TBCard(
   child: Padding(
@@ -363,13 +322,13 @@ if (licenseNumber.isNotEmpty ||
             ),
             const SizedBox(height: 8),
             Text(
-              'Articles published: $articlesPublished',
+              'Articles published: $_articlesPublished',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12),
             ),
             const SizedBox(height: 4),
             Text(
-              'Articles reviewed: $articlesReviewed',
+              'Articles reviewed: $_articlesReviewed',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12),
             ),
@@ -487,12 +446,6 @@ Expanded(
         ),
       ],
     );
-  }
-
-  num? _numValue(dynamic value) {
-    if (value is num) return value;
-    if (value is String) return num.tryParse(value.trim());
-    return null;
   }
 
   String _availableHoursText(Map<String, dynamic>? profile) {

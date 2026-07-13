@@ -473,6 +473,41 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Count of the specialist's own articles that have made it all the way to
+  // "published" — shown as "Articles Published" on their profile.
+  static Future<int> getMyPublishedArticlesCount() async {
+    final user = currentUser;
+    if (user == null) return 0;
+    try {
+      final res = await client
+          .from('articles')
+          .select('id')
+          .eq('created_by', user.id)
+          .eq('status', 'published');
+      return List.from(res).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  // Count of review actions the specialist has made as a reviewer — every
+  // approval row they're the reviewer on, whether a plain approval, an
+  // approval with suggestion, or a rejection ("issue" comment) — shown as
+  // "Articles Reviewed" on their profile.
+  static Future<int> getMyReviewActionsCount() async {
+    final user = currentUser;
+    if (user == null) return 0;
+    try {
+      final res = await client
+          .from('approvals')
+          .select('id')
+          .eq('reviewer_id', user.id);
+      return List.from(res).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   static Future<void> deleteArticleDraft(String id) async {
     await client.from('articles').delete().eq('id', id);
   }
@@ -649,12 +684,25 @@ class SupabaseService {
   static Future<void> bookConsultation(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
-    await client.from('consultations').insert({
-      ...data,
-      'patient_id': user.id,
-      'status': 'pending',
-      'created_at': DateTime.now().toIso8601String(),
-    });
+    try {
+      await client.from('consultations').insert({
+        ...data,
+        'patient_id': user.id,
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } on PostgrestException catch (e) {
+      // 23505 = unique_violation. A DB-level constraint (see
+      // add_consultation_booking_uniqueness.sql) blocks two active bookings
+      // for the same specialist/date/time, so this is the "someone (possibly
+      // this same patient, e.g. via back-button double-submit) already holds
+      // this slot" case rather than an unexpected failure.
+      if (e.code == '23505') {
+        throw Exception(
+            'That time slot is no longer available. Please choose a different time.');
+      }
+      rethrow;
+    }
   }
 
   // Cancelling marks the row as "cancelled" rather than deleting it, so the
@@ -819,6 +867,23 @@ class SupabaseService {
         .select('*, profiles(full_name, email, profile_picture_url)')
         .eq('is_verified', true);
     return List<Map<String, dynamic>>.from(res);
+  }
+
+  // The services a volunteer currently has published (excludes ones they've
+  // deleted or that have expired), shown as tappable "Services Provided"
+  // chips on their card in the mum-facing volunteer list.
+  static Future<List<Map<String, dynamic>>> getVolunteerServices(
+      String volunteerId) async {
+    try {
+      final res = await client
+          .from('volunteer_services')
+          .select()
+          .eq('volunteer_id', volunteerId)
+          .eq('status', 'available');
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   // Get current specialist's profile (for their own dashboard)

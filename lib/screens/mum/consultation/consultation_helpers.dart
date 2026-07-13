@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
+
+/// Pops back to the previous screen when possible; otherwise falls back to
+/// the consultations hub ("My Consultations" / "Book New"). Needed on
+/// screens reachable via a booking confirmation's context.go() redirect,
+/// which clears navigation history and leaves nothing left to pop.
+void backOrToHub(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/consultation');
+  }
+}
 
 Color statusColor(String status) {
   switch (status.toLowerCase()) {
@@ -62,14 +75,58 @@ String trimesterLabel(int week) {
   return 'Unknown Trimester';
 }
 
-/// Shortens a consultation row's database id into a readable identifier
-/// like "APT-3F9A2B" for display.
-String appointmentIdLabel(dynamic id) {
+/// Deterministic 6-digit number derived from a consultation row's database
+/// id, so the same appointment always displays the same number for both
+/// parties without needing a round trip to the server.
+int _appointmentIdNumber(dynamic id) {
   final text = id?.toString() ?? '';
-  if (text.isEmpty) return 'APT-000000';
-  final compact = text.replaceAll('-', '');
-  final tail = compact.length > 6 ? compact.substring(compact.length - 6) : compact;
-  return 'APT-${tail.toUpperCase()}';
+  if (text.isEmpty) return 0;
+  var hash = 0;
+  for (final unit in text.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  return 100000 + (hash % 900000);
+}
+
+/// Shortens a consultation row's database id into a readable identifier,
+/// prefixed by which kind of actor is running the meeting: "VOL-482913" for
+/// volunteer consultations, "SPC-482913" for specialist ones. Support can
+/// then tell at a glance which actor initiated the meeting from the id alone.
+String appointmentIdLabel(dynamic id, [String? consultationType]) {
+  final prefix =
+      (consultationType ?? 'specialist').toLowerCase() == 'volunteer'
+          ? 'VOL'
+          : 'SPC';
+  return '$prefix-${_appointmentIdNumber(id)}';
+}
+
+/// Displays the shared appointment id (same value for both the patient and
+/// the provider, since both are derived from the same consultation row's
+/// id) with a tap-to-copy affordance for quoting to support.
+Widget appointmentIdValue(BuildContext context, dynamic id,
+    [String? consultationType]) {
+  final label = appointmentIdLabel(id, consultationType);
+  return InkWell(
+    borderRadius: BorderRadius.circular(6),
+    onTap: () async {
+      await Clipboard.setData(ClipboardData(text: label));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Appointment ID copied to clipboard')),
+        );
+      }
+    },
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        const SizedBox(width: 6),
+        const Icon(Icons.copy_rounded, size: 15, color: AppColors.textMid),
+      ],
+    ),
+  );
 }
 
 const List<String> defaultConsultationTimes = [
@@ -384,7 +441,6 @@ Widget providerCard(
   final role = isSpecialist
       ? (provider['specialization'] as String? ?? 'Specialist')
       : (provider['expertise'] as String? ?? 'Volunteer');
-  final rating = (provider['rating'] as num?)?.toStringAsFixed(1);
   final years = provider['years_experience'];
   final organisation = isSpecialist
       ? (provider['hospital_affiliation'] as String? ?? '')
@@ -395,6 +451,10 @@ Widget providerCard(
   final helpsWith =
       (provider['helps_with'] as List?)?.map((e) => e.toString()).toList() ??
           const <String>[];
+  final services = (provider['_services'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ??
+      const <Map<String, dynamic>>[];
   final availableToday = (provider['available_today'] as List?)
           ?.map((e) => timeOnly(e))
           .where((e) => e.isNotEmpty)
@@ -456,9 +516,6 @@ Widget providerCard(
                       runSpacing: 6,
                       children: [
                         _providerChip(label, accent, Icons.verified_outlined),
-                        if (rating != null)
-                          _providerChip('$rating Rating', AppColors.gold,
-                              Icons.star_rounded),
                         if (years != null)
                           _providerChip('$years Years', AppColors.rose,
                               Icons.work_outline),
@@ -494,9 +551,9 @@ Widget providerCard(
           ],
           if (helpsWith.isNotEmpty) ...[
             const SizedBox(height: 14),
-            const Text(
-              'Helps with',
-              style: TextStyle(
+            Text(
+              isSpecialist ? 'Helps with' : 'Services Provided',
+              style: const TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 13,
                 color: AppColors.textDark,
@@ -506,25 +563,17 @@ Widget providerCard(
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: helpsWith
-                  .take(4)
-                  .map((h) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Text(
-                          h,
-                          style: TextStyle(
-                            color: accent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ))
-                  .toList(),
+              children: isSpecialist
+                  ? helpsWith.map((h) => _helpsChip(h, accent)).toList()
+                  : services
+                      .map((s) => GestureDetector(
+                            onTap: () =>
+                                _showServiceDetailsSheet(context, s, accent),
+                            child: _helpsChip(
+                                s['title']?.toString() ?? '', accent,
+                                tappable: true),
+                          ))
+                      .toList(),
             ),
           ],
           const SizedBox(height: 14),
@@ -629,6 +678,132 @@ Widget providerCard(
             ),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+Widget _helpsChip(String label, Color accent, {bool tappable = false}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: accent,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (tappable) ...[
+          const SizedBox(width: 3),
+          Icon(Icons.info_outline, size: 12, color: accent),
+        ],
+      ],
+    ),
+  );
+}
+
+// Shows a volunteer service's full details (description, category,
+// availability, consultation method) when its "Services Provided" chip is
+// tapped, since the chip itself only has room for the title.
+void _showServiceDetailsSheet(
+    BuildContext context, Map<String, dynamic> service, Color accent) {
+  final title = service['title'] as String? ?? 'Service';
+  final description = service['description'] as String? ?? '';
+  final category = service['category'] as String? ?? '';
+  final consultationMethod = service['consultation_method'] as String? ?? '';
+  final availability = service['availability'] as String?;
+
+  String availabilityLabel = '—';
+  if (availability != null && availability.contains(' | ')) {
+    final parts = availability.split(' | ');
+    final date = DateTime.tryParse(parts[0]);
+    final dateStr =
+        date != null ? DateFormat('d MMM yyyy').format(date) : parts[0];
+    availabilityLabel = parts.length > 1 ? '$dateStr · ${parts[1]}' : dateStr;
+  }
+
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.textLight.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(title,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: AppColors.textDark)),
+            if (category.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _providerInfoLine(Icons.label_outline, category),
+            ],
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(description,
+                  style: const TextStyle(
+                      color: AppColors.textMid, fontSize: 14, height: 1.4)),
+            ],
+            const SizedBox(height: 14),
+            _providerInfoLine(Icons.schedule_outlined, availabilityLabel),
+            if (consultationMethod.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _providerInfoLine(
+                  consultationMethod == 'Video'
+                      ? Icons.videocam_outlined
+                      : Icons.chat_bubble_outline,
+                  consultationMethod),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: accent,
+                  side: BorderSide(color: accent),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                ),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );

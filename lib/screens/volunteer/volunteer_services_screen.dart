@@ -149,7 +149,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
           tabs: const [
             Tab(text: 'All'),
             Tab(text: 'Available'),
-            Tab(text: 'Expired'),
+            Tab(text: 'Completed'),
           ],
         ),
       ),
@@ -307,7 +307,7 @@ class _ServiceCard extends StatelessWidget {
                       .withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(isDone ? 'Expired' : 'Available',
+                child: Text(isDone ? 'Completed' : 'Available',
                     style: GoogleFonts.poppins(
                         color: isDone ? Colors.red.shade400 : AppColors.sage,
                         fontWeight: FontWeight.w600,

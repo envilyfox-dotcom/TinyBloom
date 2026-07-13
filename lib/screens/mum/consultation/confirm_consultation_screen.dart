@@ -41,18 +41,39 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
         'meeting_link':
             'https://zoom.us/j/${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
       });
-      if (mounted)
+      if (mounted) {
         setState(() {
           _submitted = true;
           _submitting = false;
         });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
         );
       }
+    }
+  }
+
+  String get _listingRoute => widget.type == 'volunteer'
+      ? '/consultation/volunteers'
+      : '/consultation/specialists';
+
+  // Once a booking is confirmed, going "back" (app bar arrow or hardware
+  // back) must not return to the date/time form underneath -- that screen
+  // still holds the now-booked date/time selected, and re-pressing "Confirm
+  // Booking" there would submit a second booking for the same slot. Instead
+  // send the user to the same place the "Done" button goes.
+  void _leave() {
+    if (_submitted) {
+      context.go(_listingRoute);
+    } else {
+      context.pop();
     }
   }
 
@@ -87,199 +108,205 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
         ? (widget.provider['specialization'] as String? ?? 'Specialist')
         : (widget.provider['expertise'] as String? ?? 'Volunteer');
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+    return PopScope(
+      canPop: !_submitted,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _submitted) context.go(_listingRoute);
+      },
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'Confirm Consultation',
-          style: TextStyle(
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w700,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+            onPressed: _leave,
+          ),
+          title: const Text(
+            'Confirm Consultation',
+            style: TextStyle(
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Confirm Consultation',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontSize: 24),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Review your consultation details.',
-              style: TextStyle(color: AppColors.textMid, fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.rose.withValues(alpha: 0.3),
-                ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Confirm Consultation',
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineMedium?.copyWith(fontSize: 24),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: AppColors.blush,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: const TextStyle(
-                              color: AppColors.roseDeep,
-                              fontWeight: FontWeight.w700,
+              const SizedBox(height: 4),
+              const Text(
+                'Review your consultation details.',
+                style: TextStyle(color: AppColors.textMid, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.rose.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: AppColors.blush,
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                color: AppColors.roseDeep,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                role,
-                                style: const TextStyle(
-                                  color: AppColors.textMid,
-                                  fontSize: 12,
+                                Text(
+                                  role,
+                                  style: const TextStyle(
+                                    color: AppColors.textMid,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const Divider(height: 1, color: AppColors.blush),
-                  _detailRow(
-                    'Date',
-                    DateFormat('d MMMM yyyy (EEE)').format(widget.date),
-                  ),
-                  const Divider(height: 1, color: AppColors.blush),
-                  _detailRow('Time', widget.time.split('-').first.trim()),
-                  const Divider(height: 1, color: AppColors.blush),
-                  _detailRow('Platform', 'Zoom Meeting'),
-                  const Divider(height: 1, color: AppColors.blush),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Consultation Purpose',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          widget.purpose.isEmpty
-                              ? 'No purpose specified.'
-                              : widget.purpose,
-                          style: const TextStyle(
-                            color: AppColors.textMid,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
+                    const Divider(height: 1, color: AppColors.blush),
+                    _detailRow(
+                      'Date',
+                      DateFormat('d MMMM yyyy (EEE)').format(widget.date),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (_submitted) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.sage.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Consultation request sent!',
-                  style: TextStyle(
-                    color: AppColors.sage,
-                    fontWeight: FontWeight.w700,
-                  ),
+                    const Divider(height: 1, color: AppColors.blush),
+                    _detailRow('Time', widget.time.split('-').first.trim()),
+                    const Divider(height: 1, color: AppColors.blush),
+                    _detailRow('Platform', 'Zoom Meeting'),
+                    const Divider(height: 1, color: AppColors.blush),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Consultation Purpose',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.purpose.isEmpty
+                                ? 'No purpose specified.'
+                                : widget.purpose,
+                            style: const TextStyle(
+                              color: AppColors.textMid,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => context.go('/consultation'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              const SizedBox(height: 20),
+              if (_submitted) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.sage.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
-                    'Done',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                    'Consultation request sent!',
+                    style: TextStyle(
+                      color: AppColors.sage,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-            ] else
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => context.pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Cancel'),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.go(_listingRoute),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text(
+                      'Done',
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _submitting ? null : _confirm,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ] else
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => context.pop(),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text('Cancel'),
                       ),
-                      child: _submitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _submitting ? null : _confirm,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Confirm Booking',
+                                style: TextStyle(fontWeight: FontWeight.w700),
                               ),
-                            )
-                          : const Text(
-                              'Confirm Booking',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-          ],
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

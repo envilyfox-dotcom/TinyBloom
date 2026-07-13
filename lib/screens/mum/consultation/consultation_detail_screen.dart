@@ -230,6 +230,11 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                           ]),
                         ),
                         const Divider(height: 1, color: AppColors.blush),
+                        _detailRow(
+                            'Appointment ID',
+                            appointmentIdValue(context, c['id'],
+                                c['consultation_type'] as String?)),
+                        const Divider(height: 1, color: AppColors.blush),
                         _detailRow('Date', Text(dateStr,
                             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
