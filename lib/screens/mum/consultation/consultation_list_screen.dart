@@ -207,7 +207,7 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
 
   Widget _questionCard(BuildContext context, Map<String, dynamic> q) {
     final status = q['status'] as String? ?? 'pending';
-    final isResponded = status == 'responded';
+    final isCompleted = status == 'closed';
     return TBCard(
       onTap: () async {
         await context.push('/ask-volunteer/detail', extra: q);
@@ -219,7 +219,7 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-                color: (isResponded ? AppColors.sage : AppColors.gold)
+                color: (isCompleted ? AppColors.sage : AppColors.gold)
                     .withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10)),
             child: const Center(
@@ -235,9 +235,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                     overflow: TextOverflow.ellipsis,
                     style:
                         const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                Text(isResponded ? 'RESPONDED' : 'PENDING',
+                Text(isCompleted ? 'COMPLETED' : 'ONGOING',
                     style: TextStyle(
-                        color: isResponded ? AppColors.sage : AppColors.gold,
+                        color: isCompleted ? AppColors.sage : AppColors.gold,
                         fontSize: 11,
                         fontWeight: FontWeight.w700)),
               ],

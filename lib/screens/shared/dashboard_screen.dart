@@ -1477,7 +1477,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 12),
         ..._myQuestions.take(3).map((q) {
-          final isResponded = q['status'] == 'responded';
+          // Whether *any* reply has happened, not whether the chat is
+          // still active — a closed chat already had a reply, so it
+          // shouldn't regress back to "waiting" once it's completed.
+          final hasReply = q['status'] != 'pending';
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: TBCard(
@@ -1490,9 +1493,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   CircleAvatar(
                     backgroundColor:
-                        (isResponded ? AppColors.sage : AppColors.gold)
+                        (hasReply ? AppColors.sage : AppColors.gold)
                             .withValues(alpha: 0.15),
-                    child: Text(isResponded ? '✅' : '⏳'),
+                    child: Text(hasReply ? '✅' : '⏳'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1507,11 +1510,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               fontWeight: FontWeight.w600, fontSize: 13),
                         ),
                         Text(
-                          isResponded
+                          hasReply
                               ? 'A volunteer has replied'
                               : 'Waiting for a volunteer to reply',
                           style: TextStyle(
-                              color: isResponded
+                              color: hasReply
                                   ? AppColors.sage
                                   : AppColors.gold,
                               fontSize: 11,

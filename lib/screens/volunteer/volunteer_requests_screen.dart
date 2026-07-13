@@ -66,6 +66,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           .select()
           .order('created_at', ascending: false);
       final rows = List<Map<String, dynamic>>.from(data);
+      await SupabaseService.autoCloseStaleRequests(rows);
 
       final patientIds = rows
           .map((r) => r['patient_id'] as String?)
@@ -91,12 +92,13 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                 },
               })
           .toList();
-      // Pending questions need action, so they surface first; everything
-      // else stays sorted newest-first behind them.
+      // Ongoing questions (unclaimed or actively being chatted about) need
+      // attention, so they surface first; completed ones sink to the
+      // bottom, newest-first within each group.
       requests.sort((a, b) {
-        final aPending = _isPending(a);
-        final bPending = _isPending(b);
-        if (aPending != bPending) return aPending ? -1 : 1;
+        final aOngoing = !_isCompleted(a);
+        final bOngoing = !_isCompleted(b);
+        if (aOngoing != bOngoing) return aOngoing ? -1 : 1;
         final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
         final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
         if (aDate == null || bDate == null) return 0;
@@ -113,11 +115,14 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     }
   }
 
-  bool _isPending(Map<String, dynamic> r) =>
-      (r['status'] as String? ?? 'pending') == 'pending';
+  // A thread is "Completed" once closed (manually or via 48h auto-close);
+  // everything else — unclaimed or actively being chatted about — is
+  // "Ongoing".
+  bool _isCompleted(Map<String, dynamic> r) =>
+      (r['status'] as String? ?? 'pending') == 'closed';
 
-  List<Map<String, dynamic>> _filter(bool pending) =>
-      _requests.where((r) => _isPending(r) == pending).toList();
+  List<Map<String, dynamic>> _filter(bool completed) =>
+      _requests.where((r) => _isCompleted(r) == completed).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -148,8 +153,8 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           labelStyle: GoogleFonts.poppins(fontSize: 13),
           tabs: const [
             Tab(text: 'All'),
-            Tab(text: 'Pending'),
-            Tab(text: 'Responded'),
+            Tab(text: 'Ongoing'),
+            Tab(text: 'Completed'),
           ],
         ),
       ),
@@ -159,8 +164,8 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
               controller: _tabs,
               children: [
                 _RequestList(requests: _requests, onRefresh: _load),
-                _RequestList(requests: _filter(true), onRefresh: _load),
                 _RequestList(requests: _filter(false), onRefresh: _load),
+                _RequestList(requests: _filter(true), onRefresh: _load),
               ],
             ),
     );
@@ -208,9 +213,9 @@ class _RequestCard extends StatelessWidget {
     final mumName =
         (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
     final status = request['status'] as String? ?? 'pending';
-    final isPending = status == 'pending';
-    final badgeLabel = isPending ? 'Pending' : 'Responded';
-    final badgeColor = isPending ? AppColors.gold : AppColors.sage;
+    final isCompleted = status == 'closed';
+    final badgeLabel = isCompleted ? 'Completed' : 'Ongoing';
+    final badgeColor = isCompleted ? AppColors.sage : AppColors.gold;
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -292,12 +297,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   // claimed this thread first — locks out further replies from this side.
   bool _lockedOut = false;
   String? _myPhotoUrl;
+  bool _closing = false;
 
   String? get _myId => SupabaseService.currentUser?.id;
   String? get _volunteerId => widget.request['volunteer_id'] as String?;
   bool get _isMine => _volunteerId != null && _volunteerId == _myId;
   bool get _isOpen => _volunteerId == null;
-  bool get _canReply => !_lockedOut && (_isOpen || _isMine);
+  bool get _isClosed => widget.request['status'] == 'closed';
+  bool get _canReply => !_lockedOut && !_isClosed && (_isOpen || _isMine);
 
   @override
   void initState() {
@@ -326,9 +333,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         if (mounted) setState(() { _lockedOut = true; _loading = false; });
         return;
       }
-      widget.request['volunteer_id'] = fresh['volunteer_id'];
-      widget.request['status'] = fresh['status'];
-      widget.request['question'] = fresh['question'];
+      final freshRow = Map<String, dynamic>.from(fresh);
+      await SupabaseService.autoCloseStaleRequests([freshRow]);
+      widget.request['volunteer_id'] = freshRow['volunteer_id'];
+      widget.request['status'] = freshRow['status'];
+      widget.request['question'] = freshRow['question'];
       final msgs =
           await SupabaseService.getRequestMessages(widget.request['id'].toString());
       if (_myPhotoUrl == null && _myId != null) {
@@ -389,6 +398,26 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _closeChat() async {
+    setState(() => _closing = true);
+    try {
+      await SupabaseService.closeRequestChat(widget.request['id'].toString());
+      widget.request['status'] = 'closed';
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Chat closed.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _closing = false);
     }
   }
 
@@ -535,53 +564,81 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 if (_canReply)
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _ctrl,
-                            maxLines: 4,
-                            minLines: 1,
-                            style: GoogleFonts.poppins(
-                                color: AppColors.textDark, fontSize: 13),
-                            decoration: InputDecoration(
-                              hintText: _isOpen
-                                  ? 'Type your response...'
-                                  : 'Type a message...',
-                              hintStyle: GoogleFonts.poppins(
-                                  color: AppColors.textLight, fontSize: 13),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                    color:
-                                        AppColors.textLight.withValues(alpha: 0.3)),
+                        if (_isMine)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: OutlinedButton.icon(
+                              onPressed: _closing ? null : _closeChat,
+                              icon: _closing
+                                  ? const SizedBox(
+                                      height: 14,
+                                      width: 14,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : const Icon(Icons.check_circle_outline,
+                                      size: 16),
+                              label: Text(_closing ? 'Closing...' : 'Close Chat',
+                                  style: GoogleFonts.poppins(fontSize: 13)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.roseDeep,
+                                side: const BorderSide(color: AppColors.roseDeep),
                               ),
-                              focusedBorder: const OutlineInputBorder(
-                                borderRadius: BorderRadius.all(Radius.circular(10)),
-                                borderSide:
-                                    BorderSide(color: AppColors.rose, width: 1.5),
-                              ),
-                              filled: true,
-                              fillColor: AppColors.cream,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        IconButton.filled(
-                          onPressed: _sending ? null : _send,
-                          style: IconButton.styleFrom(
-                              backgroundColor: AppColors.rose,
-                              padding: const EdgeInsets.all(14)),
-                          icon: _sending
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.send, color: Colors.white, size: 18),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _ctrl,
+                                maxLines: 4,
+                                minLines: 1,
+                                style: GoogleFonts.poppins(
+                                    color: AppColors.textDark, fontSize: 13),
+                                decoration: InputDecoration(
+                                  hintText: _isOpen
+                                      ? 'Type your response...'
+                                      : 'Type a message...',
+                                  hintStyle: GoogleFonts.poppins(
+                                      color: AppColors.textLight, fontSize: 13),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(
+                                        color: AppColors.textLight
+                                            .withValues(alpha: 0.3)),
+                                  ),
+                                  focusedBorder: const OutlineInputBorder(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(10)),
+                                    borderSide: BorderSide(
+                                        color: AppColors.rose, width: 1.5),
+                                  ),
+                                  filled: true,
+                                  fillColor: AppColors.cream,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            IconButton.filled(
+                              onPressed: _sending ? null : _send,
+                              style: IconButton.styleFrom(
+                                  backgroundColor: AppColors.rose,
+                                  padding: const EdgeInsets.all(14)),
+                              icon: _sending
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white))
+                                  : const Icon(Icons.send,
+                                      color: Colors.white, size: 18),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -590,9 +647,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
-                        _lockedOut
-                            ? 'Another volunteer already answered this question.'
-                            : 'This question was claimed by another volunteer.',
+                        _isClosed
+                            ? 'This chat has been closed.'
+                            : (_lockedOut
+                                ? 'Another volunteer already answered this question.'
+                                : 'This question was claimed by another volunteer.'),
                         style: GoogleFonts.poppins(
                             color: AppColors.textLight, fontSize: 12)),
                   ),

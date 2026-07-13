@@ -30,7 +30,12 @@ class _VolunteerQuestionDetailScreenState
   String? _myPhotoUrl;
   String? _volunteerPhotoUrl;
 
-  bool get _isResponded => widget.request['status'] == 'responded';
+  bool get _isClosed => widget.request['status'] == 'closed';
+  // Amending the original question is only sensible before anyone's
+  // claimed it — once a volunteer is chatting (or the chat's closed),
+  // changing the question out from under the conversation would be
+  // confusing, and RLS blocks it server-side too.
+  bool get _canEdit => widget.request['status'] == 'pending';
   String? get _myId => SupabaseService.currentUser?.id;
   // A volunteer has claimed this thread once volunteer_id is set — only
   // then is there anyone on the other end for a follow-up to reach.
@@ -53,6 +58,22 @@ class _VolunteerQuestionDetailScreenState
 
   Future<void> _loadThread() async {
     try {
+      // Re-fetch the request itself (not just messages) so this screen
+      // picks up status/volunteer_id changes made elsewhere — the
+      // volunteer closing the chat, or the 48h auto-close kicking in.
+      final fresh = await SupabaseService.client
+          .from('volunteer_requests')
+          .select()
+          .eq('id', widget.request['id'])
+          .maybeSingle();
+      if (fresh != null) {
+        final freshRow = Map<String, dynamic>.from(fresh);
+        await SupabaseService.autoCloseStaleRequests([freshRow]);
+        widget.request['volunteer_id'] = freshRow['volunteer_id'];
+        widget.request['status'] = freshRow['status'];
+        widget.request['question'] = freshRow['question'];
+        widget.request['response'] = freshRow['response'];
+      }
       final msgs =
           await SupabaseService.getRequestMessages(widget.request['id'].toString());
       if (_myPhotoUrl == null && _myId != null) {
@@ -198,9 +219,9 @@ class _VolunteerQuestionDetailScreenState
   Widget build(BuildContext context) {
     final legacyResponse = widget.request['response'] as String?;
     final status = widget.request['status'] as String? ?? 'pending';
-    final isResponded = _isResponded;
+    final isCompleted = _isClosed;
     final hasLegacyOnly = _messages.isEmpty &&
-        isResponded &&
+        status != 'pending' &&
         legacyResponse != null &&
         legacyResponse.isNotEmpty;
 
@@ -213,7 +234,7 @@ class _VolunteerQuestionDetailScreenState
         ),
         title: const Text('My Question'),
         actions: [
-          if (!isResponded && !_editing)
+          if (_canEdit && !_editing)
             IconButton(
               icon: const Icon(Icons.edit_outlined, color: AppColors.textDark),
               tooltip: 'Amend question',
@@ -254,16 +275,16 @@ class _VolunteerQuestionDetailScreenState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: (isResponded
+                            color: (isCompleted
                                     ? AppColors.sage
                                     : AppColors.gold)
                                 .withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            isResponded ? 'Responded' : 'Pending',
+                            isCompleted ? 'Completed' : 'Ongoing',
                             style: TextStyle(
-                                color: isResponded
+                                color: isCompleted
                                     ? AppColors.sage
                                     : AppColors.gold,
                                 fontWeight: FontWeight.w700,
@@ -362,7 +383,10 @@ class _VolunteerQuestionDetailScreenState
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Column(
+            child: _isClosed
+                ? const Text('This chat has been closed.',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 12))
+                : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (!_hasVolunteer)

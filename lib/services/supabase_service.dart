@@ -752,11 +752,14 @@ class SupabaseService {
   // the conversation going instead of it stopping at one response.
   static Future<List<Map<String, dynamic>>> getRequestMessages(
       String requestId) async {
+    // ascending must be explicit — the client defaults .order() to
+    // descending, which would show the newest message first instead of
+    // last.
     final res = await client
         .from('volunteer_request_messages')
         .select()
         .eq('request_id', requestId)
-        .order('created_at');
+        .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
@@ -786,6 +789,41 @@ class SupabaseService {
     if (claimed.isEmpty) return false;
     await sendRequestMessage(requestId, message);
     return true;
+  }
+
+  // The assigned volunteer ends the conversation — status moves to
+  // 'closed' ("Completed" in the UI). The thread and its messages stay
+  // visible to both participants afterward, just without a way to reply.
+  static Future<void> closeRequestChat(String requestId) async {
+    await client
+        .from('volunteer_requests')
+        .update({'status': 'closed'}).eq('id', requestId);
+  }
+
+  // Client-side equivalent of a cron job: whenever a list or detail screen
+  // loads, flip any 'responded' (claimed, active) thread with no activity
+  // in 48h to 'closed'. Mutates the passed-in rows in place so the caller's
+  // UI reflects the change immediately without a second round-trip.
+  static Future<void> autoCloseStaleRequests(
+      List<Map<String, dynamic>> requests) async {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 48));
+    final stale = requests.where((r) {
+      if (r['status'] != 'responded') return false;
+      final last = DateTime.tryParse(r['last_activity_at']?.toString() ??
+          r['created_at']?.toString() ??
+          '');
+      return last != null && last.isBefore(cutoff);
+    }).toList();
+    if (stale.isEmpty) return;
+    final staleIds = stale.map((r) => r['id'].toString()).toList();
+    try {
+      await client
+          .from('volunteer_requests')
+          .update({'status': 'closed'}).inFilter('id', staleIds);
+      for (final r in stale) {
+        r['status'] = 'closed';
+      }
+    } catch (_) {}
   }
 
   // Cancelling marks the row as "cancelled" rather than deleting it, so the

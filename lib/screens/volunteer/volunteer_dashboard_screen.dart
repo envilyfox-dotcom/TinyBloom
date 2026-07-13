@@ -72,17 +72,22 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     } catch (_) {}
 
     try {
-      // Open Q&A board — every volunteer sees every pending question, not
-      // just ones directed at them specifically. patient_id references
-      // auth.users, not public.profiles, so there's no FK for PostgREST to
-      // auto-embed profiles(full_name) through — look the name up separately.
+      // Open Q&A board — every volunteer sees every unclaimed question plus
+      // any they've personally claimed, not just ones directed at them
+      // specifically. "Ongoing" here matches the Request page's Ongoing tab:
+      // anything not yet closed, whether unclaimed or actively being
+      // chatted about. patient_id references auth.users, not
+      // public.profiles, so there's no FK for PostgREST to auto-embed
+      // profiles(full_name) through — look the name up separately.
       final data = await SupabaseService.client
           .from('volunteer_requests')
           .select()
-          .eq('status', 'pending')
+          .neq('status', 'closed')
           .order('created_at', ascending: false)
           .limit(5);
       final rows = List<Map<String, dynamic>>.from(data);
+      await SupabaseService.autoCloseStaleRequests(rows);
+      rows.removeWhere((r) => r['status'] == 'closed');
 
       final patientIds = rows
           .map((r) => r['patient_id'] as String?)
@@ -264,7 +269,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         _statCard('Mums\nHelped', '$_mumsHelpedCount', Icons.favorite_outline,
             onTap: () => context.push('/volunteer/mums-helped')),
         const SizedBox(width: 12),
-        _statCard('Pending\nRequests', '${_pendingRequests.length}',
+        _statCard('Ongoing\nRequests', '${_pendingRequests.length}',
             Icons.inbox_outlined,
             onTap: () => context.push('/volunteer/requests')),
       ],
@@ -450,7 +455,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Pending Requests',
+            Text('Ongoing Requests',
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -464,7 +469,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         ),
         const SizedBox(height: 8),
         if (_pendingRequests.isEmpty)
-          _emptyCard('No pending requests right now. 🎉')
+          _emptyCard('No ongoing requests right now. 🎉')
         else
           ..._pendingRequests.map((r) => _requestCard(context, r)),
       ],
