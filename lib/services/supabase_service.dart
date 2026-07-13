@@ -455,6 +455,41 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Count of the specialist's own articles that have made it all the way to
+  // "published" — shown as "Articles Published" on their profile.
+  static Future<int> getMyPublishedArticlesCount() async {
+    final user = currentUser;
+    if (user == null) return 0;
+    try {
+      final res = await client
+          .from('articles')
+          .select('id')
+          .eq('created_by', user.id)
+          .eq('status', 'published');
+      return List.from(res).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  // Count of review actions the specialist has made as a reviewer — every
+  // approval row they're the reviewer on, whether a plain approval, an
+  // approval with suggestion, or a rejection ("issue" comment) — shown as
+  // "Articles Reviewed" on their profile.
+  static Future<int> getMyReviewActionsCount() async {
+    final user = currentUser;
+    if (user == null) return 0;
+    try {
+      final res = await client
+          .from('approvals')
+          .select('id')
+          .eq('reviewer_id', user.id);
+      return List.from(res).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   static Future<void> deleteArticleDraft(String id) async {
     await client.from('articles').delete().eq('id', id);
   }
