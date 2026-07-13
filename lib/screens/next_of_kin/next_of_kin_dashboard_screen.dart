@@ -99,6 +99,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
   int get _linkedMumWeek => (_linkedMum?['current_week'] as int?) ?? 0;
   String get _linkedMumName => (_linkedMum?['full_name'] as String?) ?? 'them';
+  String get _linkedMumFirstName => _linkedMumName.split(' ').first;
 
   String get _trimesterLabel {
     final week = _linkedMumWeek;
@@ -107,7 +108,41 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     return '3rd Trimester';
   }
 
-  double get _pregnancyProgress => (_linkedMumWeek / 40).clamp(0.0, 1.0);
+  // Named milestones for a handful of well-known weeks, falling back to the
+  // existing per-week development highlight for everything else — mirrors
+  // the mum's own dashboard so the two never disagree on a given week.
+  String _milestoneLabel(int week) {
+    const named = {
+      4: 'Pregnancy confirmed',
+      8: 'Heartbeat detectable',
+      12: 'End of first trimester',
+      13: 'Second trimester begins',
+      20: 'Halfway there!',
+      23: 'Viability milestone reached',
+      24: 'Viability milestone reached',
+      28: 'Third trimester begins',
+      37: 'Full term soon',
+      40: 'Full term!',
+    };
+    return named[week] ??
+        (pregnancyWeekData[week]?['highlight'] ?? 'Growing strong');
+  }
+
+  // Progress through the *current* trimester, not the whole pregnancy.
+  double get _trimesterProgress {
+    final week = _linkedMumWeek;
+    if (week <= 12) return week / 12;
+    if (week <= 27) return (week - 12) / 15;
+    return (week - 27) / 13;
+  }
+
+  // "Week X of Y" within the current trimester, for the caption under the bar.
+  (int, int) get _trimesterWeekOverview {
+    final week = _linkedMumWeek;
+    if (week <= 12) return (week, 12);
+    if (week <= 27) return (week - 12, 15);
+    return (week - 27, 13);
+  }
 
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -207,13 +242,13 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildTrimesterCard(),
+                          _buildTrimesterCard(context),
                           const SizedBox(height: 20),
                           _buildQuickActions(),
                           const SizedBox(height: 20),
-                          _buildBabyDevelopmentCard(context),
-                          const SizedBox(height: 20),
                           _buildActiveAlerts(),
+                          const SizedBox(height: 20),
+                          _buildExploreSection(context),
                         ],
                       ),
               ),
@@ -234,7 +269,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
-  Widget _buildTrimesterCard() {
+  Widget _buildTrimesterCard(BuildContext context) {
     final week = _linkedMumWeek;
     if (week == 0) {
       return const TBCard(
@@ -250,42 +285,80 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         ),
       );
     }
-    return TBCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Trimester progress',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 14)),
-              Text(_trimesterLabel,
-                  style: const TextStyle(
-                      color: AppColors.textMid,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: _pregnancyProgress,
-            backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-            valueColor:
-                const AlwaysStoppedAnimation<Color>(AppColors.rose),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text('${(_pregnancyProgress * 100).round()}%',
-                style: const TextStyle(
-                    color: AppColors.rose,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700)),
-          ),
-        ],
+    return GestureDetector(
+      onTap: () {
+        if (!_canNav() || _linkedMum == null) return;
+        context.push('/baby-development', extra: {
+          'userId': _linkedMum!['id'],
+          'name': _linkedMumFirstName,
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('🌸  $_linkedMumFirstName\'s Pregnancy',
+                    style: const TextStyle(
+                        color: AppColors.roseDeep,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
+                const Icon(Icons.chevron_right,
+                    color: AppColors.roseDeep, size: 18),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text('Current week',
+                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
+            Text('Week $week',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontSize: 28, color: AppColors.rose)),
+            const SizedBox(height: 2),
+            Text('${_milestoneLabel(week)} ✦',
+                style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
+            const SizedBox(height: 16),
+            const Text('Trimester progress',
+                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_trimesterLabel,
+                    style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
+                Text('${(_trimesterProgress.clamp(0.0, 1.0) * 100).round()}%',
+                    style: const TextStyle(
+                        color: AppColors.rose,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(
+              value: _trimesterProgress.clamp(0.0, 1.0),
+              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.rose),
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 6),
+            Text(
+                'Week ${_trimesterWeekOverview.$1} of ${_trimesterWeekOverview.$2} this trimester',
+                style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+          ],
+        ),
       ),
     );
   }
@@ -356,55 +429,63 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
-  Widget _buildBabyDevelopmentCard(BuildContext context) {
-    final week = _linkedMumWeek;
-    if (week == 0) return const SizedBox.shrink();
+  // Mirrors the mum dashboard's Explore section (same TBSectionTitle +
+  // card style) so AI Assistant lives in a consistent spot across roles,
+  // now that it's off the bottom nav.
+  Widget _buildExploreSection(BuildContext context) {
+    final items = [
+      {
+        'emoji': '🤖',
+        'title': 'AI Assistant',
+        'desc': 'Get personalised pregnancy guidance',
+        'route': '/chatbot',
+      },
+    ];
 
-    final data = pregnancyWeekData[week];
-    final size = data?['size'] ?? 'growing strong';
-    final emoji = data?['emoji'] ?? '🌸';
-    final highlight = data?['highlight'] ?? '';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 28)),
-              const SizedBox(width: 10),
-              const Text("Baby's Development",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 15)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const TBSectionTitle(title: 'Explore', action: ''),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int i = 0; i < items.length; i++) ...[
+              if (i > 0) const SizedBox(width: 12),
+              Expanded(child: _exploreCard(context, items[i])),
             ],
-          ),
-          const SizedBox(height: 4),
-          Text('Week $week',
-              style: const TextStyle(
-                  color: AppColors.rose,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13)),
-          const SizedBox(height: 8),
-          Text('Now the size of $size. $highlight',
-              style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _comingSoon('Full baby development view'),
-              child: const Text('View details'),
-            ),
-          ),
-        ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _exploreCard(BuildContext context, Map<String, String> item) {
+    return GestureDetector(
+      onTap: () { if (_canNav()) context.push(item['route']!); },
+      child: TBCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(item['emoji']!, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 6),
+            Text(item['title']!,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 14)),
+            const SizedBox(height: 2),
+            Text(item['desc']!,
+                style: const TextStyle(
+                    color: AppColors.textLight, fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget _buildActiveAlerts() {
     final week = _linkedMumWeek;

@@ -32,10 +32,10 @@ class AppShell extends StatelessWidget {
   static const _tabsVolunteer = [
     '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/profile'];
 
-  // Next-of-kin tabs — Home | Logs | Consultation | AI Chatbot | Articles | Checklist
+  // Next-of-kin tabs — Home | Logs | Consultation | Articles | Checklist | Profile
   static const _tabsNextOfKin = [
-    '/home', '/logs', '/consultation', '/chatbot', '/education',
-    '/next-of-kin/checklist'];
+    '/home', '/logs', '/consultation', '/education',
+    '/next-of-kin/checklist', '/profile'];
 
   @override
   Widget build(BuildContext context) {
@@ -72,11 +72,6 @@ class AppShell extends StatelessWidget {
               label: 'Consultation',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.smart_toy_outlined),
-              activeIcon: Icon(Icons.smart_toy),
-              label: 'AI Chatbot',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.menu_book_outlined),
               activeIcon: Icon(Icons.menu_book),
               label: 'Articles',
@@ -85,6 +80,11 @@ class AppShell extends StatelessWidget {
               icon: Icon(Icons.checklist_outlined),
               activeIcon: Icon(Icons.checklist),
               label: 'Checklist',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),

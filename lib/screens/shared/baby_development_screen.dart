@@ -8,8 +8,13 @@ import '../../widgets/common_widgets.dart';
 import 'article_open_helper.dart';
 
 // ── Baby Development Screen ───────────────────────────────────────
+// patientUserId/patientName let a next-of-kin view a linked mum's
+// development details instead of the logged-in user's own (the default).
 class BabyDevelopmentScreen extends StatefulWidget {
-  const BabyDevelopmentScreen({super.key});
+  final String? patientUserId;
+  final String? patientName;
+
+  const BabyDevelopmentScreen({super.key, this.patientUserId, this.patientName});
 
   @override
   State<BabyDevelopmentScreen> createState() => _BabyDevelopmentScreenState();
@@ -41,6 +46,9 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     return 3;
   }
 
+  String get _possessive =>
+      widget.patientName != null ? "${widget.patientName!.split(' ').first}'s" : 'Your';
+
   @override
   void initState() {
     super.initState();
@@ -56,7 +64,9 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
 
   Future<void> _loadWeek() async {
     try {
-      final data = await SupabaseService.getPregnancyProfile();
+      final data = widget.patientUserId != null
+          ? await SupabaseService.getPregnancyProfileByUserId(widget.patientUserId!)
+          : await SupabaseService.getPregnancyProfile();
       if (data != null && mounted) {
         // Calculate week from due date if available
         if (data['due_date'] != null) {
@@ -161,9 +171,11 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Baby Development',
-          style: TextStyle(
+        title: Text(
+          widget.patientName != null
+              ? "$_possessive Baby Development"
+              : 'Baby Development',
+          style: const TextStyle(
             color: AppColors.textDark,
             fontWeight: FontWeight.w700,
           ),
@@ -222,7 +234,7 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                                           fontWeight: FontWeight.w800,
                                           color: AppColors.roseDeep)),
                                   Text(
-                                      'Your baby is the size of\n${week['size']}',
+                                      '$_possessive baby is the size of\n${week['size']}',
                                       style: const TextStyle(
                                           fontSize: 14,
                                           color: AppColors.textMid,

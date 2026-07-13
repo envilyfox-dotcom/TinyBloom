@@ -106,16 +106,16 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/volunteer/profile')) idx = 4;
         } else if (isNextOfKin) {
-          // Home(0) | Logs(1) | Consultation(2) | AI Chatbot(3) | Articles(4) | Checklist(5)
+          // Home(0) | Logs(1) | Consultation(2) | Articles(3) | Checklist(4) | Profile(5)
           if (location.startsWith('/logs')) {
             idx = 1;
           } else if (location.startsWith('/consultation'))
             idx = 2;
-          else if (location.startsWith('/chatbot'))
-            idx = 3;
           else if (location.startsWith('/education'))
+            idx = 3;
+          else if (location.startsWith('/next-of-kin/checklist'))
             idx = 4;
-          else if (location.startsWith('/next-of-kin/checklist')) idx = 5;
+          else if (location.startsWith('/profile')) idx = 5;
         } else if (isMum) {
           if (location.startsWith('/logs')) {
             idx = 1;
@@ -289,7 +289,13 @@ final router = GoRouter(
 
     GoRoute(
         path: '/baby-development',
-        builder: (_, __) => const BabyDevelopmentScreen()),
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return BabyDevelopmentScreen(
+            patientUserId: extra?['userId'] as String?,
+            patientName: extra?['name'] as String?,
+          );
+        }),
     GoRoute(
         path: '/milestone-journey',
         builder: (_, __) => const MilestoneJourneyScreen()),
