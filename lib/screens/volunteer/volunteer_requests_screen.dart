@@ -316,7 +316,7 @@ class _RequestCardState extends State<_RequestCard> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.circle, size: 6, color: AppColors.textLight),
+                    const Icon(Icons.circle, size: 6, color: AppColors.textLight),
                     const SizedBox(width: 4),
                     Text(mumName,
                         style: GoogleFonts.poppins(
@@ -492,7 +492,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                           fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   Row(children: [
-                    Icon(Icons.circle, size: 6, color: AppColors.textLight),
+                    const Icon(Icons.circle, size: 6, color: AppColors.textLight),
                     const SizedBox(width: 4),
                     Text(mumName,
                         style: GoogleFonts.poppins(
@@ -809,7 +809,7 @@ class _BookingDetailCardState extends State<BookingDetailCard> {
                 ],
               ),
               const SizedBox(height: 10),
-              _infoLine('Appointment ID', appointmentIdLabel(id)),
+              _infoLine('Appointment ID', appointmentIdLabel(id, 'volunteer')),
               _infoLine('Name', mumName),
               _infoLine('Age', patientAge == '—' ? '—' : '$patientAge yrs old'),
               _infoLine(

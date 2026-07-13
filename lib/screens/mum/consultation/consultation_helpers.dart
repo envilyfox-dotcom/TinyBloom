@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
@@ -74,15 +75,58 @@ String trimesterLabel(int week) {
   return 'Unknown Trimester';
 }
 
-/// Shortens a consultation row's database id into a readable identifier
-/// like "APT-3F9A2B" for display.
-String appointmentIdLabel(dynamic id) {
+/// Deterministic 6-digit number derived from a consultation row's database
+/// id, so the same appointment always displays the same number for both
+/// parties without needing a round trip to the server.
+int _appointmentIdNumber(dynamic id) {
   final text = id?.toString() ?? '';
-  if (text.isEmpty) return 'APT-000000';
-  final compact = text.replaceAll('-', '');
-  final tail =
-      compact.length > 6 ? compact.substring(compact.length - 6) : compact;
-  return 'APT-${tail.toUpperCase()}';
+  if (text.isEmpty) return 0;
+  var hash = 0;
+  for (final unit in text.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  return 100000 + (hash % 900000);
+}
+
+/// Shortens a consultation row's database id into a readable identifier,
+/// prefixed by which kind of actor is running the meeting: "VOL-482913" for
+/// volunteer consultations, "SPC-482913" for specialist ones. Support can
+/// then tell at a glance which actor initiated the meeting from the id alone.
+String appointmentIdLabel(dynamic id, [String? consultationType]) {
+  final prefix =
+      (consultationType ?? 'specialist').toLowerCase() == 'volunteer'
+          ? 'VOL'
+          : 'SPC';
+  return '$prefix-${_appointmentIdNumber(id)}';
+}
+
+/// Displays the shared appointment id (same value for both the patient and
+/// the provider, since both are derived from the same consultation row's
+/// id) with a tap-to-copy affordance for quoting to support.
+Widget appointmentIdValue(BuildContext context, dynamic id,
+    [String? consultationType]) {
+  final label = appointmentIdLabel(id, consultationType);
+  return InkWell(
+    borderRadius: BorderRadius.circular(6),
+    onTap: () async {
+      await Clipboard.setData(ClipboardData(text: label));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Appointment ID copied to clipboard')),
+        );
+      }
+    },
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        const SizedBox(width: 6),
+        const Icon(Icons.copy_rounded, size: 15, color: AppColors.textMid),
+      ],
+    ),
+  );
 }
 
 const List<String> defaultConsultationTimes = [
