@@ -44,31 +44,42 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     } catch (_) {}
 
     try {
+      // Same source as the "My Consultations" tab: a video call from an
+      // ask-a-volunteer chat thread, once the mum has accepted it and
+      // before the chat's closed. A same-day call whose slot has already
+      // passed isn't "upcoming" either, even though its date still
+      // matches today.
       final data = await SupabaseService.client
-          .from('consultations')
+          .from('volunteer_requests')
           .select()
-          .eq('specialist_id', SupabaseService.currentUser!.id)
-          .gte('scheduled_date',
-              DateTime.now().toIso8601String().split('T').first)
+          .eq('volunteer_id', SupabaseService.currentUser!.id)
+          .eq('call_status', 'accepted')
+          .neq('status', 'closed')
           .order('scheduled_date');
       final now = DateTime.now();
-      // A mum's booking only counts as an upcoming consultation once it's
-      // been accepted — while pending it belongs on the Request tab instead,
-      // and a declined/cancelled one never counts as a session at all. A
-      // same-day appointment whose time has already passed isn't "upcoming"
-      // either, even though its date still matches today.
-      sessions = List<Map<String, dynamic>>.from(data).where((s) {
-        final isBooking = s['patient_id'] != null;
-        if (isBooking) {
-          final status = s['status'] as String? ?? 'pending';
-          if (status == 'pending' || status == 'cancelled') return false;
-        }
-        final date = DateTime.tryParse(s['scheduled_date']?.toString() ?? '');
+      final rows = List<Map<String, dynamic>>.from(data).where((r) {
+        final date = DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
         if (date == null) return false;
-        final timeStr = s['scheduled_time'] as String?;
+        final timeStr = r['scheduled_time'] as String?;
         final at = timeStr != null ? slotDateTime(date, timeStr) : null;
         return (at ?? date).isAfter(now);
       }).take(5).toList();
+
+      final patientIds = rows
+          .map((r) => r['patient_id'] as String?)
+          .whereType<String>()
+          .toSet();
+      final names = <String, String>{};
+      await Future.wait(patientIds.map((id) async {
+        try {
+          final profile = await SupabaseService.getProfileById(id);
+          final name = profile?['full_name'] as String?;
+          if (name != null) names[id] = name;
+        } catch (_) {}
+      }));
+      sessions = rows
+          .map((r) => {...r, '_mumName': names[r['patient_id']]})
+          .toList();
     } catch (_) {}
 
     try {
@@ -87,6 +98,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .limit(5);
       final rows = List<Map<String, dynamic>>.from(data);
       await SupabaseService.autoCloseStaleRequests(rows);
+      await SupabaseService.expireStaleCallRequests(rows);
       rows.removeWhere((r) => r['status'] == 'closed');
 
       final patientIds = rows
@@ -139,38 +151,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     }
   }
 
-  void _logout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Logout',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        content: Text('Are you sure you want to logout?',
-            style: GoogleFonts.poppins(fontSize: 14, color: _roseDark)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: _roseDark)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await context.read<AuthProvider>().signOut();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _pink,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            child:
-                Text('Logout', style: GoogleFonts.poppins(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -214,32 +194,14 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   }
 
   Widget _buildTopBar(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Image.asset(
-          'assets/images/logo.png',
-          height: 32,
-          errorBuilder: (_, __, ___) => Text(
-            'TinyBloom',
-            style: GoogleFonts.poppins(
-                color: _pink, fontWeight: FontWeight.w700, fontSize: 18),
-          ),
-        ),
-        // Logout button — top right per wireframe
-        TextButton(
-          onPressed: () => _logout(context),
-          style: TextButton.styleFrom(
-            foregroundColor: _roseDark,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          ),
-          child: Text(
-            'Logout',
-            style: GoogleFonts.poppins(
-                fontSize: 13, color: _roseDark, fontWeight: FontWeight.w500),
-          ),
-        ),
-      ],
+    return Image.asset(
+      'assets/images/logo.png',
+      height: 32,
+      errorBuilder: (_, __, ___) => Text(
+        'TinyBloom',
+        style: GoogleFonts.poppins(
+            color: _pink, fontWeight: FontWeight.w700, fontSize: 18),
+      ),
     );
   }
 
@@ -394,56 +356,66 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         if (_upcomingSessions.isEmpty)
           _emptyCard('No upcoming consultations.')
         else
-          ..._upcomingSessions.map((s) => _sessionCard(s)),
+          ..._upcomingSessions.map((s) => _sessionCard(context, s)),
       ],
     );
   }
 
-  Widget _sessionCard(Map<String, dynamic> session) {
+  Widget _sessionCard(BuildContext context, Map<String, dynamic> session) {
     final date = session['scheduled_date'] != null
         ? DateTime.tryParse(session['scheduled_date'].toString())
         : null;
     final dateStr =
         date != null ? '${date.day}/${date.month}/${date.year}' : 'TBD';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: _pink.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _pink.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+    final mumName = session['_mumName'] as String? ?? 'A mum';
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RequestDetailScreen(request: session),
+        ),
+      ).then((_) => _loadData()),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+                color: _pink.withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2))
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _pink.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.video_call_outlined, color: _pink),
             ),
-            child: const Icon(Icons.video_call_outlined, color: _pink),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(session['purpose'] ?? 'Consultation',
-                    style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppColors.textDark)),
-                Text('$dateStr · ${session['scheduled_time'] ?? ''}',
-                    style: GoogleFonts.poppins(fontSize: 11, color: _roseDark)),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Video call with $mumName',
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.textDark)),
+                  Text('$dateStr · ${session['scheduled_time'] ?? ''}',
+                      style:
+                          GoogleFonts.poppins(fontSize: 11, color: _roseDark)),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

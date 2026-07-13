@@ -152,16 +152,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               color: AppColors.textDark, size: 28),
           onPressed: () => context.go('/home'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => _logout(context),
-            child: Text('Logout',
-                style: GoogleFonts.poppins(
-                    color: AppColors.textLight,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500)),
-          ),
-        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.rose))

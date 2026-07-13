@@ -800,6 +800,113 @@ class SupabaseService {
         .update({'status': 'closed'}).eq('id', requestId);
   }
 
+  // The assigned volunteer asks to start a video call at a proposed date
+  // and time. The mum sees this as an accept/decline prompt in her thread
+  // view, with the proposed slot shown. call_requested_at is what lets a
+  // stale, never-answered request expire after 48h (see
+  // expireStaleCallRequests) instead of holding its slot forever.
+  static Future<void> requestVideoCall(
+      String requestId, DateTime scheduledDate, String scheduledTime) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client.from('volunteer_requests').update({
+      'call_status': 'requested',
+      'call_requested_by': user.id,
+      'call_requested_at': DateTime.now().toIso8601String(),
+      'scheduled_date': scheduledDate.toIso8601String().split('T').first,
+      'scheduled_time': scheduledTime,
+    }).eq('id', requestId);
+  }
+
+  static Future<void> declineVideoCall(String requestId) async {
+    await client
+        .from('volunteer_requests')
+        .update({'call_status': 'declined'}).eq('id', requestId);
+  }
+
+  // Slots this volunteer has already proposed to some mum (still pending
+  // an accept/decline, not yet 48h stale) on the given date — kept out of
+  // the request picker so the same slot can't be double-proposed to two
+  // different mums at once.
+  static Future<Set<String>> getHeldCallTimesForDate(DateTime date) async {
+    final user = currentUser;
+    if (user == null) return {};
+    final cutoff = DateTime.now().subtract(const Duration(hours: 48));
+    final dateStr = date.toIso8601String().split('T').first;
+    try {
+      final rows = await client
+          .from('volunteer_requests')
+          .select('scheduled_time, call_requested_at')
+          .eq('volunteer_id', user.id)
+          .eq('call_status', 'requested')
+          .eq('scheduled_date', dateStr);
+      return List<Map<String, dynamic>>.from(rows)
+          .where((r) {
+            final requestedAt =
+                DateTime.tryParse(r['call_requested_at']?.toString() ?? '');
+            return requestedAt != null && requestedAt.isAfter(cutoff);
+          })
+          .map((r) => r['scheduled_time'] as String)
+          .toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  // Client-side sweep (same pattern as autoCloseStaleRequests): a call
+  // request nobody answered within 48h releases its held slot by
+  // reverting to 'none', rather than blocking that time forever and
+  // leaving the mum staring at a prompt for a call time that's long past.
+  static Future<void> expireStaleCallRequests(
+      List<Map<String, dynamic>> requests) async {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 48));
+    final stale = requests.where((r) {
+      if (r['call_status'] != 'requested') return false;
+      final requestedAt =
+          DateTime.tryParse(r['call_requested_at']?.toString() ?? '');
+      return requestedAt != null && requestedAt.isBefore(cutoff);
+    }).toList();
+    if (stale.isEmpty) return;
+    final staleIds = stale.map((r) => r['id'].toString()).toList();
+    try {
+      await client
+          .from('volunteer_requests')
+          .update({'call_status': 'none'}).inFilter('id', staleIds);
+      for (final r in stale) {
+        r['call_status'] = 'none';
+      }
+    } catch (_) {}
+  }
+
+  // Accepting just flips the status — the volunteer still needs to send
+  // an actual Zoom link afterward via sendMeetingLink. A partial unique
+  // index (volunteer_id, scheduled_date, scheduled_time) where accepted
+  // and not closed stops this from succeeding if the volunteer already
+  // has another accepted call at that exact slot — same 23505-catching
+  // pattern as the legacy consultation booking uniqueness constraint.
+  static Future<void> acceptVideoCall(String requestId) async {
+    try {
+      await client
+          .from('volunteer_requests')
+          .update({'call_status': 'accepted'}).eq('id', requestId);
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception(
+            'Your volunteer already has another call accepted at that time. Ask them to propose a different slot.');
+      }
+      rethrow;
+    }
+  }
+
+  // The assigned volunteer pastes in a Zoom meeting link they created
+  // themselves (there's no Zoom API integration — this is just a plain
+  // text field), which both sides then use to join the call.
+  static Future<void> sendMeetingLink(String requestId, String link) async {
+    await client
+        .from('volunteer_requests')
+        .update({'meeting_link': link}).eq('id', requestId);
+  }
+
   // Client-side equivalent of a cron job: whenever a list or detail screen
   // loads, flip any 'responded' (claimed, active) thread with no activity
   // in 48h to 'closed'. Mutates the passed-in rows in place so the caller's

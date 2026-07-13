@@ -203,12 +203,6 @@ final router = GoRouter(
             return VolunteerSessionsScreen(
                 initialTab: initialTab, completedOnly: completedOnly);
           },
-          routes: [
-            GoRoute(
-              path: 'new',
-              builder: (_, __) => const NewVolunteerSessionScreen(),
-            ),
-          ],
         ),
         GoRoute(
           path: '/volunteer/requests',

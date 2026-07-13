@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
@@ -29,8 +31,14 @@ class _VolunteerQuestionDetailScreenState
   List<Map<String, dynamic>> _messages = [];
   String? _myPhotoUrl;
   String? _volunteerPhotoUrl;
+  bool _respondingToCall = false;
 
   bool get _isClosed => widget.request['status'] == 'closed';
+  String get _callStatus => widget.request['call_status'] as String? ?? 'none';
+  String? get _meetingLink => widget.request['meeting_link'] as String?;
+  DateTime? get _scheduledDate =>
+      DateTime.tryParse(widget.request['scheduled_date']?.toString() ?? '');
+  String? get _scheduledTime => widget.request['scheduled_time'] as String?;
   // Amending the original question is only sensible before anyone's
   // claimed it — once a volunteer is chatting (or the chat's closed),
   // changing the question out from under the conversation would be
@@ -69,10 +77,14 @@ class _VolunteerQuestionDetailScreenState
       if (fresh != null) {
         final freshRow = Map<String, dynamic>.from(fresh);
         await SupabaseService.autoCloseStaleRequests([freshRow]);
+        await SupabaseService.expireStaleCallRequests([freshRow]);
         widget.request['volunteer_id'] = freshRow['volunteer_id'];
         widget.request['status'] = freshRow['status'];
         widget.request['question'] = freshRow['question'];
-        widget.request['response'] = freshRow['response'];
+        widget.request['call_status'] = freshRow['call_status'];
+        widget.request['meeting_link'] = freshRow['meeting_link'];
+        widget.request['scheduled_date'] = freshRow['scheduled_date'];
+        widget.request['scheduled_time'] = freshRow['scheduled_time'];
       }
       final msgs =
           await SupabaseService.getRequestMessages(widget.request['id'].toString());
@@ -128,6 +140,125 @@ class _VolunteerQuestionDetailScreenState
     }
   }
 
+  Future<void> _acceptVideoCall() async {
+    setState(() => _respondingToCall = true);
+    try {
+      await SupabaseService.acceptVideoCall(widget.request['id'].toString());
+      widget.request['call_status'] = 'accepted';
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _respondingToCall = false);
+    }
+  }
+
+  Future<void> _declineVideoCall() async {
+    setState(() => _respondingToCall = true);
+    try {
+      await SupabaseService.declineVideoCall(widget.request['id'].toString());
+      widget.request['call_status'] = 'declined';
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _respondingToCall = false);
+    }
+  }
+
+  // The volunteer's stored meeting_link keeps the whole pasted invite
+  // (join link, meeting ID, passcode) rather than just a bare URL, so
+  // pull out just the http(s) link to actually launch on tap.
+  static final _urlPattern = RegExp(r'https?://\S+');
+
+  Future<void> _openMeetingLink(String link) async {
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the video call link.')));
+    }
+  }
+
+  Widget _videoCallControl() {
+    switch (_callStatus) {
+      case 'requested':
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    _scheduledDate != null && _scheduledTime != null
+                        ? 'Your volunteer wants to start a video call on ${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime.'
+                        : 'Your volunteer wants to start a video call.',
+                    style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _respondingToCall ? null : _declineVideoCall,
+                        child: const Text('Decline'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TBButton(
+                        label: 'Accept',
+                        loading: _respondingToCall,
+                        onPressed: _respondingToCall ? null : _acceptVideoCall,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      case 'accepted':
+        if (_meetingLink == null || _meetingLink!.trim().isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.teal.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                  'You accepted — waiting for your volunteer to send the video call link.',
+                  style: TextStyle(color: AppColors.textMid, fontSize: 12)),
+            ),
+          );
+        }
+        // Once a link's been sent, the "Join Call" button attached to
+        // that message in the thread (see _messageTile) is enough — no
+        // need for a second, persistent one down here too.
+        return const SizedBox.shrink();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   Future<void> _save() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) {
@@ -162,6 +293,8 @@ class _VolunteerQuestionDetailScreenState
     final name = mine ? 'You' : 'Volunteer';
     final photo = mine ? _myPhotoUrl : _volunteerPhotoUrl;
     final createdAt = DateTime.tryParse(msg['created_at']?.toString() ?? '');
+    final text = msg['message'] as String? ?? '';
+    final messageLink = _urlPattern.firstMatch(text)?.group(0);
 
     final avatar = CircleAvatar(
       radius: 14,
@@ -197,9 +330,24 @@ class _VolunteerQuestionDetailScreenState
             ],
           ),
           const SizedBox(height: 2),
-          Text(msg['message'] ?? '',
+          SelectableText(text,
               textAlign: mine ? TextAlign.right : TextAlign.left,
               style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
+          if (messageLink != null) ...[
+            const SizedBox(height: 6),
+            OutlinedButton.icon(
+              onPressed: () => _openMeetingLink(messageLink),
+              icon: const Icon(Icons.videocam, size: 14),
+              label: const Text('Join Call', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.teal,
+                side: const BorderSide(color: AppColors.teal),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -217,13 +365,8 @@ class _VolunteerQuestionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final legacyResponse = widget.request['response'] as String?;
     final status = widget.request['status'] as String? ?? 'pending';
     final isCompleted = _isClosed;
-    final hasLegacyOnly = _messages.isEmpty &&
-        status != 'pending' &&
-        legacyResponse != null &&
-        legacyResponse.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -330,56 +473,23 @@ class _VolunteerQuestionDetailScreenState
             child: _loadingThread
                 ? const Center(
                     child: CircularProgressIndicator(color: AppColors.rose))
-                : hasLegacyOnly
+                : _messages.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(20),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const CircleAvatar(
-                              radius: 14,
-                              backgroundColor: AppColors.tealLight,
-                              child: Text('V',
-                                  style: TextStyle(
-                                      color: AppColors.teal,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 11)),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Volunteer',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w700, fontSize: 13)),
-                                  const SizedBox(height: 2),
-                                  Text(legacyResponse,
-                                      style: const TextStyle(
-                                          color: AppColors.textMid, fontSize: 13)),
-                                ],
-                              ),
-                            ),
-                          ],
+                        child: TBEmptyState(
+                          emoji: statusEmoji(status),
+                          title: 'Waiting for a response',
+                          subtitle:
+                              'A community volunteer will reply here once they\'ve seen your question. You can still edit it until then.',
                         ),
                       )
-                    : _messages.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: TBEmptyState(
-                              emoji: statusEmoji(status),
-                              title: 'Waiting for a response',
-                              subtitle:
-                                  'A community volunteer will reply here once they\'ve seen your question. You can still edit it until then.',
-                            ),
-                          )
-                        : ListView.builder(
-                            controller: _scrollCtrl,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 8),
-                            itemCount: _messages.length,
-                            itemBuilder: (ctx, i) => _messageTile(_messages[i]),
-                          ),
+                    : ListView.builder(
+                        controller: _scrollCtrl,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                        itemCount: _messages.length,
+                        itemBuilder: (ctx, i) => _messageTile(_messages[i]),
+                      ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -397,6 +507,7 @@ class _VolunteerQuestionDetailScreenState
                         style:
                             TextStyle(color: AppColors.textLight, fontSize: 11)),
                   ),
+                _videoCallControl(),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
