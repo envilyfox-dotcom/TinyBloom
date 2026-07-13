@@ -64,67 +64,74 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) context.go('/consultation');
+      },
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'Volunteer Consultation',
-          style: TextStyle(
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w700,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+            onPressed: () => backOrToHub(context),
+          ),
+          title: const Text(
+            'Volunteer Consultation',
+            style: TextStyle(
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
-      ),
-      body: _loading
-          ? const TBLoading()
-          : RefreshIndicator(
-              color: AppColors.rose,
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                children: [
-                  Text('Volunteer Consultation',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(fontSize: 26)),
-                  const SizedBox(height: 4),
-                  const Text(
-                    "Choose a community volunteer. Today's remaining timings are shown. You can select another date on the next screen.",
-                    style: TextStyle(
-                      color: AppColors.textMid,
-                      fontSize: 13,
-                      height: 1.35,
+        body: _loading
+            ? const TBLoading()
+            : RefreshIndicator(
+                color: AppColors.rose,
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  children: [
+                    Text('Volunteer Consultation',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(fontSize: 26)),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Choose a community volunteer. Today's remaining timings are shown. You can select another date on the next screen.",
+                      style: TextStyle(
+                        color: AppColors.textMid,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (_error != null)
-                    TBEmptyState(
-                        emoji: '⚠️',
-                        title: 'Couldn\'t load volunteers',
-                        subtitle: _error!,
-                        buttonLabel: 'Retry',
-                        onButton: () {
-                          setState(() => _loading = true);
-                          _load();
-                        })
-                  else if (_volunteers.isEmpty)
-                    const TBEmptyState(
-                        emoji: '🤝',
-                        title: 'No volunteers available',
-                        subtitle: 'Check back later for available volunteers.')
-                  else
-                    ..._volunteers
-                        .map((v) => providerCard(context, v, 'volunteer')),
-                ],
+                    const SizedBox(height: 20),
+                    if (_error != null)
+                      TBEmptyState(
+                          emoji: '⚠️',
+                          title: 'Couldn\'t load volunteers',
+                          subtitle: _error!,
+                          buttonLabel: 'Retry',
+                          onButton: () {
+                            setState(() => _loading = true);
+                            _load();
+                          })
+                    else if (_volunteers.isEmpty)
+                      const TBEmptyState(
+                          emoji: '🤝',
+                          title: 'No volunteers available',
+                          subtitle:
+                              'Check back later for available volunteers.')
+                    else
+                      ..._volunteers
+                          .map((v) => providerCard(context, v, 'volunteer')),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }

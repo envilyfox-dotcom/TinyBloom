@@ -5,6 +5,18 @@ import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 
+/// Pops back to the previous screen when possible; otherwise falls back to
+/// the consultations hub ("My Consultations" / "Book New"). Needed on
+/// screens reachable via a booking confirmation's context.go() redirect,
+/// which clears navigation history and leaves nothing left to pop.
+void backOrToHub(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/consultation');
+  }
+}
+
 Color statusColor(String status) {
   switch (status.toLowerCase()) {
     case 'confirmed':
@@ -68,7 +80,8 @@ String appointmentIdLabel(dynamic id) {
   final text = id?.toString() ?? '';
   if (text.isEmpty) return 'APT-000000';
   final compact = text.replaceAll('-', '');
-  final tail = compact.length > 6 ? compact.substring(compact.length - 6) : compact;
+  final tail =
+      compact.length > 6 ? compact.substring(compact.length - 6) : compact;
   return 'APT-${tail.toUpperCase()}';
 }
 
@@ -507,9 +520,7 @@ Widget providerCard(
               spacing: 8,
               runSpacing: 8,
               children: isSpecialist
-                  ? helpsWith
-                      .map((h) => _helpsChip(h, accent))
-                      .toList()
+                  ? helpsWith.map((h) => _helpsChip(h, accent)).toList()
                   : services
                       .map((s) => GestureDetector(
                             onTap: () =>
@@ -672,8 +683,7 @@ void _showServiceDetailsSheet(
     final date = DateTime.tryParse(parts[0]);
     final dateStr =
         date != null ? DateFormat('d MMM yyyy').format(date) : parts[0];
-    availabilityLabel =
-        parts.length > 1 ? '$dateStr · ${parts[1]}' : dateStr;
+    availabilityLabel = parts.length > 1 ? '$dateStr · ${parts[1]}' : dateStr;
   }
 
   showModalBottomSheet(

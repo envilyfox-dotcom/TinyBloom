@@ -60,6 +60,10 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
     }
   }
 
+  String get _listingRoute => widget.type == 'volunteer'
+      ? '/consultation/volunteers'
+      : '/consultation/specialists';
+
   // Once a booking is confirmed, going "back" (app bar arrow or hardware
   // back) must not return to the date/time form underneath -- that screen
   // still holds the now-booked date/time selected, and re-pressing "Confirm
@@ -67,7 +71,7 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
   // send the user to the same place the "Done" button goes.
   void _leave() {
     if (_submitted) {
-      context.go('/consultation/specialists');
+      context.go(_listingRoute);
     } else {
       context.pop();
     }
@@ -107,7 +111,7 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
     return PopScope(
       canPop: !_submitted,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _submitted) context.go('/consultation/specialists');
+        if (!didPop && _submitted) context.go(_listingRoute);
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
@@ -254,7 +258,7 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => context.go('/consultation/specialists'),
+                    onPressed: () => context.go(_listingRoute),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
