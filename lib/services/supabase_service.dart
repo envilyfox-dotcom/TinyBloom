@@ -631,12 +631,25 @@ class SupabaseService {
   static Future<void> bookConsultation(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
-    await client.from('consultations').insert({
-      ...data,
-      'patient_id': user.id,
-      'status': 'pending',
-      'created_at': DateTime.now().toIso8601String(),
-    });
+    try {
+      await client.from('consultations').insert({
+        ...data,
+        'patient_id': user.id,
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } on PostgrestException catch (e) {
+      // 23505 = unique_violation. A DB-level constraint (see
+      // add_consultation_booking_uniqueness.sql) blocks two active bookings
+      // for the same specialist/date/time, so this is the "someone (possibly
+      // this same patient, e.g. via back-button double-submit) already holds
+      // this slot" case rather than an unexpected failure.
+      if (e.code == '23505') {
+        throw Exception(
+            'That time slot is no longer available. Please choose a different time.');
+      }
+      rethrow;
+    }
   }
 
   // Cancelling marks the row as "cancelled" rather than deleting it, so the
