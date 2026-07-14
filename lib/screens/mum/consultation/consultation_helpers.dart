@@ -50,6 +50,16 @@ String statusEmoji(String status) {
   }
 }
 
+/// Same status glyph as [statusEmoji], except "expired" gets a red question
+/// mark instead of the hourglass it'd otherwise share with "pending" — the
+/// two looked identical at a glance.
+Widget statusIconWidget(String status, {double size = 20}) {
+  if (status.toLowerCase() == 'expired') {
+    return Icon(Icons.question_mark_rounded, color: Colors.red, size: size);
+  }
+  return Text(statusEmoji(status), style: TextStyle(fontSize: size));
+}
+
 String statusLabel(String status) {
   switch (status.toLowerCase()) {
     case 'confirmed':

@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:shimmer/shimmer.dart';
 import '../utils/app_theme.dart';
 
 // Neither the markdown package nor raw `<u>` HTML tags support underline —
@@ -43,6 +45,49 @@ class _UnderlineBuilder extends MarkdownElementBuilder {
   }
 }
 
+// Inline images (from Create Article's image button) render with no size
+// hint from markdown, so the default renderer pops the image in the instant
+// it finishes downloading and the layout jumps. A shimmer skeleton at a
+// placeholder height shows progress until then; the loaded image is scaled
+// to the article's full width at its own natural aspect ratio (BoxFit.fitWidth)
+// rather than a fixed box, so nothing gets cropped.
+class _ImageBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final src = element.attributes['src'];
+    if (src == null || src.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: CachedNetworkImage(
+          imageUrl: src,
+          width: double.infinity,
+          fit: BoxFit.fitWidth,
+          fadeInDuration: const Duration(milliseconds: 200),
+          placeholder: (context, url) => Shimmer.fromColors(
+            baseColor: AppColors.rose.withValues(alpha: 0.08),
+            highlightColor: AppColors.rose.withValues(alpha: 0.18),
+            child: Container(width: double.infinity, height: 180, color: Colors.white),
+          ),
+          errorWidget: (context, url, error) => Container(
+            width: double.infinity,
+            height: 180,
+            color: AppColors.rose.withValues(alpha: 0.08),
+            child: const Icon(Icons.broken_image_outlined,
+                color: AppColors.textLight),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Article Content ───────────────────────────────────────────────
 // Renders article body text written with Create Article's formatting
 // toolbar (bold/italic/underline/emoji/inline images) consistently
@@ -61,7 +106,7 @@ class ArticleContent extends StatelessWidget {
       data: data,
       selectable: true,
       inlineSyntaxes: [_UnderlineSyntax()],
-      builders: {'u': _UnderlineBuilder()},
+      builders: {'u': _UnderlineBuilder(), 'img': _ImageBuilder()},
       styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
         p: baseStyle,
         strong: baseStyle.copyWith(fontWeight: FontWeight.w700),

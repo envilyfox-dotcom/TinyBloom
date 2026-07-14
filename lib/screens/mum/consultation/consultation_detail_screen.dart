@@ -165,8 +165,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     final c = widget.consultation;
     final status = (c['status'] as String?) ?? 'pending';
     final profile = _provider?['profiles'] as Map<String, dynamic>? ?? {};
+    final isSpecialist = _provider?['provider_type'] == 'specialist';
     final name = profile['full_name'] as String? ?? 'Provider';
-    final role = _provider?['provider_type'] == 'specialist'
+    final displayName = isSpecialist ? 'Dr. $name' : name;
+    final role = isSpecialist
         ? (_provider?['specialization'] as String? ?? 'Specialist')
         : (_provider?['expertise'] as String? ?? 'Volunteer');
     final dateStr = c['scheduled_date'] != null
@@ -298,6 +300,16 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       ],
                     ),
                   ),
+                  if (status == 'expired') ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '$displayName did not confirm your consultation request. Please book another specialist.',
+                      style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   if (status == 'confirmed' || status == 'pending')
                     SizedBox(

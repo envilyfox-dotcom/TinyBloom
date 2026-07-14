@@ -348,6 +348,29 @@ class SupabaseService {
     return res;
   }
 
+  // Non-superseded approvals (plain or with-suggestion) on a published
+  // article, for the "Approved by" panel on the Educational Post detail
+  // screen. Relies on a public-read RLS policy scoped to decision='approve'
+  // rows on published content — approvals on pre-publish content stay
+  // restricted to review-scope doctors.
+  static Future<List<Map<String, dynamic>>> getArticleApprovals(
+      String contentId) async {
+    try {
+      final res = await client
+          .from('approvals')
+          .select('stage, reviewer_id, has_suggestion, '
+              'reviewer:profiles!reviewer_id(full_name, profile_picture_url, '
+              'specialist_profiles(specialization))')
+          .eq('content_id', contentId)
+          .eq('decision', 'approve')
+          .eq('superseded', false)
+          .order('stage');
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
+  }
+
   static Future<Set<String>> getLikedArticleIds(List<String> articleIds) async {
     final user = currentUser;
     if (user == null || articleIds.isEmpty) return {};
@@ -473,16 +496,15 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Count of the specialist's own articles that have made it all the way to
-  // "published" — shown as "Articles Published" on their profile.
-  static Future<int> getMyPublishedArticlesCount() async {
-    final user = currentUser;
-    if (user == null) return 0;
+  // Count of a specialist's own articles that have made it all the way to
+  // "published" — shown as "Articles Published" on their profile (their own
+  // or another specialist's, viewed read-only).
+  static Future<int> getPublishedArticlesCountForUser(String userId) async {
     try {
       final res = await client
           .from('articles')
           .select('id')
-          .eq('created_by', user.id)
+          .eq('created_by', userId)
           .eq('status', 'published');
       return List.from(res).length;
     } catch (_) {
@@ -490,22 +512,37 @@ class SupabaseService {
     }
   }
 
-  // Count of review actions the specialist has made as a reviewer — every
-  // approval row they're the reviewer on, whether a plain approval, an
-  // approval with suggestion, or a rejection ("issue" comment) — shown as
-  // "Articles Reviewed" on their profile.
-  static Future<int> getMyReviewActionsCount() async {
+  static Future<int> getMyPublishedArticlesCount() async {
     final user = currentUser;
     if (user == null) return 0;
+    return getPublishedArticlesCountForUser(user.id);
+  }
+
+  // Count of distinct articles a specialist has reviewed — counted once per
+  // article regardless of how many approval rows they left on it (e.g. an
+  // "issue" comment followed later by the approval that resolved it), so
+  // raising and then clearing an issue doesn't inflate the count — shown as
+  // "Articles Reviewed" on their profile.
+  static Future<int> getReviewActionsCountForUser(String userId) async {
     try {
       final res = await client
           .from('approvals')
-          .select('id')
-          .eq('reviewer_id', user.id);
-      return List.from(res).length;
+          .select('content_id')
+          .eq('reviewer_id', userId);
+      final contentIds = List<Map<String, dynamic>>.from(res)
+          .map((row) => row['content_id'])
+          .whereType<Object>()
+          .toSet();
+      return contentIds.length;
     } catch (_) {
       return 0;
     }
+  }
+
+  static Future<int> getMyReviewActionsCount() async {
+    final user = currentUser;
+    if (user == null) return 0;
+    return getReviewActionsCountForUser(user.id);
   }
 
   static Future<void> deleteArticleDraft(String id) async {
@@ -1118,11 +1155,18 @@ class SupabaseService {
   static Future<Map<String, dynamic>?> getMySpecialistProfile() async {
     final user = currentUser;
     if (user == null) return null;
+    return getSpecialistProfileByUserId(user.id);
+  }
+
+  // Get any specialist's profile by user id — used for the read-only
+  // profile view opened from an article's author/reviewer avatar.
+  static Future<Map<String, dynamic>?> getSpecialistProfileByUserId(
+      String userId) async {
     try {
       final res = await client
           .from('specialist_profiles')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .maybeSingle();
       return res;
     } catch (_) {

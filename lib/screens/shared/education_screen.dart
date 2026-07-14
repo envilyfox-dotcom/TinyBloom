@@ -1,9 +1,17 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'article_open_helper.dart';
+
+void _openAuthorProfile(BuildContext context, Map<String, dynamic>? article) {
+  final authorId = article?['created_by'] as String?;
+  if (authorId == null) return;
+  context.push('/specialist/profile-view', extra: authorId);
+}
 
 String _timeAgo(DateTime date) {
   final diff = DateTime.now().difference(date);
@@ -18,6 +26,27 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   final list = row[key] as List?;
   if (list == null || list.isEmpty) return 0;
   return (list.first as Map)['count'] as int? ?? 0;
+}
+
+// The image markdown syntax (Create Article's image button) at the very
+// start of an article's body, if any — used to show a cropped photo preview
+// on the card instead of an empty/awkward text snippet.
+final _leadingImagePattern = RegExp(r'^!\[[^\]]*\]\(([^)]+)\)');
+String? _leadingImageUrl(String content) {
+  final match = _leadingImagePattern.firstMatch(content.trimLeft());
+  return match?.group(1);
+}
+
+// Strips markdown formatting down to plain text for the card's body
+// preview, since the full ArticleContent markdown renderer is only used on
+// the detail screen.
+String _plainTextPreview(String markdown) {
+  var text = markdown;
+  text = text.replaceAll(RegExp(r'!\[[^\]]*\]\([^)]*\)'), '');
+  text = text.replaceAllMapped(
+      RegExp(r'\[([^\]]+)\]\([^)]*\)'), (m) => m.group(1) ?? '');
+  text = text.replaceAll(RegExp(r'\+\+|\*\*|__|[*_]'), '');
+  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
 // ── Education Screen ──────────────────────────────────────────────
@@ -378,7 +407,11 @@ class _ArticleCardState extends State<_ArticleCard> {
             article['created_at'] as String? ??
             '');
     final excerpt = article['excerpt'] as String? ?? '';
-    final canExpand = excerpt.length > 110;
+    final content = article['content'] as String? ?? '';
+    final leadingImageUrl = _leadingImageUrl(content);
+    final previewText =
+        excerpt.trim().isNotEmpty ? excerpt : _plainTextPreview(content);
+    final canExpand = previewText.length > 110;
     final likeCount = _embeddedCount(article, 'article_likes');
     final commentCount = _embeddedCount(article, 'public_comments');
 
@@ -394,21 +427,24 @@ class _ArticleCardState extends State<_ArticleCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                backgroundImage:
-                    photoUrl != null ? NetworkImage(photoUrl) : null,
-                child: photoUrl == null
-                    ? Text(
-                        authorName.isNotEmpty
-                            ? authorName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                            color: AppColors.roseDeep,
-                            fontWeight: FontWeight.w700),
-                      )
-                    : null,
+              GestureDetector(
+                onTap: () => _openAuthorProfile(context, article),
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                  backgroundImage:
+                      photoUrl != null ? NetworkImage(photoUrl) : null,
+                  child: photoUrl == null
+                      ? Text(
+                          authorName.isNotEmpty
+                              ? authorName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                              color: AppColors.roseDeep,
+                              fontWeight: FontWeight.w700),
+                        )
+                      : null,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -489,10 +525,13 @@ class _ArticleCardState extends State<_ArticleCard> {
                 color: AppColors.textDark,
                 height: 1.25),
           ),
-          if (excerpt.trim().isNotEmpty) ...[
+          if (leadingImageUrl != null) ...[
+            const SizedBox(height: 8),
+            _ContentImagePreview(url: leadingImageUrl),
+          ] else if (previewText.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              excerpt,
+              previewText,
               maxLines: _expanded ? null : 3,
               overflow: _expanded ? null : TextOverflow.ellipsis,
               style: const TextStyle(
@@ -532,6 +571,58 @@ class _ArticleCardState extends State<_ArticleCard> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Preview of an article whose body opens straight with an image (no leading
+// text) — cropped to a fixed height with a fade-to-white at the bottom
+// instead of stretching the full image or showing a blank card, since the
+// full photo is still one tap away on the detail screen.
+class _ContentImagePreview extends StatelessWidget {
+  final String url;
+  const _ContentImagePreview({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 120,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              errorWidget: (context, url, error) => Container(
+                color: AppColors.rose.withValues(alpha: 0.08),
+                child: const Icon(Icons.broken_image_outlined,
+                    color: AppColors.textLight),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 36,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.white.withValues(alpha: 0),
+                      AppColors.white,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

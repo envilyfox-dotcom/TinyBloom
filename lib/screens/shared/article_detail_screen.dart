@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
@@ -21,6 +22,10 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
+// A more saturated green than AppColors.sage for the "Approved by" badge —
+// sage reads too muted against the white card for this particular chip.
+const _approvedGreen = Color(0xFF2E9E5B);
+
 // ── Article Detail ────────────────────────────────────────────────
 class ArticleDetailScreen extends StatefulWidget {
   final Map<String, dynamic> article;
@@ -40,6 +45,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   Map<String, dynamic>? _replyingTo;
   bool _isLiked = false;
   late int _likeCount;
+  List<Map<String, dynamic>> _approvals = [];
+  bool _approvedByExpanded = false;
 
   String? get _articleId => widget.article['id'] as String?;
 
@@ -49,6 +56,21 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     _likeCount = _embeddedCount(widget.article, 'article_likes');
     _loadComments();
     _loadLikeStatus();
+    _loadApprovals();
+  }
+
+  Future<void> _loadApprovals() async {
+    final id = _articleId;
+    if (id == null) return;
+    try {
+      final approvals = await SupabaseService.getArticleApprovals(id);
+      if (mounted) setState(() => _approvals = approvals);
+    } catch (_) {}
+  }
+
+  void _openSpecialistProfile(String? specialistId) {
+    if (specialistId == null) return;
+    context.push('/specialist/profile-view', extra: specialistId);
   }
 
   Future<void> _loadLikeStatus() async {
@@ -224,23 +246,27 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor:
-                                AppColors.rose.withValues(alpha: 0.15),
-                            backgroundImage: authorPhoto != null
-                                ? NetworkImage(authorPhoto)
-                                : null,
-                            child: authorPhoto == null
-                                ? Text(
-                                    authorName.isNotEmpty
-                                        ? authorName[0].toUpperCase()
-                                        : '?',
-                                    style: const TextStyle(
-                                        color: AppColors.roseDeep,
-                                        fontWeight: FontWeight.w700),
-                                  )
-                                : null,
+                          GestureDetector(
+                            onTap: () => _openSpecialistProfile(
+                                article['created_by'] as String?),
+                            child: CircleAvatar(
+                              radius: 20,
+                              backgroundColor:
+                                  AppColors.rose.withValues(alpha: 0.15),
+                              backgroundImage: authorPhoto != null
+                                  ? NetworkImage(authorPhoto)
+                                  : null,
+                              child: authorPhoto == null
+                                  ? Text(
+                                      authorName.isNotEmpty
+                                          ? authorName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                          color: AppColors.roseDeep,
+                                          fontWeight: FontWeight.w700),
+                                    )
+                                  : null,
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -265,86 +291,114 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                               ],
                             ),
                           ),
+                          if (_approvals.isNotEmpty) _approvedByBadge(),
                         ],
                       ),
                       const SizedBox(height: 14),
-                      if (article['category'] != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: AppColors.tealLight,
-                                borderRadius: BorderRadius.circular(50)),
-                            child: Text(article['category'],
-                                style: const TextStyle(
-                                    color: AppColors.teal,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600)),
-                          ),
-                        ),
-                      Text(article['title'] ?? '',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 18)),
-                      const SizedBox(height: 14),
-                      if ((article['url'] as String?)?.isNotEmpty == true) ...[
-                        if (article['excerpt'] != null) ...[
-                          Text(article['excerpt'],
-                              style: const TextStyle(
-                                  color: AppColors.textMid,
-                                  fontSize: 15,
-                                  height: 1.7)),
-                          const SizedBox(height: 20),
-                        ],
-                        TBButton(
-                          label: 'Open Article',
-                          icon: Icons.open_in_new,
-                          onPressed: () => launchUrl(Uri.parse(article['url']),
-                              mode: LaunchMode.externalApplication),
-                        ),
-                      ] else
-                        ArticleContent(
-                            data: article['content'] ??
-                                article['excerpt'] ??
-                                'No content available.',
-                            style: const TextStyle(
-                                color: AppColors.textMid,
-                                fontSize: 14,
-                                height: 1.5)),
-                      const SizedBox(height: 14),
-                      const Divider(),
-                      const SizedBox(height: 4),
-                      Row(
+                      Stack(
+                        clipBehavior: Clip.none,
                         children: [
-                          GestureDetector(
-                            onTap: _toggleLike,
-                            child: Row(
-                              children: [
-                                Icon(
-                                    _isLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: _isLiked
-                                        ? AppColors.rose
-                                        : AppColors.textLight,
-                                    size: 20),
-                                const SizedBox(width: 4),
-                                Text('$_likeCount',
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (article['category'] != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                        color: AppColors.tealLight,
+                                        borderRadius:
+                                            BorderRadius.circular(50)),
+                                    child: Text(article['category'],
+                                        style: const TextStyle(
+                                            color: AppColors.teal,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                ),
+                              Text(article['title'] ?? '',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18)),
+                              const SizedBox(height: 14),
+                              if ((article['url'] as String?)?.isNotEmpty ==
+                                  true) ...[
+                                if (article['excerpt'] != null) ...[
+                                  Text(article['excerpt'],
+                                      style: const TextStyle(
+                                          color: AppColors.textMid,
+                                          fontSize: 15,
+                                          height: 1.7)),
+                                  const SizedBox(height: 20),
+                                ],
+                                TBButton(
+                                  label: 'Open Article',
+                                  icon: Icons.open_in_new,
+                                  onPressed: () => launchUrl(
+                                      Uri.parse(article['url']),
+                                      mode: LaunchMode.externalApplication),
+                                ),
+                              ] else
+                                ArticleContent(
+                                    data: article['content'] ??
+                                        article['excerpt'] ??
+                                        'No content available.',
                                     style: const TextStyle(
                                         color: AppColors.textMid,
-                                        fontSize: 13)),
-                              ],
-                            ),
+                                        fontSize: 14,
+                                        height: 1.5)),
+                              const SizedBox(height: 14),
+                              const Divider(),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: _toggleLike,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 6),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                              _isLiked
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              color: _isLiked
+                                                  ? AppColors.rose
+                                                  : AppColors.textLight,
+                                              size: 20),
+                                          const SizedBox(width: 4),
+                                          Text('$_likeCount',
+                                              style: const TextStyle(
+                                                  color: AppColors.textMid,
+                                                  fontSize: 13)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 20),
+                                  const Icon(Icons.chat_bubble_outline,
+                                      color: AppColors.textLight, size: 18),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                      '${_loadingComments ? _embeddedCount(article, 'public_comments') : _comments.length}',
+                                      style: const TextStyle(
+                                          color: AppColors.textMid,
+                                          fontSize: 13)),
+                                ],
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 20),
-                          const Icon(Icons.chat_bubble_outline,
-                              color: AppColors.textLight, size: 18),
-                          const SizedBox(width: 4),
-                          Text(
-                              '${_loadingComments ? _embeddedCount(article, 'public_comments') : _comments.length}',
-                              style: const TextStyle(
-                                  color: AppColors.textMid, fontSize: 13)),
+                          if (_approvedByExpanded)
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              child: _approvedByOverlayPanel(),
+                            ),
                         ],
                       ),
                     ],
@@ -372,6 +426,112 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           ),
           if (_articleId != null) _commentInputBar(),
         ],
+      ),
+    );
+  }
+
+  // Green dropdown badge — same pill shape as the specialist-side "In
+  // publish buffer" status chip, sat beside the author's name — listing the
+  // reviewers (stage 1 and 2) who approved or approved-with-suggestion this
+  // article. Tapping it opens _approvedByOverlayPanel on top of the content
+  // below, since readers close it again before actually reading the article.
+  Widget _approvedByBadge() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(50),
+      onTap: () => setState(() => _approvedByExpanded = !_approvedByExpanded),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: _approvedGreen.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Approved by',
+                style: TextStyle(
+                    color: _approvedGreen,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
+            Icon(_approvedByExpanded ? Icons.expand_less : Icons.expand_more,
+                color: _approvedGreen, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Darker card than the white article body it sits on top of, so it reads
+  // as a floating panel rather than blending into the content underneath.
+  Widget _approvedByOverlayPanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cream,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.textLight.withValues(alpha: 0.25)),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.textDark.withValues(alpha: 0.12),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [for (final a in _approvals) _approverRow(a)],
+      ),
+    );
+  }
+
+  Widget _approverRow(Map<String, dynamic> approval) {
+    final reviewer = approval['reviewer'] as Map<String, dynamic>?;
+    final reviewerId = approval['reviewer_id'] as String?;
+    final name = reviewer?['full_name'] as String? ?? 'Specialist';
+    final photoUrl = reviewer?['profile_picture_url'] as String?;
+    final specialization = (reviewer?['specialist_profiles']
+        as Map<String, dynamic>?)?['specialization'] as String?;
+    final stage = approval['stage'];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GestureDetector(
+        onTap: () => _openSpecialistProfile(reviewerId),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+              backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+              child: photoUrl == null
+                  ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                          color: AppColors.roseDeep,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12))
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13)),
+                  if (specialization != null)
+                    Text(specialization,
+                        style: const TextStyle(
+                            color: AppColors.textLight, fontSize: 11)),
+                ],
+              ),
+            ),
+            Text('Stage $stage',
+                style:
+                    const TextStyle(color: AppColors.textLight, fontSize: 11)),
+          ],
+        ),
       ),
     );
   }
