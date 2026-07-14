@@ -28,6 +28,7 @@ import 'shared/edit_profile_screen.dart';
 import 'shared/faq_screen.dart';
 import 'shared/education_screen.dart';
 import 'shared/article_detail_screen.dart';
+import 'shared/specialist_profile_view_screen.dart';
 import 'shared/baby_development_screen.dart';
 import 'shared/milestone_journey_screen.dart';
 import 'shared/subscription_screen.dart';
@@ -289,6 +290,10 @@ final router = GoRouter(
         path: '/education/:id',
         builder: (context, state) => ArticleDetailScreen(
             article: (state.extra as Map<String, dynamic>?) ?? {})),
+    GoRoute(
+        path: '/specialist/profile-view',
+        builder: (context, state) => SpecialistProfileViewScreen(
+            specialistId: state.extra as String)),
 
     GoRoute(
         path: '/baby-development',

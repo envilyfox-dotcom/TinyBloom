@@ -148,9 +148,7 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                                           borderRadius:
                                               BorderRadius.circular(10)),
                                       child: Center(
-                                          child: Text(statusEmoji(status),
-                                              style: const TextStyle(
-                                                  fontSize: 20))),
+                                          child: statusIconWidget(status)),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
