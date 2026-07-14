@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/availability_format.dart';
 import '../../utils/pregnancy_week_data.dart';
+import '../../utils/service_id.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -24,6 +26,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     'Consultation',
     'Milestone',
     'Education',
+    'Sessions',
     'Reminder',
     'AI',
   ];
@@ -107,6 +110,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return 'ai';
     }
 
+    if ([
+      'session',
+      'sessions',
+      'volunteersession',
+      'volunteerservice',
+      'volunteerservices',
+    ].contains(clean)) {
+      return 'session';
+    }
+
     return type.isEmpty ? 'general' : type;
   }
 
@@ -167,6 +180,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         plan == 'premium_user' ||
         role == 'premium_user' ||
         role == 'admin';
+  }
+
+  bool _isMumProfile(Map<String, dynamic>? profile) {
+    final role = profile?['role']?.toString().toLowerCase();
+    return role == 'free_user' || role == 'premium_user';
   }
 
   String _notificationReadReceiptKey(String sourceTable, String sourceId) {
@@ -457,6 +475,47 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'source_table': 'articles',
         'source_url': item['url'],
         'category': item['category'],
+      };
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadRowsFromVolunteerServicesTable(
+      Map<String, dynamic>? profile) async {
+    if (!_isMumProfile(profile)) return [];
+
+    final data = await SupabaseService.client
+        .from('volunteer_services')
+        .select('*, volunteer:profiles!volunteer_id(full_name)')
+        .eq('status', 'available')
+        .order('created_at', ascending: false)
+        .limit(20);
+
+    return List<Map<String, dynamic>>.from(data).map((item) {
+      final volunteerName =
+          (item['volunteer'] as Map<String, dynamic>?)?['full_name']
+                  ?.toString() ??
+              'A volunteer';
+      final description = (item['description'] ?? '').toString().trim();
+      final serviceId = formatServiceId(item['service_number']);
+      final rawTitle = (item['title'] ?? 'Volunteer Session').toString();
+
+      return {
+        'id': item['id'],
+        'user_id': null,
+        'title': serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle',
+        'message': description.isEmpty
+            ? 'Tap to view this session.'
+            : description,
+        'type': 'session',
+        'is_read': false,
+        'created_at': item['created_at'],
+        'source_table': 'volunteer_services',
+        'zoom_link': item['zoom_link'],
+        'availability': item['availability'],
+        'consultation_method': item['consultation_method'],
+        'category': item['category'],
+        'volunteer_name': volunteerName,
+        'volunteer_id': item['volunteer_id'],
       };
     }).toList();
   }
@@ -945,6 +1004,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     try {
+      merged.addAll(await _loadRowsFromVolunteerServicesTable(profile));
+    } catch (e) {
+      debugPrint('Failed to load rows from volunteer_services table: $e');
+    }
+
+    try {
       merged.addAll(await _loadRowsFromBabyDevelopmentTable(pregnancyProfile));
     } catch (e) {
       debugPrint('Failed to load rows from baby_development table: $e');
@@ -982,6 +1047,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
 
     mergedWithReadState.sort((a, b) {
+      // Emergency alerts always float to the very top, ahead of every other
+      // category, so a mum never has to scroll past routine updates to see
+      // an urgent one.
+      final aEmergency = _normaliseType(a['type']) == 'emergency' ? 0 : 1;
+      final bEmergency = _normaliseType(b['type']) == 'emergency' ? 0 : 1;
+      final emergencyCompare = aEmergency.compareTo(bEmergency);
+      if (emergencyCompare != 0) return emergencyCompare;
+
       final aRead = a['is_read'] == true ? 1 : 0;
       final bRead = b['is_read'] == true ? 1 : 0;
       final unreadCompare = aRead.compareTo(bRead);
@@ -1709,6 +1782,330 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Future<void> _showSessionDetails(Map<String, dynamic> item) async {
+    final title = (item['title'] ?? 'Volunteer Session').toString();
+    final description = (item['message'] ?? '').toString().trim();
+    final volunteerName = (item['volunteer_name'] ?? 'A volunteer').toString();
+    final volunteerId = item['volunteer_id']?.toString();
+    final availability = (item['availability'] ?? '').toString().trim();
+    final consultationMethod =
+        (item['consultation_method'] ?? '').toString().trim();
+    final zoomLink = (item['zoom_link'] ?? '').toString().trim();
+
+    final body = [
+      if (description.isNotEmpty) description,
+      if (availability.isNotEmpty)
+        'Scheduled: ${formatAvailabilityDisplay(availability)}',
+      if (consultationMethod.isNotEmpty) 'Mode: $consultationMethod',
+    ].join('\n\n');
+
+    await _showInfoSheet(
+      label: 'Volunteer Session',
+      title: title,
+      body: body,
+      icon: Icons.video_call_outlined,
+      color: AppColors.infoBlue,
+      extraChildren: [
+        InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: volunteerId == null
+              ? null
+              : () => _showVolunteerProfileSheet(volunteerId, volunteerName),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.infoBlue.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Center(
+                    child: Text(
+                      volunteerName.isNotEmpty
+                          ? volunteerName[0].toUpperCase()
+                          : 'V',
+                      style: const TextStyle(
+                          color: AppColors.infoBlue,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Hosted by $volunteerName',
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (volunteerId != null)
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.textLight, size: 20),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: zoomLink.isNotEmpty
+              ? OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.infoBlue,
+                    side: const BorderSide(color: AppColors.infoBlue),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                  onPressed: () => _openWebsite(zoomLink),
+                  icon: const Icon(Icons.video_call_outlined, size: 17),
+                  label: const Text('Join via Zoom'),
+                )
+              : const Text(
+                  'Link not shared yet — check back closer to the session.',
+                  style: TextStyle(
+                    color: AppColors.textLight,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showVolunteerProfileSheet(
+      String volunteerId, String fallbackName) async {
+    Map<String, dynamic>? volunteer;
+    try {
+      volunteer = await SupabaseService.client
+          .from('volunteer_profiles')
+          .select('*, profiles(full_name, profile_picture_url)')
+          .eq('user_id', volunteerId)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('Failed to load volunteer profile: $e');
+    }
+
+    if (!mounted) return;
+
+    final profile = volunteer?['profiles'] as Map<String, dynamic>?;
+    final name = (profile?['full_name'] ?? fallbackName).toString();
+    final photoUrl = profile?['profile_picture_url']?.toString();
+    final expertise = (volunteer?['expertise'] ?? '').toString().trim();
+    final affiliation = (volunteer?['affiliation'] ?? '').toString().trim();
+    final certification =
+        (volunteer?['certification'] ?? '').toString().trim();
+    final years = volunteer?['years_experience'];
+    final helpsWith = (volunteer?['helps_with'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.82,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textDark.withValues(alpha: 0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: AppColors.sage.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(18),
+                          image: photoUrl != null && photoUrl.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(photoUrl),
+                                  fit: BoxFit.cover)
+                              : null,
+                        ),
+                        child: photoUrl != null && photoUrl.isNotEmpty
+                            ? null
+                            : Center(
+                                child: Text(
+                                  name.isNotEmpty
+                                      ? name[0].toUpperCase()
+                                      : 'V',
+                                  style: const TextStyle(
+                                      color: AppColors.sage,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              expertise.isEmpty ? 'Volunteer' : expertise,
+                              style: const TextStyle(
+                                color: AppColors.textMid,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textLight),
+                      ),
+                    ],
+                  ),
+                  if (affiliation.isNotEmpty ||
+                      certification.isNotEmpty ||
+                      years != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (affiliation.isNotEmpty)
+                            _providerInfoRow(
+                                Icons.location_city_outlined, affiliation),
+                          if (certification.isNotEmpty) ...[
+                            if (affiliation.isNotEmpty)
+                              const SizedBox(height: 6),
+                            _providerInfoRow(
+                                Icons.school_outlined, certification),
+                          ],
+                          if (years != null) ...[
+                            if (affiliation.isNotEmpty ||
+                                certification.isNotEmpty)
+                              const SizedBox(height: 6),
+                            _providerInfoRow(
+                                Icons.work_outline, '$years Years Experience'),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (helpsWith.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Helps With',
+                      style: TextStyle(
+                        color: AppColors.textMid,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: helpsWith
+                          .map((h) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: AppColors.sage.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(h,
+                                    style: const TextStyle(
+                                        color: AppColors.sage,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700)),
+                              ))
+                          .toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.rose,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _providerInfoRow(IconData icon, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textMid),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(text,
+              style: const TextStyle(color: AppColors.textMid, fontSize: 12)),
+        ),
+      ],
+    );
+  }
+
   Future<void> _openNotification(Map<String, dynamic> item) async {
     await _markAsRead(item);
 
@@ -1741,6 +2138,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         await _showRecommendationDetails(item);
         break;
 
+      case 'session':
+        await _showSessionDetails(item);
+        break;
+
       default:
         context.push('/notifications');
         break;
@@ -1761,6 +2162,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.water_drop_outlined;
       case 'ai':
         return Icons.smart_toy_outlined;
+      case 'session':
+        return Icons.video_call_outlined;
       default:
         return Icons.notifications_none_outlined;
     }
@@ -1780,6 +2183,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return AppColors.roseDeep;
       case 'ai':
         return Colors.purpleAccent;
+      case 'session':
+        return AppColors.infoBlue;
       default:
         return AppColors.textMid;
     }
@@ -1799,6 +2204,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return 'Daily Reminder';
       case 'ai':
         return 'AI Assistant Advice';
+      case 'session':
+        return 'Volunteer Session';
       default:
         return 'Notification';
     }
@@ -1875,22 +2282,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Notifications Centre',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textDark,
+                    const Center(
+                      child: Text(
+                        'Notifications Centre',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textDark,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      unreadCount == 0
-                          ? 'You are all caught up 🌸'
-                          : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
-                      style: const TextStyle(
-                        color: AppColors.textMid,
-                        fontSize: 13,
+                    Center(
+                      child: Text(
+                        unreadCount == 0
+                            ? 'You are all caught up 🌸'
+                            : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          color: AppColors.textMid,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

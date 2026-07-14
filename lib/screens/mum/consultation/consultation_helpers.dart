@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/availability_format.dart';
+import '../../../utils/service_id.dart';
 import '../../../widgets/common_widgets.dart';
 
 /// Pops back to the previous screen when possible; otherwise falls back to
@@ -715,20 +717,16 @@ Widget _helpsChip(String label, Color accent, {bool tappable = false}) {
 // tapped, since the chip itself only has room for the title.
 void _showServiceDetailsSheet(
     BuildContext context, Map<String, dynamic> service, Color accent) {
-  final title = service['title'] as String? ?? 'Service';
+  final serviceId = formatServiceId(service['service_number']);
+  final rawTitle = service['title'] as String? ?? 'Service';
+  final title = serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle';
   final description = service['description'] as String? ?? '';
   final category = service['category'] as String? ?? '';
   final consultationMethod = service['consultation_method'] as String? ?? '';
   final availability = service['availability'] as String?;
-
-  String availabilityLabel = '—';
-  if (availability != null && availability.contains(' | ')) {
-    final parts = availability.split(' | ');
-    final date = DateTime.tryParse(parts[0]);
-    final dateStr =
-        date != null ? DateFormat('d MMM yyyy').format(date) : parts[0];
-    availabilityLabel = parts.length > 1 ? '$dateStr · ${parts[1]}' : dateStr;
-  }
+  final availabilityLabel = availability != null && availability.isNotEmpty
+      ? formatAvailabilityDisplay(availability).replaceFirst(' | ', ' · ')
+      : '—';
 
   showModalBottomSheet(
     context: context,

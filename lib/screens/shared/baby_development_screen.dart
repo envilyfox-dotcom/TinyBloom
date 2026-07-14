@@ -234,7 +234,7 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                                           fontWeight: FontWeight.w800,
                                           color: AppColors.roseDeep)),
                                   Text(
-                                      '$_possessive baby is the size of\n${week['size']}',
+                                      '$_possessive baby is approximately the size of\n${week['size']}',
                                       style: const TextStyle(
                                           fontSize: 14,
                                           color: AppColors.textMid,
@@ -268,8 +268,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   Row(
                     children: [
                       Expanded(
-                          child: _statCard('Length', week['length'] as String,
-                              AppColors.roseDeep)),
+                          child: _statCard('Approx. Length',
+                              week['length'] as String, AppColors.roseDeep)),
                       const SizedBox(width: 12),
                       Expanded(
                           child: _statCard('Approx. Weight',

@@ -344,10 +344,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             if (_photoUrl != null) ...[
               const SizedBox(height: 6),
-              TextButton.icon(
-                onPressed: _photoBusy ? null : _confirmRemovePhoto,
-                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                label: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+              Center(
+                child: TextButton.icon(
+                  onPressed: _photoBusy ? null : _confirmRemovePhoto,
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                  label: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                ),
               ),
             ],
             const SizedBox(height: 16),

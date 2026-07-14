@@ -45,65 +45,15 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     }
   }
 
-  // ── Delete Profile ────────────────────────────────────────────
-  void _deleteProfile(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete Profile',
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: Colors.red.shade400)),
-        content: Text(
-            'This will permanently delete your account and all your data. This cannot be undone.',
-            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.poppins(color: AppColors.textLight)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await SupabaseService.client
-                    .from('profiles')
-                    .delete()
-                    .eq('id', SupabaseService.currentUser!.id);
-                if (context.mounted) {
-                  await context.read<AuthProvider>().signOut();
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text('Delete Account',
-                style: GoogleFonts.poppins(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Logout ────────────────────────────────────────────────────
+  // ── Sign Out ──────────────────────────────────────────────────
   void _logout(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Logout',
+        title: Text('Sign Out',
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        content: Text('Are you sure you want to logout?',
+        content: Text('Are you sure you want to sign out?',
             style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight)),
         actions: [
           TextButton(
@@ -121,7 +71,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text('Logout',
+            child: Text('Sign Out',
                 style: GoogleFonts.poppins(color: Colors.white)),
           ),
         ],
@@ -217,66 +167,36 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                             _infoRow('Certification/License:', certification),
                           const SizedBox(height: 16),
 
-                          // ── Edit / Change Password ────────────
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => context.push(
-                                      '/volunteer/edit-profile',
-                                      extra: {...?_profile, ...?_volunteerProfile}
-                                  ).then((_) => _load()),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.rose,
-                                    side: const BorderSide(color: AppColors.rose),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
-                                  ),
-                                  child: Text('Edit',
-                                      style: GoogleFonts.poppins()),
-                                ),
+                          // ── Edit ───────────────────────────────
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () => context.push(
+                                  '/volunteer/edit-profile',
+                                  extra: {...?_profile, ...?_volunteerProfile}
+                              ).then((_) => _load()),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.rose,
+                                side: const BorderSide(color: AppColors.rose),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(8)),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () =>
-                                      context.push('/change-password'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.rose,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
-                                  ),
-                                  child: Text('Change Password',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 12)),
-                                ),
-                              ),
-                            ],
+                              child: Text('Edit',
+                                  style: GoogleFonts.poppins()),
+                            ),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 20),
 
-                    // ── Delete Profile ────────────────────────────
-                    _optionTile(
-                      icon: Icons.delete_outline,
-                      label: 'Delete Profile',
-                      color: Colors.red.shade400,
-                      onTap: () => _deleteProfile(context),
-                    ),
-
-                    // ── Logout ────────────────────────────────────
+                    // ── Sign Out ──────────────────────────────────
                     _optionTile(
                       icon: Icons.logout,
-                      label: 'Logout',
+                      label: 'Sign Out',
                       color: Colors.red.shade300,
                       onTap: () => _logout(context),
                     ),

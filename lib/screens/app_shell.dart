@@ -98,8 +98,6 @@ class AppShell extends StatelessWidget {
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFFE8A0B4),
-          unselectedItemColor: const Color(0xFF9B8B86),
           onTap: (i) => context.go(_tabsVolunteer[i]),
           items: const [
             BottomNavigationBarItem(

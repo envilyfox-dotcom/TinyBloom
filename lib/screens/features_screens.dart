@@ -2173,7 +2173,7 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                                           fontWeight: FontWeight.w800,
                                           color: AppColors.roseDeep)),
                                   Text(
-                                      'Your baby is the size of\n${week['size']}',
+                                      'Your baby is approximately the size of\n${week['size']}',
                                       style: const TextStyle(
                                           fontSize: 14,
                                           color: AppColors.textMid,
@@ -2205,7 +2205,7 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   // Baby Information — stats grid
                   Row(
                     children: [
-                      Expanded(child: _statCard('Length', week['length'] as String, AppColors.roseDeep)),
+                      Expanded(child: _statCard('Approx. Length', week['length'] as String, AppColors.roseDeep)),
                       const SizedBox(width: 12),
                       Expanded(child: _statCard('Approx. Weight', week['weight'] as String, AppColors.roseDeep)),
                     ],

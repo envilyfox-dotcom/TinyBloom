@@ -22,7 +22,9 @@ class VolunteerRequestsScreen extends StatefulWidget {
 class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
+  final _searchCtrl = TextEditingController();
   List<Map<String, dynamic>> _requests = [];
+  String _searchQuery = '';
   bool _loading = true;
 
   @override
@@ -35,6 +37,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
   @override
   void dispose() {
     _tabs.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -75,16 +78,16 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                 },
               })
           .toList();
-      // Ongoing questions (unclaimed or actively being chatted about) need
-      // attention, so they surface first; completed ones sink to the
-      // bottom, newest-first within each group.
+      // Unclaimed questions need a volunteer most, so they surface first,
+      // then actively-claimed ones, then completed ones sink to the
+      // bottom — newest-first within each group.
       requests.sort((a, b) {
-        final aOngoing = !_isCompleted(a);
-        final bOngoing = !_isCompleted(b);
-        if (aOngoing != bOngoing) return aOngoing ? -1 : 1;
-        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
-        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
-        if (aDate == null || bDate == null) return 0;
+        final priorityCompare = _priority(a).compareTo(_priority(b));
+        if (priorityCompare != 0) return priorityCompare;
+        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
         return bDate.compareTo(aDate);
       });
       if (mounted) {
@@ -98,14 +101,37 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     }
   }
 
-  // A thread is "Completed" once closed (manually or via 48h auto-close);
-  // everything else — unclaimed or actively being chatted about — is
-  // "Ongoing".
-  bool _isCompleted(Map<String, dynamic> r) =>
-      (r['status'] as String? ?? 'pending') == 'closed';
+  // A thread is "Completed" once closed (manually or via 48h auto-close).
+  // Otherwise, "Available" means no volunteer has claimed it yet
+  // (volunteer_id is still null — visible to every volunteer via RLS), and
+  // "Ongoing" means a volunteer has claimed it and is actively chatting.
+  String _category(Map<String, dynamic> r) {
+    if ((r['status'] as String? ?? 'pending') == 'closed') return 'completed';
+    return r['volunteer_id'] == null ? 'available' : 'ongoing';
+  }
 
-  List<Map<String, dynamic>> _filter(bool completed) =>
-      _requests.where((r) => _isCompleted(r) == completed).toList();
+  int _priority(Map<String, dynamic> r) {
+    switch (_category(r)) {
+      case 'available':
+        return 0;
+      case 'ongoing':
+        return 1;
+      default:
+        return 2;
+    }
+  }
+
+  bool _matchesSearch(Map<String, dynamic> r) {
+    if (_searchQuery.isEmpty) return true;
+    final question = (r['question'] as String? ?? '').toLowerCase();
+    final mumName =
+        ((r['profiles'] as Map?)?['full_name'] as String? ?? '').toLowerCase();
+    return question.contains(_searchQuery) || mumName.contains(_searchQuery);
+  }
+
+  List<Map<String, dynamic>> _filter(String category) => _requests
+      .where((r) => _category(r) == category && _matchesSearch(r))
+      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +161,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           unselectedLabelColor: AppColors.textLight,
           labelStyle: GoogleFonts.poppins(fontSize: 13),
           tabs: const [
-            Tab(text: 'All'),
+            Tab(text: 'Available'),
             Tab(text: 'Ongoing'),
             Tab(text: 'Completed'),
           ],
@@ -143,12 +169,65 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
-          : TabBarView(
-              controller: _tabs,
+          : Column(
               children: [
-                _RequestList(requests: _requests, onRefresh: _load),
-                _RequestList(requests: _filter(false), onRefresh: _load),
-                _RequestList(requests: _filter(true), onRefresh: _load),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) =>
+                        setState(() => _searchQuery = v.trim().toLowerCase()),
+                    style: GoogleFonts.poppins(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search requests or mum\'s name',
+                      hintStyle: GoogleFonts.poppins(
+                          fontSize: 13, color: AppColors.textLight),
+                      prefixIcon: const Icon(Icons.search,
+                          color: AppColors.textLight, size: 20),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close,
+                                  color: AppColors.textLight, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            ),
+                      filled: true,
+                      fillColor: AppColors.white,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color:
+                                  AppColors.textLight.withValues(alpha: 0.3))),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color:
+                                  AppColors.textLight.withValues(alpha: 0.3))),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              const BorderSide(color: AppColors.rose, width: 1.5)),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabs,
+                    children: [
+                      _RequestList(
+                          requests: _filter('available'), onRefresh: _load),
+                      _RequestList(
+                          requests: _filter('ongoing'), onRefresh: _load),
+                      _RequestList(
+                          requests: _filter('completed'), onRefresh: _load),
+                    ],
+                  ),
+                ),
               ],
             ),
     );
@@ -197,8 +276,12 @@ class _RequestCard extends StatelessWidget {
         (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
     final status = request['status'] as String? ?? 'pending';
     final isCompleted = status == 'closed';
-    final badgeLabel = isCompleted ? 'Completed' : 'Ongoing';
-    final badgeColor = isCompleted ? AppColors.sage : AppColors.gold;
+    final isAvailable = !isCompleted && request['volunteer_id'] == null;
+    final badgeLabel =
+        isCompleted ? 'Completed' : (isAvailable ? 'Available' : 'Ongoing');
+    final badgeColor = isCompleted
+        ? AppColors.sage
+        : (isAvailable ? AppColors.infoBlue : AppColors.gold);
 
     return GestureDetector(
       onTap: () => Navigator.push(
