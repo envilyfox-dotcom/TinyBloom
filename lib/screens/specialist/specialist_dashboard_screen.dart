@@ -202,7 +202,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       (_specialistProfile?['specialization'] as String? ?? 'Healthcare Specialist');
 
   // Build consultation card
-  Widget _consultationCard(Map<String, dynamic> consultation) {
+  Widget _consultationCard(Map<String, dynamic> consultation,
+      {bool showDate = false}) {
     final patientName = consultation['patient_name'] as String? ??
         (consultation['patient'] is Map<String, dynamic>
             ? (consultation['patient']['full_name'] as String?)
@@ -220,6 +221,15 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         formattedTime = DateFormat('h:mm a').format(time);
       } catch (_) {
         formattedTime = scheduledTime;
+      }
+    }
+
+    String formattedDate = '';
+    if (showDate && scheduledDate != null) {
+      try {
+        formattedDate = DateFormat('d MMM').format(DateTime.parse(scheduledDate));
+      } catch (_) {
+        formattedDate = scheduledDate;
       }
     }
 
@@ -256,7 +266,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                     color: AppColors.teal.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(formattedTime,
+                  child: Text(
+                      showDate && formattedDate.isNotEmpty
+                          ? '$formattedDate at $formattedTime'
+                          : formattedTime,
                       style: const TextStyle(
                           color: AppColors.teal,
                           fontSize: 12,
@@ -569,10 +582,17 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               Text(_specialization,
                                   style: const TextStyle(
                                       color: AppColors.textMid, fontSize: 13)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  DateFormat('EEEE, d MMMM yyyy')
+                                      .format(DateTime.now()),
+                                  style: const TextStyle(
+                                      color: AppColors.textLight,
+                                      fontSize: 11)),
                             ],
                           ),
                           GestureDetector(
-                            onTap: () => context.push('/profile'),
+                            onTap: () => context.go('/profile'),
                             child: CircleAvatar(
                               radius: 22,
                               backgroundColor:
@@ -629,14 +649,25 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
 
                   // Upcoming Appointments
                   if (_upcomingConsultations.isNotEmpty) ...[
-                    const Text('Upcoming Appointment:',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text('Upcoming Appointment:',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 16)),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              context.go('/specialist/consultations'),
+                          child: const Text('View All >'),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     ..._upcomingConsultations
                         .map((c) => Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: _consultationCard(c),
+                              child: _consultationCard(c, showDate: true),
                             ))
                         ,
                     const SizedBox(height: 20),

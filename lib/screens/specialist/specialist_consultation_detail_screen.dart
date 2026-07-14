@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +10,11 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
+
+// The Join Zoom button unlocks this long before the scheduled time, so a
+// specialist can't join way too early — see specialist_consultations_screen.dart
+// for the matching lock on the list view's Start Session button.
+const Duration _joinWindow = Duration(hours: 1);
 
 // ── Specialist Consultation Details ───────────────────────────────────
 class SpecialistConsultationDetailScreen extends StatefulWidget {
@@ -26,6 +33,7 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
   bool _loading = true;
   bool _cancelling = false;
   bool _approving = false;
+  Timer? _tickTimer;
 
   String _meetingLink() {
     final link = widget.consultation['meeting_link']?.toString().trim() ?? '';
@@ -35,6 +43,14 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
   bool _canJoinMeeting(String status) {
     final normalised = status.toLowerCase();
     return normalised == 'confirmed' || normalised == 'approved';
+  }
+
+  // Fails open (allows joining) if the schedule can't be determined, rather
+  // than locking the specialist out of a confirmed session.
+  bool _isWithinJoinWindow() {
+    final scheduled = _scheduledDateTime();
+    if (scheduled == null) return true;
+    return !DateTime.now().isBefore(scheduled.subtract(_joinWindow));
   }
 
   Future<void> _joinMeeting() async {
@@ -73,6 +89,18 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
   void initState() {
     super.initState();
     _load();
+    // Re-evaluates the Join Zoom lock/unlock against the current time
+    // without needing a manual refresh, so the join window opens on its
+    // own while this page is open.
+    _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tickTimer?.cancel();
+    super.dispose();
   }
 
   // A pending consultation whose scheduled time has already passed is
@@ -418,20 +446,39 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                       final auth = context.watch<AuthProvider>();
                       final isSpecialist = auth.isSpecialist;
                       if (_canJoinMeeting(status)) {
-                        return SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _joinMeeting,
-                            icon: const Icon(Icons.video_call),
-                            label: const Text('Join Zoom',
-                                style:
-                                    TextStyle(fontWeight: FontWeight.w700)),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.teal,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14)),
-                          ),
+                        final canJoinNow = _isWithinJoinWindow();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: canJoinNow ? _joinMeeting : null,
+                              icon: const Icon(Icons.video_call),
+                              label: const Text('Join Zoom',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.teal,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor:
+                                      AppColors.teal.withValues(alpha: 0.35),
+                                  disabledForegroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14)),
+                            ),
+                            if (!canJoinNow) ...[
+                              const SizedBox(height: 6),
+                              Center(
+                                child: Text(
+                                  'Unlocks 1 hour before the consultation',
+                                  style: TextStyle(
+                                      color: AppColors.textLight
+                                          .withValues(alpha: 0.9),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ],
                         );
                       }
                       if (status == 'pending' && isSpecialist) {

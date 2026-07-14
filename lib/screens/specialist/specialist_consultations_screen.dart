@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +8,10 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
+
+// The Start Session button unlocks this long before the scheduled time,
+// so a specialist can't join (and a patient can't be joined) way too early.
+const Duration _joinWindow = Duration(hours: 1);
 
 // ── Specialist Consultation Tab ─────────────────────────────────────
 // Lists every pending/confirmed consultation for the logged-in
@@ -32,15 +38,23 @@ class _SpecialistConsultationsScreenState
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
   String _selectedTag = 'All Available';
+  Timer? _tickTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // Re-evaluates the Start Session lock/unlock (and Pending -> Expired
+    // display) against the current time without needing a manual refresh,
+    // so the join window opens on its own while the page is open.
+    _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _tickTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -164,6 +178,15 @@ class _SpecialistConsultationsScreenState
 
   bool _isInactiveKey(String key) =>
       key == 'expired' || key == 'cancelled' || key == 'completed';
+
+  // Start Session unlocks _joinWindow (1 hour) before the scheduled time —
+  // if the schedule can't be determined, fail open rather than locking the
+  // specialist out of a confirmed session.
+  bool _canStartSession(Map<String, dynamic> consultation) {
+    final scheduled = _scheduledDateTime(consultation);
+    if (scheduled == null) return true;
+    return !DateTime.now().isBefore(scheduled.subtract(_joinWindow));
+  }
 
   Future<void> _startSession(Map<String, dynamic> consultation) async {
     final link = consultation['meeting_link']?.toString().trim() ?? '';
@@ -358,6 +381,7 @@ class _SpecialistConsultationsScreenState
     final cancellationReason =
         consultation['cancellation_reason'] as String? ?? '';
     final platform = consultation['platform'] as String? ?? 'Zoom Meeting';
+    final canStartSession = _canStartSession(consultation);
     final busy = _busyIds.contains(id);
 
     return GestureDetector(
@@ -453,15 +477,20 @@ class _SpecialistConsultationsScreenState
                     style:
                         const TextStyle(color: AppColors.textMid, fontSize: 13)),
             const SizedBox(height: 16),
-            if (effectiveKey == 'confirmed')
+            if (effectiveKey == 'confirmed') ...[
               Center(
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _startSession(consultation),
+                    onPressed: canStartSession
+                        ? () => _startSession(consultation)
+                        : null,
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.roseDeep,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.roseDeep.withValues(alpha: 0.35),
+                        disabledForegroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24))),
@@ -469,7 +498,20 @@ class _SpecialistConsultationsScreenState
                         style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
-              )
+              ),
+              if (!canStartSession) ...[
+                const SizedBox(height: 6),
+                Center(
+                  child: Text(
+                    'Unlocks 1 hour before the consultation',
+                    style: TextStyle(
+                        color: AppColors.textLight.withValues(alpha: 0.9),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ]
             else if (effectiveKey == 'pending')
               Center(
                 child: SizedBox(
