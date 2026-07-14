@@ -54,6 +54,7 @@ import 'specialist/specialist_create_article_screen.dart';
 import 'specialist/specialist_edit_article_screen.dart';
 import 'specialist/specialist_review_screen.dart';
 import 'specialist/specialist_review_thread_screen.dart';
+import 'specialist/specialist_notifications_screen.dart';
 
 import 'mum/forum/forum_screen.dart';
 import 'mum/forum/post_detail_screen.dart';
@@ -348,6 +349,10 @@ final router = GoRouter(
     GoRoute(
       path: '/notifications',
       builder: (_, __) => const NotificationsScreen(),
+    ),
+    GoRoute(
+      path: '/specialist/notifications',
+      builder: (_, __) => const SpecialistNotificationsScreen(),
     ),
   ],
 );

@@ -7,6 +7,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
+import 'specialist_notifications_helpers.dart';
 
 class SpecialistDashboardScreen extends StatefulWidget {
   const SpecialistDashboardScreen({super.key});
@@ -21,6 +22,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
   Map<String, dynamic>? _specialistProfile;
   List<Map<String, dynamic>> _consultations = [];
   List<Map<String, dynamic>> _testimonials = [];
+  List<Map<String, dynamic>> _notifications = [];
   bool _loading = true;
 
   @override
@@ -79,12 +81,24 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       testimonials = await SupabaseService.getTestimonials();
     } catch (_) {}
 
+    List<Map<String, dynamic>> reviewQueue = [];
+    try {
+      reviewQueue = await SupabaseService.getReviewQueue();
+    } catch (_) {}
+
+    final notifications = buildSpecialistNotifications(
+      consultations: consultations,
+      reviewQueue: reviewQueue,
+      userId: SupabaseService.currentUser?.id ?? '',
+    );
+
     if (mounted) {
       setState(() {
         _profile = profile;
         _specialistProfile = specialistProfile;
         _consultations = consultations;
         _testimonials = testimonials;
+        _notifications = notifications;
         _loading = false;
       });
     }
@@ -339,6 +353,177 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     );
   }
 
+  Color _notifColor(String category) {
+    switch (category) {
+      case 'consultation':
+        return AppColors.sage;
+      case 'review':
+        return AppColors.teal;
+      case 'emergency':
+        return Colors.redAccent;
+      default:
+        return AppColors.textMid;
+    }
+  }
+
+  IconData _notifIcon(String category) {
+    switch (category) {
+      case 'consultation':
+        return Icons.calendar_today_outlined;
+      case 'review':
+        return Icons.rate_review_outlined;
+      case 'emergency':
+        return Icons.warning_amber_rounded;
+      default:
+        return Icons.notifications_none_outlined;
+    }
+  }
+
+  Future<void> _openNotificationsCentre() async {
+    await context.push('/specialist/notifications');
+    if (mounted) _load();
+  }
+
+  Future<void> _openNotification(Map<String, dynamic> n) async {
+    final category = n['category'] as String? ?? 'general';
+    if (category == 'consultation') {
+      final consultation = n['consultation'] as Map<String, dynamic>?;
+      if (consultation != null) {
+        await context.push('/consultation/detail', extra: consultation);
+        if (mounted) _load();
+        return;
+      }
+    } else if (category == 'review') {
+      final article = n['article'] as Map<String, dynamic>?;
+      final id = article?['id']?.toString();
+      if (id != null) {
+        await context.push('/specialist/review/thread', extra: id);
+        if (mounted) _load();
+        return;
+      }
+    }
+    await _openNotificationsCentre();
+  }
+
+  Widget _notificationPreviewCard(Map<String, dynamic> n) {
+    final category = n['category'] as String? ?? 'general';
+    final color = _notifColor(category);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TBCard(
+        onTap: () => _openNotification(n),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(_notifIcon(category), color: color, size: 20),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    n['title'] as String? ?? 'Notification',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: AppColors.textDark),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    n['message'] as String? ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(color: AppColors.textMid, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                color: AppColors.textLight, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyAlertCard() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TBCard(
+        onTap: _openNotificationsCentre,
+        padding: const EdgeInsets.all(14),
+        child: const Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: AppColors.blush,
+              child: Icon(
+                Icons.notifications_none_outlined,
+                color: AppColors.roseDeep,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No new alerts right now. Tap View All to open the Notifications Centre.',
+                style: TextStyle(
+                  color: AppColors.textMid,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertsSection() {
+    final cards = <Widget>[
+      for (final n in _notifications.take(3)) _notificationPreviewCard(n),
+    ];
+
+    if (cards.isEmpty) {
+      cards.add(_emptyAlertCard());
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text('Alerts & Notifications',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16)),
+            ),
+            TextButton(
+              onPressed: _openNotificationsCentre,
+              child: const Text('View All >'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...cards,
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -456,6 +641,9 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                         ,
                     const SizedBox(height: 20),
                   ],
+
+                  // Alerts & Notifications
+                  _buildAlertsSection(),
 
                   // User Review
                   if (_testimonials.isNotEmpty) ...[
