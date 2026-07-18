@@ -153,71 +153,90 @@ class _LogsScreenState extends State<LogsScreen> {
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.rose,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
-                    children: [
-                      _HeaderCard(
-                        totalLogs: _logs.length,
-                        mumName: _linkedMum?['full_name'] as String?,
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Recent Logs',
-                              style: TextStyle(
-                                color: AppColors.textDark,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _HeaderCard(
+                                totalLogs: _logs.length,
+                                mumName: _linkedMum?['full_name'] as String?,
                               ),
-                            ),
-                          ),
-                          Text(
-                            '${_logs.length} total',
-                            style: const TextStyle(
-                              color: AppColors.textLight,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (_logs.isEmpty)
-                        TBEmptyState(
-                          emoji: '📋',
-                          title: 'No logs yet',
-                          subtitle: _isNextOfKin
-                              ? "${_linkedMum?['full_name'] ?? 'She'} hasn't logged anything yet."
-                              : 'Start tracking your health, mood, symptoms and baby milestones.',
-                          buttonLabel: _isNextOfKin ? null : 'Add First Log',
-                          onButton: _isNextOfKin ? null : _openCreate,
-                        )
-                      else
-                        ..._logs.map(
-                          (log) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _LogCard(
-                              log: log,
-                              onView: () async {
-                                await context.push('/logs/${log['id']}',
-                                    extra: log);
-                                await _load();
-                              },
-                              onEdit: _isNextOfKin
-                                  ? null
-                                  : () async {
-                                      await context.push(
-                                          '/logs/${log['id']}/edit',
-                                          extra: log);
-                                      await _load();
-                                    },
-                              onDelete:
-                                  _isNextOfKin ? null : () => _delete(log['id']),
-                            ),
+                              const SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Recent Logs',
+                                      style: TextStyle(
+                                        color: AppColors.textDark,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_logs.length} total',
+                                    style: const TextStyle(
+                                      color: AppColors.textLight,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                           ),
                         ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
+                        sliver: _logs.isEmpty
+                            ? SliverToBoxAdapter(
+                                child: TBEmptyState(
+                                  emoji: '📋',
+                                  title: 'No logs yet',
+                                  subtitle: _isNextOfKin
+                                      ? "${_linkedMum?['full_name'] ?? 'She'} hasn't logged anything yet."
+                                      : 'Start tracking your health, mood, symptoms and baby milestones.',
+                                  buttonLabel:
+                                      _isNextOfKin ? null : 'Add First Log',
+                                  onButton: _isNextOfKin ? null : _openCreate,
+                                ),
+                              )
+                            : SliverList.builder(
+                                itemCount: _logs.length,
+                                itemBuilder: (context, i) {
+                                  final log = _logs[i];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _LogCard(
+                                      log: log,
+                                      onView: () async {
+                                        await context.push('/logs/${log['id']}',
+                                            extra: log);
+                                        await _load();
+                                      },
+                                      onEdit: _isNextOfKin
+                                          ? null
+                                          : () async {
+                                              await context.push(
+                                                  '/logs/${log['id']}/edit',
+                                                  extra: log);
+                                              await _load();
+                                            },
+                                      onDelete: _isNextOfKin
+                                          ? null
+                                          : () => _delete(log['id']),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
                     ],
                   ),
                 ),
@@ -395,7 +414,8 @@ class _LogCard extends StatelessWidget {
               ),
               if (onEdit != null || onDelete != null)
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_horiz, color: AppColors.textLight),
+                  icon:
+                      const Icon(Icons.more_horiz, color: AppColors.textLight),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                   onSelected: (value) {
@@ -466,7 +486,6 @@ class _LogCard extends StatelessWidget {
     );
   }
 }
-
 
 class _SectionChips extends StatelessWidget {
   final String label;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +21,8 @@ import '../../widgets/common_widgets.dart';
 DateTime? _lastArticleOpen;
 void _openArticle(BuildContext context, Map<String, dynamic> article) {
   final now = DateTime.now();
-  if (_lastArticleOpen != null && now.difference(_lastArticleOpen!) < const Duration(milliseconds: 600)) {
+  if (_lastArticleOpen != null &&
+      now.difference(_lastArticleOpen!) < const Duration(milliseconds: 600)) {
     return;
   }
   _lastArticleOpen = now;
@@ -107,7 +110,8 @@ class _FaqScreenState extends State<FaqScreen> {
                                 side: BorderSide(
                                     color: _selectedCat == cat
                                         ? AppColors.teal
-                                        : AppColors.textLight.withValues(alpha: 0.3)),
+                                        : AppColors.textLight
+                                            .withValues(alpha: 0.3)),
                               ),
                             ))
                         .toList(),
@@ -162,13 +166,27 @@ class EducationScreen extends StatefulWidget {
 class _EducationScreenState extends State<EducationScreen> {
   List<Map<String, dynamic>> _articles = [];
   bool _loading = true;
-  String _search = '';
+  final ValueNotifier<String> _search = ValueNotifier('');
+  Timer? _searchDebounce;
   String _selectedCat = 'All';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce =
+        Timer(const Duration(milliseconds: 250), () => _search.value = v);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -191,10 +209,10 @@ class _EducationScreenState extends State<EducationScreen> {
 
   List<Map<String, dynamic>> get _filtered => _articles.where((a) {
         final matchCat = _selectedCat == 'All' || a['category'] == _selectedCat;
-        final matchSearch = _search.isEmpty ||
+        final matchSearch = _search.value.isEmpty ||
             (a['title'] as String? ?? '')
                 .toLowerCase()
-                .contains(_search.toLowerCase());
+                .contains(_search.value.toLowerCase());
         return matchCat && matchSearch;
       }).toList();
 
@@ -207,7 +225,7 @@ class _EducationScreenState extends State<EducationScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextFormField(
-              onChanged: (v) => setState(() => _search = v),
+              onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search articles...',
                 prefixIcon:
@@ -253,17 +271,23 @@ class _EducationScreenState extends State<EducationScreen> {
           Expanded(
             child: _loading
                 ? const TBLoading()
-                : _filtered.isEmpty
-                    ? const TBEmptyState(
-                        emoji: '📚',
-                        title: 'No articles found',
-                        subtitle: 'Try a different search or category.')
-                    : ListView.builder(
+                : ValueListenableBuilder<String>(
+                    valueListenable: _search,
+                    builder: (context, _, __) {
+                      final filtered = _filtered;
+                      if (filtered.isEmpty) {
+                        return const TBEmptyState(
+                            emoji: '📚',
+                            title: 'No articles found',
+                            subtitle: 'Try a different search or category.');
+                      }
+                      return ListView.builder(
                         padding: const EdgeInsets.all(16),
-                        itemCount: _filtered.length,
+                        itemCount: filtered.length,
                         itemBuilder: (ctx, i) {
-                          final article = _filtered[i];
-                          final isLink = (article['url'] as String?)?.isNotEmpty == true;
+                          final article = filtered[i];
+                          final isLink =
+                              (article['url'] as String?)?.isNotEmpty == true;
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: TBCard(
@@ -279,7 +303,8 @@ class _EducationScreenState extends State<EducationScreen> {
                                             BorderRadius.circular(10)),
                                     child: Center(
                                         child: Text(isLink ? '🔗' : '📄',
-                                            style: const TextStyle(fontSize: 28))),
+                                            style:
+                                                const TextStyle(fontSize: 28))),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -328,7 +353,9 @@ class _EducationScreenState extends State<EducationScreen> {
                             ),
                           );
                         },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -430,7 +457,12 @@ class _ConsultationScreenState extends State<ConsultationScreen>
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
     }
   }
 
@@ -460,71 +492,77 @@ class _ConsultationScreenState extends State<ConsultationScreen>
                       title: 'Couldn\'t load consultations',
                       subtitle: _error!,
                       buttonLabel: 'Retry',
-                      onButton: () { setState(() => _loading = true); _load(); })
+                      onButton: () {
+                        setState(() => _loading = true);
+                        _load();
+                      })
                   : _consultations.isEmpty
-                  ? TBEmptyState(
-                      emoji: '👩‍⚕️',
-                      title: 'No consultations yet',
-                      subtitle: isPremium
-                          ? 'Book a consultation with a specialist or volunteer.'
-                          : 'Book a consultation with a volunteer.',
-                      buttonLabel: 'Book Now',
-                      onButton: () => _tabs.animateTo(1))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _consultations.length,
-                      itemBuilder: (ctx, i) {
-                        final c = _consultations[i];
-                        final status = c['status'] ?? 'pending';
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: TBCard(
-                            onTap: () async {
-                              await context.push('/consultation/detail', extra: c);
-                              _load();
-                            },
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                      color: _statusColor(status)
-                                          .withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(10)),
-                                  child: Center(
-                                      child: Text(_statusEmoji(status),
-                                          style:
-                                              const TextStyle(fontSize: 20))),
+                      ? TBEmptyState(
+                          emoji: '👩‍⚕️',
+                          title: 'No consultations yet',
+                          subtitle: isPremium
+                              ? 'Book a consultation with a specialist or volunteer.'
+                              : 'Book a consultation with a volunteer.',
+                          buttonLabel: 'Book Now',
+                          onButton: () => _tabs.animateTo(1))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _consultations.length,
+                          itemBuilder: (ctx, i) {
+                            final c = _consultations[i];
+                            final status = c['status'] ?? 'pending';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: TBCard(
+                                onTap: () async {
+                                  await context.push('/consultation/detail',
+                                      extra: c);
+                                  _load();
+                                },
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                          color: _statusColor(status)
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      child: Center(
+                                          child: Text(_statusEmoji(status),
+                                              style: const TextStyle(
+                                                  fontSize: 20))),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                              _consultationTypeLabel(
+                                                  c['consultation_type']
+                                                      as String?),
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14)),
+                                          Text(status.toUpperCase(),
+                                              style: TextStyle(
+                                                  color: _statusColor(status),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700)),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right,
+                                        color: AppColors.textLight, size: 18),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                          _consultationTypeLabel(
-                                              c['consultation_type'] as String?),
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14)),
-                                      Text(status.toUpperCase(),
-                                          style: TextStyle(
-                                              color: _statusColor(status),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700)),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right,
-                                    color: AppColors.textLight, size: 18),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ),
+                            );
+                          },
+                        ),
 
           // Tab 2: Book new — everyone can reach volunteers; specialists are premium-only.
           _buildBookTab(isPremium),
@@ -560,12 +598,14 @@ class _ConsultationScreenState extends State<ConsultationScreen>
                         Align(
                           alignment: Alignment.centerRight,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.gold.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Icon(Icons.star, color: AppColors.gold, size: 12),
+                            child: const Icon(Icons.star,
+                                color: AppColors.gold, size: 12),
                           ),
                         ),
                       const Text('👩‍⚕️', style: TextStyle(fontSize: 36)),
@@ -605,7 +645,6 @@ class _ConsultationScreenState extends State<ConsultationScreen>
       ),
     );
   }
-
 }
 
 Color _statusColor(String status) {
@@ -781,8 +820,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                                       color: AppColors.tealLight,
                                       borderRadius: BorderRadius.circular(50),
                                       border: Border.all(
-                                          color:
-                                              AppColors.teal.withValues(alpha: 0.4)),
+                                          color: AppColors.teal
+                                              .withValues(alpha: 0.4)),
                                     ),
                                     child: Text(s,
                                         style: const TextStyle(
@@ -973,7 +1012,10 @@ class SubscriptionScreen extends StatefulWidget {
 // Plan metadata shared by the upgrade tiles and the Change Plan sheet.
 const _subscriptionPlans = {
   'premium_monthly': {'label': 'Premium Monthly', 'price': '\$9.90/month'},
-  'premium_yearly': {'label': 'Premium Annual', 'price': '\$90/year • Save 24%'},
+  'premium_yearly': {
+    'label': 'Premium Annual',
+    'price': '\$90/year • Save 24%'
+  },
 };
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
@@ -1013,12 +1055,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           Row(children: [
-            Expanded(child: OutlinedButton(
+            Expanded(
+                child: OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Not Now'),
             )),
             const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
+            Expanded(
+                child: ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textDark,
@@ -1055,11 +1099,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const SizedBox(height: 16),
             for (final entry in _subscriptionPlans.entries) ...[
               _planTile(entry.key, entry.value['label']!, entry.value['price']!,
-                  isCurrent: entry.key == currentPlan,
-                  onSelect: () {
-                    Navigator.pop(context);
-                    if (entry.key != currentPlan) _setPlan(entry.key);
-                  }),
+                  isCurrent: entry.key == currentPlan, onSelect: () {
+                Navigator.pop(context);
+                if (entry.key != currentPlan) _setPlan(entry.key);
+              }),
               const SizedBox(height: 10),
             ],
           ],
@@ -1078,12 +1121,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           Row(children: [
-            Expanded(child: OutlinedButton(
+            Expanded(
+                child: OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Keep Plan'),
             )),
             const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
+            Expanded(
+                child: ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textDark,
@@ -1147,7 +1192,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               for (final entry in _subscriptionPlans.entries) ...[
-                _planTile(entry.key, entry.value['label']!, entry.value['price']!,
+                _planTile(
+                    entry.key, entry.value['label']!, entry.value['price']!,
                     onSelect: _busy ? null : () => _confirmUpgrade(entry.key)),
                 const SizedBox(height: 10),
               ],
@@ -1215,7 +1261,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   borderRadius: BorderRadius.circular(20)),
               child: const Text('Current Plan',
                   style: TextStyle(
-                      color: AppColors.teal, fontWeight: FontWeight.w700, fontSize: 12)),
+                      color: AppColors.teal,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12)),
             )
           else
             ElevatedButton(
@@ -1244,10 +1292,9 @@ Widget _providerCard(
       : (provider['expertise'] as String? ?? 'Volunteer');
   final rating = (provider['rating'] as num?)?.toStringAsFixed(1);
   final years = provider['years_experience'];
-  final helpsWith = (provider['helps_with'] as List?)
-          ?.map((e) => e.toString())
-          .toList() ??
-      const <String>[];
+  final helpsWith =
+      (provider['helps_with'] as List?)?.map((e) => e.toString()).toList() ??
+          const <String>[];
   final availableToday = (provider['available_today'] as List?)
           ?.map((e) => e.toString())
           .toList() ??
@@ -1332,7 +1379,8 @@ Widget _providerCard(
                           decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                  color: AppColors.rose.withValues(alpha: 0.4))),
+                                  color:
+                                      AppColors.rose.withValues(alpha: 0.4))),
                           child: Text(t,
                               style: const TextStyle(
                                   color: AppColors.roseDeep,
@@ -1352,7 +1400,8 @@ Widget _providerCard(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24))),
-              child: Text(isSpecialist ? 'Select Specialist' : 'Select Volunteer',
+              child: Text(
+                  isSpecialist ? 'Select Specialist' : 'Select Volunteer',
                   style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w700)),
             ),
@@ -1392,7 +1441,12 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
     }
   }
 
@@ -1410,36 +1464,57 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
                   onUpgrade: () => context.push('/subscription')),
             )
           : _loading
-          ? const TBLoading()
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-              children: [
-                Text('Select Specialist',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontSize: 26)),
-                const SizedBox(height: 4),
-                const Text('Choose a healthcare specialist.',
-                    style: TextStyle(color: AppColors.textMid, fontSize: 13)),
-                const SizedBox(height: 20),
-                if (_error != null)
-                  TBEmptyState(
-                      emoji: '⚠️',
-                      title: 'Couldn\'t load specialists',
-                      subtitle: _error!,
-                      buttonLabel: 'Retry',
-                      onButton: () { setState(() => _loading = true); _load(); })
-                else if (_specialists.isEmpty)
-                  const TBEmptyState(
-                      emoji: '👩‍⚕️',
-                      title: 'No specialists available',
-                      subtitle: 'Check back later for available specialists.')
-                else
-                  ..._specialists
-                      .map((s) => _providerCard(context, s, 'specialist')),
-              ],
-            ),
+              ? const TBLoading()
+              : CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('Select Specialist',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontSize: 26)),
+                            const SizedBox(height: 4),
+                            const Text('Choose a healthcare specialist.',
+                                style: TextStyle(
+                                    color: AppColors.textMid, fontSize: 13)),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      sliver: _error != null
+                          ? SliverToBoxAdapter(
+                              child: TBEmptyState(
+                                  emoji: '⚠️',
+                                  title: 'Couldn\'t load specialists',
+                                  subtitle: _error!,
+                                  buttonLabel: 'Retry',
+                                  onButton: () {
+                                    setState(() => _loading = true);
+                                    _load();
+                                  }))
+                          : _specialists.isEmpty
+                              ? const SliverToBoxAdapter(
+                                  child: TBEmptyState(
+                                      emoji: '👩‍⚕️',
+                                      title: 'No specialists available',
+                                      subtitle:
+                                          'Check back later for available specialists.'))
+                              : SliverList.builder(
+                                  itemCount: _specialists.length,
+                                  itemBuilder: (context, i) => _providerCard(
+                                      context, _specialists[i], 'specialist'),
+                                ),
+                    ),
+                  ],
+                ),
     );
   }
 }
@@ -1473,7 +1548,12 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
     }
   }
 
@@ -1484,33 +1564,54 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
       appBar: AppBar(backgroundColor: AppColors.background, elevation: 0),
       body: _loading
           ? const TBLoading()
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-              children: [
-                Text('Select Volunteer',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontSize: 26)),
-                const SizedBox(height: 4),
-                const Text('Choose a volunteer.',
-                    style: TextStyle(color: AppColors.textMid, fontSize: 13)),
-                const SizedBox(height: 20),
-                if (_error != null)
-                  TBEmptyState(
-                      emoji: '⚠️',
-                      title: 'Couldn\'t load volunteers',
-                      subtitle: _error!,
-                      buttonLabel: 'Retry',
-                      onButton: () { setState(() => _loading = true); _load(); })
-                else if (_volunteers.isEmpty)
-                  const TBEmptyState(
-                      emoji: '🤝',
-                      title: 'No volunteers available',
-                      subtitle: 'Check back later for available volunteers.')
-                else
-                  ..._volunteers
-                      .map((v) => _providerCard(context, v, 'volunteer')),
+          : CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('Select Volunteer',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontSize: 26)),
+                        const SizedBox(height: 4),
+                        const Text('Choose a volunteer.',
+                            style: TextStyle(
+                                color: AppColors.textMid, fontSize: 13)),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  sliver: _error != null
+                      ? SliverToBoxAdapter(
+                          child: TBEmptyState(
+                              emoji: '⚠️',
+                              title: 'Couldn\'t load volunteers',
+                              subtitle: _error!,
+                              buttonLabel: 'Retry',
+                              onButton: () {
+                                setState(() => _loading = true);
+                                _load();
+                              }))
+                      : _volunteers.isEmpty
+                          ? const SliverToBoxAdapter(
+                              child: TBEmptyState(
+                                  emoji: '🤝',
+                                  title: 'No volunteers available',
+                                  subtitle:
+                                      'Check back later for available volunteers.'))
+                          : SliverList.builder(
+                              itemCount: _volunteers.length,
+                              itemBuilder: (context, i) => _providerCard(
+                                  context, _volunteers[i], 'volunteer'),
+                            ),
+                ),
               ],
             ),
     );
@@ -1528,8 +1629,7 @@ class ConsultationBookingScreen extends StatefulWidget {
       _ConsultationBookingScreenState();
 }
 
-class _ConsultationBookingScreenState
-    extends State<ConsultationBookingScreen> {
+class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime? _selectedDate;
   String? _selectedTime;
@@ -1543,7 +1643,11 @@ class _ConsultationBookingScreenState
         ?.map((e) => e.toString())
         .toList();
     if (available == null || available.isEmpty) {
-      return const ['9:00 AM - 10:00 AM', '2:00 PM - 3:00 PM', '5:00 PM - 6:00 PM'];
+      return const [
+        '9:00 AM - 10:00 AM',
+        '2:00 PM - 3:00 PM',
+        '5:00 PM - 6:00 PM'
+      ];
     }
     return available.map(_toRange).toList();
   }
@@ -1620,8 +1724,8 @@ class _ConsultationBookingScreenState
                   return GestureDetector(
                     onTap: () => setState(() => _selectedTime = t),
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                           color: sel
                               ? AppColors.sage
@@ -1697,8 +1801,8 @@ class _ConsultationBookingScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(DateFormat('MMMM yyyy').format(_month),
-                  style:
-                      const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15)),
               Row(children: [
                 IconButton(
                     icon: const Icon(Icons.chevron_left),
@@ -1738,7 +1842,8 @@ class _ConsultationBookingScreenState
   Widget _dayCell(int day, DateTime todayMidnight) {
     final date = DateTime(_month.year, _month.month, day);
     final isPast = date.isBefore(todayMidnight);
-    final isSelected = _selectedDate != null && _isSameDay(_selectedDate!, date);
+    final isSelected =
+        _selectedDate != null && _isSameDay(_selectedDate!, date);
     return GestureDetector(
       onTap: isPast ? null : () => setState(() => _selectedDate = date),
       child: Container(
@@ -1796,7 +1901,12 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
         'purpose': widget.purpose.isEmpty ? null : widget.purpose,
         'platform': 'Zoom Meeting',
       });
-      if (mounted) setState(() { _submitted = true; _submitting = false; });
+      if (mounted) {
+        setState(() {
+          _submitted = true;
+          _submitting = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
@@ -1818,7 +1928,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                   fontSize: 13,
                   color: AppColors.textMid)),
           Text(value,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         ],
       ),
     );
@@ -1853,7 +1964,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
               decoration: BoxDecoration(
                   color: AppColors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.rose.withValues(alpha: 0.3))),
+                  border:
+                      Border.all(color: AppColors.rose.withValues(alpha: 0.3))),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1863,7 +1975,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                       CircleAvatar(
                           radius: 22,
                           backgroundColor: AppColors.blush,
-                          child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
                               style: const TextStyle(
                                   color: AppColors.roseDeep,
                                   fontWeight: FontWeight.w700))),
@@ -1883,8 +1996,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                     ]),
                   ),
                   const Divider(height: 1, color: AppColors.blush),
-                  _detailRow(
-                      'Date', DateFormat('d MMMM yyyy (EEE)').format(widget.date)),
+                  _detailRow('Date',
+                      DateFormat('d MMMM yyyy (EEE)').format(widget.date)),
                   const Divider(height: 1, color: AppColors.blush),
                   _detailRow('Time', widget.time),
                   const Divider(height: 1, color: AppColors.blush),
@@ -1921,8 +2034,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                     color: AppColors.sage.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(20)),
                 child: const Text('Consultation request sent!',
-                    style:
-                        TextStyle(color: AppColors.sage, fontWeight: FontWeight.w700)),
+                    style: TextStyle(
+                        color: AppColors.sage, fontWeight: FontWeight.w700)),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -2050,7 +2163,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
       final all = await SupabaseService.getArticles();
 
       // 1st choice: articles a specialist tagged for the mum's current trimester.
-      final byTrimester = all.where((a) => a['trimester'] == _trimester).toList();
+      final byTrimester =
+          all.where((a) => a['trimester'] == _trimester).toList();
       if (byTrimester.isNotEmpty) {
         if (mounted) setState(() => _articles = byTrimester.take(3).toList());
         return;
@@ -2059,12 +2173,15 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
       // 2nd choice: untagged but pregnancy/baby-development related articles.
       final relevant = all.where((a) {
         final cat = (a['category'] as String? ?? '').toLowerCase();
-        return cat.contains('pregnan') || cat.contains('baby') || cat.contains('develop');
+        return cat.contains('pregnan') ||
+            cat.contains('baby') ||
+            cat.contains('develop');
       }).toList();
 
       // 3rd choice: whatever is published, newest first.
       if (mounted) {
-        setState(() => _articles = (relevant.isNotEmpty ? relevant : all).take(3).toList());
+        setState(() => _articles =
+            (relevant.isNotEmpty ? relevant : all).take(3).toList());
       }
     } catch (_) {}
   }
@@ -2093,9 +2210,7 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
           const SizedBox(height: 4),
           Text(value,
               style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: color)),
+                  fontSize: 18, fontWeight: FontWeight.w800, color: color)),
         ],
       ),
     );
@@ -2123,223 +2238,251 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   onUpgrade: () => context.push('/subscription')),
             )
           : _loading
-          ? const TBLoading()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Trimester badge
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: trimesterColor.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${trimester['label']}  •  ${trimester['weeks']}',
-                      style: TextStyle(
-                          color: trimesterColor.withValues(alpha: 1.0),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12),
-                    ),
-                  ),
-                  if (_dueDate != null) ...[
-                    const SizedBox(height: 6),
-                    Text('Based on due date: ${DateFormat('d MMM yyyy').format(_dueDate!)}',
-                      style: const TextStyle(color: AppColors.textLight, fontSize: 12)),
-                  ],
-                  const SizedBox(height: 20),
+              ? const TBLoading()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Trimester badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: trimesterColor.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${trimester['label']}  •  ${trimester['weeks']}',
+                          style: TextStyle(
+                              color: trimesterColor.withValues(alpha: 1.0),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12),
+                        ),
+                      ),
+                      if (_dueDate != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                            'Based on due date: ${DateFormat('d MMM yyyy').format(_dueDate!)}',
+                            style: const TextStyle(
+                                color: AppColors.textLight, fontSize: 12)),
+                      ],
+                      const SizedBox(height: 20),
 
-                  // Hero card
-                  TBCard(
-                    color: AppColors.blush,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                      // Hero card
+                      TBCard(
+                        color: AppColors.blush,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(week['emoji'] as String,
-                                style: const TextStyle(fontSize: 64)),
-                            const SizedBox(width: 20),
+                            Row(
+                              children: [
+                                Text(week['emoji'] as String,
+                                    style: const TextStyle(fontSize: 64)),
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Week $_currentWeek',
+                                          style: const TextStyle(
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.roseDeep)),
+                                      Text(
+                                          'Your baby is approximately the size of\n${week['size']}',
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              color: AppColors.textMid,
+                                              height: 1.4)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            // Progress bar
+                            LinearProgressIndicator(
+                              value: _currentWeek / 40,
+                              backgroundColor:
+                                  AppColors.rose.withValues(alpha: 0.15),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  AppColors.rose),
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            const SizedBox(height: 6),
+                            Text('$_currentWeek / 40 weeks',
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.textLight)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Baby Information — stats grid
+                      Row(
+                        children: [
+                          Expanded(
+                              child: _statCard(
+                                  'Approx. Length',
+                                  week['length'] as String,
+                                  AppColors.roseDeep)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: _statCard(
+                                  'Approx. Weight',
+                                  week['weight'] as String,
+                                  AppColors.roseDeep)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                              child: _statCard(
+                                  'Weeks Remaining',
+                                  '${40 - _currentWeek} weeks',
+                                  AppColors.teal)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: _statCard('Trimester',
+                                  'Trimester $_trimester', AppColors.teal)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Development Progress card
+                      TBCard(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: AppColors.teal.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.timeline_outlined,
+                                  color: AppColors.teal, size: 20),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Week $_currentWeek',
-                                      style: const TextStyle(
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.w800,
-                                          color: AppColors.roseDeep)),
-                                  Text(
-                                      'Your baby is approximately the size of\n${week['size']}',
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          color: AppColors.textMid,
-                                          height: 1.4)),
+                                  const Text('Development Progress',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.teal)),
+                                  const SizedBox(height: 6),
+                                  ..._milestones(week['highlight'] as String)
+                                      .map((m) => Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 4),
+                                            child: Text('•  $m',
+                                                style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: AppColors.textMid,
+                                                    height: 1.4)),
+                                          )),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        // Progress bar
-                        LinearProgressIndicator(
-                          value: _currentWeek / 40,
-                          backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.rose),
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        const SizedBox(height: 6),
-                        Text('$_currentWeek / 40 weeks',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textLight)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                      ),
+                      const SizedBox(height: 16),
 
-                  // Baby Information — stats grid
-                  Row(
-                    children: [
-                      Expanded(child: _statCard('Approx. Length', week['length'] as String, AppColors.roseDeep)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _statCard('Approx. Weight', week['weight'] as String, AppColors.roseDeep)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: _statCard('Weeks Remaining', '${40 - _currentWeek} weeks', AppColors.teal)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _statCard('Trimester', 'Trimester $_trimester', AppColors.teal)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Development Progress card
-                  TBCard(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.teal.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.timeline_outlined,
-                              color: AppColors.teal, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
+                      // Recommended Articles
+                      if (_articles.isNotEmpty) ...[
+                        TBCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Development Progress',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.teal)),
-                              const SizedBox(height: 6),
-                              ..._milestones(week['highlight'] as String).map((m) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text('•  $m',
-                                    style: const TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.textMid,
-                                        height: 1.4)),
-                              )),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.gold
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.menu_book_outlined,
+                                        color: AppColors.gold, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text('Recommended Articles',
+                                      style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textDark)),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ..._articles.map((a) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: GestureDetector(
+                                      onTap: () => _openArticle(context, a),
+                                      child: Row(
+                                        children: [
+                                          const Text('•  ',
+                                              style: TextStyle(
+                                                  color: AppColors.textMid)),
+                                          Expanded(
+                                            child: Text(a['title'] ?? '',
+                                                style: const TextStyle(
+                                                    color: AppColors.textMid,
+                                                    fontSize: 14,
+                                                    fontWeight:
+                                                        FontWeight.w600),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis),
+                                          ),
+                                          const Icon(Icons.chevron_right,
+                                              color: AppColors.textLight,
+                                              size: 16),
+                                        ],
+                                      ),
+                                    ),
+                                  )),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                // `go`, not `push` — `/education` lives inside the bottom-nav
+                                // ShellRoute, and pushing it from a screen outside the shell
+                                // (this one) would create a duplicate shell page with a
+                                // colliding key, crashing the Navigator.
+                                onTap: () => context.go('/education'),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                      color: AppColors.blush,
+                                      borderRadius: BorderRadius.circular(20)),
+                                  child: const Text('Read More',
+                                      style: TextStyle(
+                                          color: AppColors.roseDeep,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13)),
+                                ),
+                              ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 24),
                       ],
-                    ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-
-                  // Recommended Articles
-                  if (_articles.isNotEmpty) ...[
-                    TBCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppColors.gold.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(Icons.menu_book_outlined,
-                                    color: AppColors.gold, size: 20),
-                              ),
-                              const SizedBox(width: 12),
-                              const Text('Recommended Articles',
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.textDark)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          ..._articles.map((a) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: GestureDetector(
-                              onTap: () => _openArticle(context, a),
-                              child: Row(
-                                children: [
-                                  const Text('•  ', style: TextStyle(color: AppColors.textMid)),
-                                  Expanded(
-                                    child: Text(a['title'] ?? '',
-                                        style: const TextStyle(
-                                            color: AppColors.textMid,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
-                                  ),
-                                  const Icon(Icons.chevron_right, color: AppColors.textLight, size: 16),
-                                ],
-                              ),
-                            ),
-                          )),
-                          const SizedBox(height: 4),
-                          GestureDetector(
-                            // `go`, not `push` — `/education` lives inside the bottom-nav
-                            // ShellRoute, and pushing it from a screen outside the shell
-                            // (this one) would create a duplicate shell page with a
-                            // colliding key, crashing the Navigator.
-                            onTap: () => context.go('/education'),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: AppColors.blush,
-                                borderRadius: BorderRadius.circular(20)),
-                              child: const Text('Read More',
-                                  style: TextStyle(
-                                      color: AppColors.roseDeep,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  const SizedBox(height: 12),
-                ],
-              ),
-            ),
+                ),
     );
   }
 }
@@ -2348,32 +2491,110 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
 // Curated "big moments" timeline (as opposed to BabyDevelopmentScreen's
 // week-by-week data), grouped by trimester.
 const _milestoneJourney = [
-  {'week': 4, 'title': 'Week 4', 'trimester': 1,
-    'items': ['Fertilized egg successfully implanted', 'Pregnancy confirmed']},
-  {'week': 6, 'title': 'Week 6 — Heartbeat Detected', 'trimester': 1,
-    'items': ['Baby\'s heartbeat detected', 'First ultrasound completed']},
-  {'week': 8, 'title': 'Week 8 — Early Development', 'trimester': 1,
-    'items': ['Facial features starting to form', 'Tiny arm and leg movements begin']},
-  {'week': 10, 'title': 'Week 10 — Organ Development', 'trimester': 1,
-    'items': ['Major organs developing', 'Baby begins small body movements']},
-  {'week': 12, 'title': 'Week 12 — End of 1st Trimester', 'trimester': 1,
-    'items': ['Nuchal scan completed', 'Lower miscarriage risk', 'Baby fully formed']},
-  {'week': 16, 'title': 'Week 16 — Growth Milestone', 'trimester': 2,
-    'items': ['Baby can hear sounds', 'Facial expressions developing']},
-  {'week': 20, 'title': 'Week 20 — Anatomy Scan', 'trimester': 2,
-    'items': ['Full anatomy scan completed', 'Baby movements stronger', 'Gender may be visible']},
-  {'week': 24, 'title': 'Week 24 — Viability Milestone', 'trimester': 2,
-    'items': ['Baby may survive outside womb with medical support', 'Heartbeat developing well', 'Baby responding to sounds']},
-  {'week': 28, 'title': 'Week 28 — Brain & Lung Development', 'trimester': 2,
-    'items': ['Brain developing rapidly', 'Eyes can open and close', 'Glucose test scheduled']},
-  {'week': 32, 'title': 'Week 32 — Rapid Growth', 'trimester': 3,
-    'items': ['Baby gaining weight quickly', 'Stronger kicks and movements']},
-  {'week': 36, 'title': 'Week 36 — Full Term Preparation', 'trimester': 3,
-    'items': ['Baby moving into birth position', 'Hospital preparation checklist']},
-  {'week': 38, 'title': 'Week 38 — Final Development', 'trimester': 3,
-    'items': ['Baby lungs nearly mature', 'Frequent contractions may occur']},
-  {'week': 40, 'title': 'Week 40 — Estimated Delivery Week', 'trimester': 3,
-    'items': ['🎉 Full Term Reached', 'Baby ready for delivery', 'Labour may begin anytime']},
+  {
+    'week': 4,
+    'title': 'Week 4',
+    'trimester': 1,
+    'items': ['Fertilized egg successfully implanted', 'Pregnancy confirmed']
+  },
+  {
+    'week': 6,
+    'title': 'Week 6 — Heartbeat Detected',
+    'trimester': 1,
+    'items': ['Baby\'s heartbeat detected', 'First ultrasound completed']
+  },
+  {
+    'week': 8,
+    'title': 'Week 8 — Early Development',
+    'trimester': 1,
+    'items': [
+      'Facial features starting to form',
+      'Tiny arm and leg movements begin'
+    ]
+  },
+  {
+    'week': 10,
+    'title': 'Week 10 — Organ Development',
+    'trimester': 1,
+    'items': ['Major organs developing', 'Baby begins small body movements']
+  },
+  {
+    'week': 12,
+    'title': 'Week 12 — End of 1st Trimester',
+    'trimester': 1,
+    'items': [
+      'Nuchal scan completed',
+      'Lower miscarriage risk',
+      'Baby fully formed'
+    ]
+  },
+  {
+    'week': 16,
+    'title': 'Week 16 — Growth Milestone',
+    'trimester': 2,
+    'items': ['Baby can hear sounds', 'Facial expressions developing']
+  },
+  {
+    'week': 20,
+    'title': 'Week 20 — Anatomy Scan',
+    'trimester': 2,
+    'items': [
+      'Full anatomy scan completed',
+      'Baby movements stronger',
+      'Gender may be visible'
+    ]
+  },
+  {
+    'week': 24,
+    'title': 'Week 24 — Viability Milestone',
+    'trimester': 2,
+    'items': [
+      'Baby may survive outside womb with medical support',
+      'Heartbeat developing well',
+      'Baby responding to sounds'
+    ]
+  },
+  {
+    'week': 28,
+    'title': 'Week 28 — Brain & Lung Development',
+    'trimester': 2,
+    'items': [
+      'Brain developing rapidly',
+      'Eyes can open and close',
+      'Glucose test scheduled'
+    ]
+  },
+  {
+    'week': 32,
+    'title': 'Week 32 — Rapid Growth',
+    'trimester': 3,
+    'items': ['Baby gaining weight quickly', 'Stronger kicks and movements']
+  },
+  {
+    'week': 36,
+    'title': 'Week 36 — Full Term Preparation',
+    'trimester': 3,
+    'items': [
+      'Baby moving into birth position',
+      'Hospital preparation checklist'
+    ]
+  },
+  {
+    'week': 38,
+    'title': 'Week 38 — Final Development',
+    'trimester': 3,
+    'items': ['Baby lungs nearly mature', 'Frequent contractions may occur']
+  },
+  {
+    'week': 40,
+    'title': 'Week 40 — Estimated Delivery Week',
+    'trimester': 3,
+    'items': [
+      '🎉 Full Term Reached',
+      'Baby ready for delivery',
+      'Labour may begin anytime'
+    ]
+  },
 ];
 
 class MilestoneJourneyScreen extends StatefulWidget {
@@ -2394,22 +2615,33 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
   Future<void> _load() async {
     final week = await SupabaseService.getCurrentPregnancyWeek();
-    if (mounted) setState(() { _currentWeek = week; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _currentWeek = week;
+        _loading = false;
+      });
+    }
   }
 
   Color _trimesterColor(int t) {
     switch (t) {
-      case 1: return AppColors.sage;
-      case 2: return AppColors.teal;
-      default: return AppColors.gold;
+      case 1:
+        return AppColors.sage;
+      case 2:
+        return AppColors.teal;
+      default:
+        return AppColors.gold;
     }
   }
 
   String _trimesterLabel(int t) {
     switch (t) {
-      case 1: return '1st Trimester';
-      case 2: return '2nd Trimester';
-      default: return '3rd Trimester';
+      case 1:
+        return '1st Trimester';
+      case 2:
+        return '2nd Trimester';
+      default:
+        return '3rd Trimester';
     }
   }
 
@@ -2418,9 +2650,12 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
     // The most recently reached milestone week, so far.
     int? currentMilestoneWeek;
     for (final m in _milestoneJourney) {
-      if ((m['week'] as int) <= _currentWeek) currentMilestoneWeek = m['week'] as int;
+      if ((m['week'] as int) <= _currentWeek) {
+        currentMilestoneWeek = m['week'] as int;
+      }
     }
-    final progress = _currentWeek > 0 ? (_currentWeek / 40).clamp(0.0, 1.0) : 0.0;
+    final progress =
+        _currentWeek > 0 ? (_currentWeek / 40).clamp(0.0, 1.0) : 0.0;
     final isPremium = context.watch<AuthProvider>().isPremium;
 
     return Scaffold(
@@ -2434,51 +2669,53 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
                   onUpgrade: () => context.push('/subscription')),
             )
           : _loading
-          ? const TBLoading()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ? const TBLoading()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Progress',
-                          style: TextStyle(
-                              color: AppColors.roseDeep,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                      Text('${(progress * 100).round()}%',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 14)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Progress',
+                              style: TextStyle(
+                                  color: AppColors.roseDeep,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14)),
+                          Text('${(progress * 100).round()}%',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 14)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          backgroundColor:
+                              AppColors.rose.withValues(alpha: 0.15),
+                          valueColor:
+                              const AlwaysStoppedAnimation(AppColors.rose),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: AppColors.rose.withValues(alpha: 0.3))),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: _buildTimeline(currentMilestoneWeek),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                      backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                      valueColor: const AlwaysStoppedAnimation(AppColors.rose),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: AppColors.rose.withValues(alpha: 0.3))),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _buildTimeline(currentMilestoneWeek),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
     );
   }
 
@@ -2494,7 +2731,8 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
       if (trimester != lastTrimester) {
         widgets.add(Padding(
-          padding: EdgeInsets.only(top: lastTrimester == null ? 0 : 8, bottom: 12),
+          padding:
+              EdgeInsets.only(top: lastTrimester == null ? 0 : 8, bottom: 12),
           child: Text(_trimesterLabel(trimester),
               style: const TextStyle(
                   fontWeight: FontWeight.w700,
@@ -2514,7 +2752,8 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: _trimesterColor(trimester)),
+                      shape: BoxShape.circle,
+                      color: _trimesterColor(trimester)),
                 ),
                 if (!isLast)
                   Expanded(

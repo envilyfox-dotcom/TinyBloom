@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -60,13 +62,27 @@ class EducationScreen extends StatefulWidget {
 class _EducationScreenState extends State<EducationScreen> {
   List<Map<String, dynamic>> _articles = [];
   bool _loading = true;
-  String _search = '';
+  final ValueNotifier<String> _search = ValueNotifier('');
+  Timer? _searchDebounce;
   String _selectedCat = 'All';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce =
+        Timer(const Duration(milliseconds: 250), () => _search.value = v);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -140,8 +156,8 @@ class _EducationScreenState extends State<EducationScreen> {
       ),
     );
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Thanks — our team will take a look.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thanks — our team will take a look.')));
     }
   }
 
@@ -161,7 +177,7 @@ class _EducationScreenState extends State<EducationScreen> {
   }
 
   List<Map<String, dynamic>> get _filtered {
-    final q = _search.toLowerCase().trim();
+    final q = _search.value.toLowerCase().trim();
 
     return _articles.where((a) {
       final title = (a['title'] as String? ?? '').toLowerCase();
@@ -177,8 +193,6 @@ class _EducationScreenState extends State<EducationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filtered;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -240,31 +254,33 @@ class _EducationScreenState extends State<EducationScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            TextFormField(
-                              onChanged: (v) => setState(() => _search = v),
-                              decoration: InputDecoration(
-                                hintText: 'Search pregnancy articles...',
-                                prefixIcon: const Icon(
-                                  Icons.search,
-                                  color: AppColors.textLight,
-                                ),
-                                suffixIcon: _search.isEmpty
-                                    ? null
-                                    : IconButton(
-                                        icon: const Icon(Icons.close,
-                                            color: AppColors.textLight),
-                                        onPressed: () =>
-                                            setState(() => _search = ''),
-                                      ),
-                                fillColor: AppColors.white,
-                                filled: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(50),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
+                            ValueListenableBuilder<String>(
+                              valueListenable: _search,
+                              builder: (context, search, _) => TextFormField(
+                                onChanged: _onSearchChanged,
+                                decoration: InputDecoration(
+                                  hintText: 'Search pregnancy articles...',
+                                  prefixIcon: const Icon(
+                                    Icons.search,
+                                    color: AppColors.textLight,
+                                  ),
+                                  suffixIcon: search.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          icon: const Icon(Icons.close,
+                                              color: AppColors.textLight),
+                                          onPressed: () => _search.value = '',
+                                        ),
+                                  fillColor: AppColors.white,
+                                  filled: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(50),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                 ),
                               ),
                             ),
@@ -322,12 +338,15 @@ class _EducationScreenState extends State<EducationScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Text(
-                                  '${filtered.length} found',
-                                  style: const TextStyle(
-                                    color: AppColors.textLight,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                                ValueListenableBuilder<String>(
+                                  valueListenable: _search,
+                                  builder: (context, _, __) => Text(
+                                    '${_filtered.length} found',
+                                    style: const TextStyle(
+                                      color: AppColors.textLight,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -337,31 +356,37 @@ class _EducationScreenState extends State<EducationScreen> {
                         ),
                       ),
                     ),
-                    if (filtered.isEmpty)
-                      const SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: Center(
-                          child: TBEmptyState(
-                            emoji: '📚',
-                            title: 'No articles found',
-                            subtitle: 'Try a different search or category.',
+                    ValueListenableBuilder<String>(
+                      valueListenable: _search,
+                      builder: (context, _, __) {
+                        final filtered = _filtered;
+                        if (filtered.isEmpty) {
+                          return const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: TBEmptyState(
+                                emoji: '📚',
+                                title: 'No articles found',
+                                subtitle: 'Try a different search or category.',
+                              ),
+                            ),
+                          );
+                        }
+                        return SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          sliver: SliverList.separated(
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (ctx, i) => _ArticleCard(
+                              article: filtered[i],
+                              onReport: () => _showReportDialog(filtered[i]),
+                              onReturn: _load,
+                            ),
                           ),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        sliver: SliverList.separated(
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (ctx, i) => _ArticleCard(
-                            article: filtered[i],
-                            onReport: () => _showReportDialog(filtered[i]),
-                            onReturn: _load,
-                          ),
-                        ),
-                      ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -402,10 +427,9 @@ class _ArticleCardState extends State<_ArticleCard> {
     final specialization = (author?['specialist_profiles']
         as Map<String, dynamic>?)?['specialization'] as String?;
     final photoUrl = author?['profile_picture_url'] as String?;
-    final createdAt = DateTime.tryParse(
-        article['published_at'] as String? ??
-            article['created_at'] as String? ??
-            '');
+    final createdAt = DateTime.tryParse(article['published_at'] as String? ??
+        article['created_at'] as String? ??
+        '');
     final excerpt = article['excerpt'] as String? ?? '';
     final content = article['content'] as String? ?? '';
     final leadingImageUrl = _leadingImageUrl(content);
@@ -432,8 +456,9 @@ class _ArticleCardState extends State<_ArticleCard> {
                 child: CircleAvatar(
                   radius: 20,
                   backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                  backgroundImage:
-                      photoUrl != null ? NetworkImage(photoUrl) : null,
+                  backgroundImage: photoUrl != null
+                      ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
+                      : null,
                   child: photoUrl == null
                       ? Text(
                           authorName.isNotEmpty
@@ -484,8 +509,7 @@ class _ArticleCardState extends State<_ArticleCard> {
             runSpacing: 6,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.tealLight,
                   borderRadius: BorderRadius.circular(50),
@@ -559,15 +583,15 @@ class _ArticleCardState extends State<_ArticleCard> {
                   color: AppColors.textLight, size: 18),
               const SizedBox(width: 4),
               Text('$likeCount',
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 12)),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 12)),
               const SizedBox(width: 20),
               const Icon(Icons.chat_bubble_outline,
                   color: AppColors.textLight, size: 16),
               const SizedBox(width: 4),
               Text('$commentCount',
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 12)),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 12)),
             ],
           ),
         ],
@@ -597,6 +621,8 @@ class _ContentImagePreview extends StatelessWidget {
             CachedNetworkImage(
               imageUrl: url,
               fit: BoxFit.cover,
+              memCacheHeight:
+                  (120 * MediaQuery.of(context).devicePixelRatio).round(),
               errorWidget: (context, url, error) => Container(
                 color: AppColors.rose.withValues(alpha: 0.08),
                 child: const Icon(Icons.broken_image_outlined,

@@ -69,11 +69,15 @@ class _ImageBuilder extends MarkdownElementBuilder {
           imageUrl: src,
           width: double.infinity,
           fit: BoxFit.fitWidth,
+          memCacheWidth: (MediaQuery.sizeOf(context).width *
+                  MediaQuery.of(context).devicePixelRatio)
+              .round(),
           fadeInDuration: const Duration(milliseconds: 200),
           placeholder: (context, url) => Shimmer.fromColors(
             baseColor: AppColors.rose.withValues(alpha: 0.08),
             highlightColor: AppColors.rose.withValues(alpha: 0.18),
-            child: Container(width: double.infinity, height: 180, color: Colors.white),
+            child: Container(
+                width: double.infinity, height: 180, color: Colors.white),
           ),
           errorWidget: (context, url, error) => Container(
             width: double.infinity,

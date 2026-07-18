@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -27,7 +28,12 @@ class SpecialistConsultationsScreen extends StatefulWidget {
 
 class _SpecialistConsultationsScreenState
     extends State<SpecialistConsultationsScreen> {
-  static const _tagOptions = ['All Available', 'Cancelled', 'Expired', 'Completed'];
+  static const _tagOptions = [
+    'All Available',
+    'Cancelled',
+    'Expired',
+    'Completed'
+  ];
 
   List<Map<String, dynamic>> _consultations = [];
   final Map<String, Map<String, dynamic>> _patientProfiles = {};
@@ -36,9 +42,11 @@ class _SpecialistConsultationsScreenState
   bool _loading = true;
   final Set<String> _busyIds = {};
   final _searchCtrl = TextEditingController();
-  String _searchQuery = '';
+  final ValueNotifier<String> _searchQuery = ValueNotifier('');
+  Timer? _searchDebounce;
   String _selectedTag = 'All Available';
   Timer? _tickTimer;
+  final ValueNotifier<DateTime> _now = ValueNotifier(DateTime.now());
 
   @override
   void initState() {
@@ -46,21 +54,32 @@ class _SpecialistConsultationsScreenState
     _load();
     // Re-evaluates the Start Session lock/unlock (and Pending -> Expired
     // display) against the current time without needing a manual refresh,
-    // so the join window opens on its own while the page is open.
+    // so the join window opens on its own while the page is open. Only the
+    // consultation list listens to _now, so the tick doesn't rebuild the
+    // whole screen.
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
+      if (mounted) _now.value = DateTime.now();
     });
+  }
+
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce =
+        Timer(const Duration(milliseconds: 250), () => _searchQuery.value = v);
   }
 
   @override
   void dispose() {
     _tickTimer?.cancel();
+    _searchDebounce?.cancel();
+    _searchQuery.dispose();
+    _now.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
 
   List<Map<String, dynamic>> get _filteredConsultations {
-    final query = _searchQuery.trim().toLowerCase();
+    final query = _searchQuery.value.trim().toLowerCase();
 
     return _consultations.where((c) {
       final key = _effectiveStatusKey(c);
@@ -166,7 +185,8 @@ class _SpecialistConsultationsScreenState
   // already passed reads as "Completed" — both distinct from a patient-initiated
   // "Cancelled".
   String _effectiveStatusKey(Map<String, dynamic> consultation) {
-    final status = (consultation['status'] as String? ?? 'pending').toLowerCase();
+    final status =
+        (consultation['status'] as String? ?? 'pending').toLowerCase();
     if (status == 'cancelled') return 'cancelled';
 
     final scheduled = _scheduledDateTime(consultation);
@@ -192,7 +212,8 @@ class _SpecialistConsultationsScreenState
     final link = consultation['meeting_link']?.toString().trim() ?? '';
     if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Zoom meeting link is not available yet.')),
+        const SnackBar(
+            content: Text('Zoom meeting link is not available yet.')),
       );
       return;
     }
@@ -233,8 +254,6 @@ class _SpecialistConsultationsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredConsultations;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -252,31 +271,35 @@ class _SpecialistConsultationsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextFormField(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  decoration: InputDecoration(
-                    hintText: 'Search patient or appointment ID',
-                    prefixIcon:
-                        const Icon(Icons.search, color: AppColors.textLight),
-                    suffixIcon: _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close,
-                                color: AppColors.textLight),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          ),
-                    fillColor: AppColors.white,
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(50),
-                      borderSide: BorderSide.none,
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchCtrl,
+                  builder: (context, value, _) => TextFormField(
+                    controller: _searchCtrl,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search patient or appointment ID',
+                      prefixIcon:
+                          const Icon(Icons.search, color: AppColors.textLight),
+                      suffixIcon: value.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close,
+                                  color: AppColors.textLight),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                _searchDebounce?.cancel();
+                                _searchQuery.value = '';
+                              },
+                            ),
+                      fillColor: AppColors.white,
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(50),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -293,8 +316,7 @@ class _SpecialistConsultationsScreenState
                       return ChoiceChip(
                         label: Text(tag),
                         selected: selected,
-                        onSelected: (_) =>
-                            setState(() => _selectedTag = tag),
+                        onSelected: (_) => setState(() => _selectedTag = tag),
                         selectedColor: AppColors.blush,
                         backgroundColor: AppColors.white,
                         side: BorderSide(
@@ -323,32 +345,39 @@ class _SpecialistConsultationsScreenState
                 : RefreshIndicator(
                     onRefresh: _load,
                     color: AppColors.rose,
-                    child: filtered.isEmpty
-                        ? ListView(
-                            children: [
-                              const SizedBox(height: 80),
-                              TBEmptyState(
-                                emoji: '🩺',
-                                title: _consultations.isEmpty
-                                    ? 'No consultations yet'
-                                    : 'No matches found',
-                                subtitle: _consultations.isEmpty
-                                    ? 'Your upcoming patient consultations will show here.'
-                                    : 'Try a different search or tag filter.',
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final consultation = filtered[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: _consultationCard(consultation),
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([_searchQuery, _now]),
+                      builder: (context, _) {
+                        final filtered = _filteredConsultations;
+                        return filtered.isEmpty
+                            ? ListView(
+                                children: [
+                                  const SizedBox(height: 80),
+                                  TBEmptyState(
+                                    emoji: '🩺',
+                                    title: _consultations.isEmpty
+                                        ? 'No consultations yet'
+                                        : 'No matches found',
+                                    subtitle: _consultations.isEmpty
+                                        ? 'Your upcoming patient consultations will show here.'
+                                        : 'Try a different search or tag filter.',
+                                  ),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                itemCount: filtered.length,
+                                itemBuilder: (context, index) {
+                                  final consultation = filtered[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: _consultationCard(consultation),
+                                  );
+                                },
                               );
-                            },
-                          ),
+                      },
+                    ),
                   ),
           ),
         ],
@@ -359,7 +388,8 @@ class _SpecialistConsultationsScreenState
   Widget _consultationCard(Map<String, dynamic> consultation) {
     final id = consultation['id']?.toString() ?? '';
     final patientId = consultation['patient_id'] as String?;
-    final patientProfile = patientId != null ? _patientProfiles[patientId] : null;
+    final patientProfile =
+        patientId != null ? _patientProfiles[patientId] : null;
     final patientPregnancy =
         patientId != null ? _patientPregnancies[patientId] : null;
     final patientWeek = patientId != null ? (_patientWeeks[patientId] ?? 0) : 0;
@@ -413,7 +443,9 @@ class _SpecialistConsultationsScreenState
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                  backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                  backgroundImage: photoUrl != null
+                      ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
+                      : null,
                   child: photoUrl != null
                       ? null
                       : Text(
@@ -434,8 +466,11 @@ class _SpecialistConsultationsScreenState
                     id, consultation['consultation_type'] as String?)),
             _infoLine('Name', patientName),
             _infoLine('Age', patientAge == '—' ? '—' : '$patientAge yrs old'),
-            _infoLine('Pregnancy',
-                patientWeek > 0 ? 'Week $patientWeek · ${trimesterLabel(patientWeek)}' : '—'),
+            _infoLine(
+                'Pregnancy',
+                patientWeek > 0
+                    ? 'Week $patientWeek · ${trimesterLabel(patientWeek)}'
+                    : '—'),
             _infoLine('Date', dateStr),
             _infoLine('Time', timeStr),
             _infoLine('Platform', platform),
@@ -474,8 +509,8 @@ class _SpecialistConsultationsScreenState
                   )
                 : Text(
                     'Descriptions: ${purpose.isEmpty ? 'No purpose specified.' : purpose}',
-                    style:
-                        const TextStyle(color: AppColors.textMid, fontSize: 13)),
+                    style: const TextStyle(
+                        color: AppColors.textMid, fontSize: 13)),
             const SizedBox(height: 16),
             if (effectiveKey == 'confirmed') ...[
               Center(
@@ -511,8 +546,7 @@ class _SpecialistConsultationsScreenState
                   ),
                 ),
               ],
-            ]
-            else if (effectiveKey == 'pending')
+            ] else if (effectiveKey == 'pending')
               Center(
                 child: SizedBox(
                   width: double.infinity,

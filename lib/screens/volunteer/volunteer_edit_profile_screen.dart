@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -84,14 +85,15 @@ class _VolunteerEditProfileScreenState
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
+    final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
     if (picked == null) return;
 
     setState(() => _photoBusy = true);
     try {
       final bytes = await picked.readAsBytes();
-      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final ext =
+          picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
       final url = await SupabaseService.uploadProfilePicture(
           bytes, ext.length <= 4 ? ext : 'jpg');
       if (mounted) setState(() => _photoUrl = url);
@@ -106,8 +108,8 @@ class _VolunteerEditProfileScreenState
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove Photo'),
-        content: const Text(
-            'Are you sure you want to remove your profile photo?'),
+        content:
+            const Text('Are you sure you want to remove your profile photo?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -185,7 +187,8 @@ class _VolunteerEditProfileScreenState
       if (email != _originalEmail) {
         await SupabaseService.client.auth
             .updateUser(UserAttributes(email: email));
-        message = 'Profile updated! Check your new email to confirm the change.';
+        message =
+            'Profile updated! Check your new email to confirm the change.';
       }
 
       if (wantsPasswordChange) {
@@ -200,7 +203,8 @@ class _VolunteerEditProfileScreenState
 
       if (!mounted) return;
       context.pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } on AuthException catch (e) {
       _showSnack('Error: ${e.message}', isError: true);
     } catch (e) {
@@ -239,187 +243,194 @@ class _VolunteerEditProfileScreenState
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.rose))
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-
-            // ── Avatar picker ─────────────────────────────────────
-            GestureDetector(
-              onTap: _photoBusy ? null : _pickPhoto,
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 52,
-                    backgroundColor: AppColors.rose.withValues(alpha: 0.2),
-                    backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty
-                        ? NetworkImage(_photoUrl!)
-                        : null,
-                    child: _photoBusy
-                        ? const CircularProgressIndicator(color: AppColors.rose)
-                        : (_photoUrl == null || _photoUrl!.isEmpty
-                            ? const Icon(Icons.person,
-                                size: 52, color: AppColors.rose)
-                            : null),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.rose,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(Icons.camera_alt,
-                        color: Colors.white, size: 14),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text('Tap to change photo',
-                style: GoogleFonts.poppins(
-                    fontSize: 12, color: AppColors.textLight)),
-            if (_photoUrl != null && _photoUrl!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              TextButton.icon(
-                onPressed: _photoBusy ? null : _confirmRemovePhoto,
-                icon: const Icon(Icons.delete_outline,
-                    color: Colors.red, size: 18),
-                label: Text('Remove Photo',
-                    style: GoogleFonts.poppins(color: Colors.red)),
-              ),
-            ],
-            const SizedBox(height: 24),
-
-            // ── Form card ──────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
-              ),
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Text('Personal Information',
-                        style: GoogleFonts.poppins(
-                            color: AppColors.textDark,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14)),
-                  ),
-                  const SizedBox(height: 20),
-                  _field('Full name', _nameCtrl),
-                  const SizedBox(height: 12),
-                  _field('Email', _emailCtrl,
-                      keyboardType: TextInputType.emailAddress),
-                  const SizedBox(height: 12),
-                  _field('Phone number', _phoneCtrl,
-                      keyboardType: TextInputType.phone),
-                  const SizedBox(height: 12),
-                  _field('Area of Expertise', _expertiseCtrl),
-                  const SizedBox(height: 12),
-                  _field('Certification/License', _certificationCtrl),
-                  const SizedBox(height: 24),
-                  _sectionTitle(
-                    'Change Password',
-                    'Enter your current password before setting a new one.',
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _currentPasswordCtrl,
-                    obscureText: !_showPassword,
-                    decoration: _inputDecoration(
-                      label: 'Current Password',
-                      icon: Icons.lock_outline,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _newPasswordCtrl,
-                    obscureText: !_showPassword,
-                    decoration: _inputDecoration(
-                      label: 'New Password',
-                      icon: Icons.lock_reset_outlined,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _confirmPasswordCtrl,
-                    obscureText: !_showPassword,
-                    decoration: _inputDecoration(
-                      label: 'Confirm New Password',
-                      icon: Icons.verified_user_outlined,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _showPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: AppColors.textLight,
+                  const SizedBox(height: 8),
+
+                  // ── Avatar picker ─────────────────────────────────────
+                  GestureDetector(
+                    onTap: _photoBusy ? null : _pickPhoto,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 52,
+                          backgroundColor:
+                              AppColors.rose.withValues(alpha: 0.2),
+                          backgroundImage:
+                              _photoUrl != null && _photoUrl!.isNotEmpty
+                                  ? CachedNetworkImageProvider(_photoUrl!,
+                                      maxWidth: 400)
+                                  : null,
+                          child: _photoBusy
+                              ? const CircularProgressIndicator(
+                                  color: AppColors.rose)
+                              : (_photoUrl == null || _photoUrl!.isEmpty
+                                  ? const Icon(Icons.person,
+                                      size: 52, color: AppColors.rose)
+                                  : null),
                         ),
-                        onPressed: () {
-                          setState(() => _showPassword = !_showPassword);
-                        },
-                      ),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.rose,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white, size: 14),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Password must be at least 8 characters. Leave password fields blank if you do not want to change it.',
-                    style: GoogleFonts.poppins(
-                      color: AppColors.textLight,
-                      fontSize: 12,
-                      height: 1.4,
+                  Text('Tap to change photo',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: AppColors.textLight)),
+                  if (_photoUrl != null && _photoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      onPressed: _photoBusy ? null : _confirmRemovePhoto,
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.red, size: 18),
+                      label: Text('Remove Photo',
+                          style: GoogleFonts.poppins(color: Colors.red)),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                  ],
+                  const SizedBox(height: 24),
 
-                  // ── Save button ───────────────────────────────
-                  ElevatedButton(
-                    onPressed: _saving ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.rose,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                  // ── Form card ──────────────────────────────────────────
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: AppColors.rose.withValues(alpha: 0.18)),
                     ),
-                    child: _saving
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : Text('Save Changes',
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600)),
-                  ),
-                  const SizedBox(height: 8),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Text('Personal Information',
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14)),
+                        ),
+                        const SizedBox(height: 20),
+                        _field('Full name', _nameCtrl),
+                        const SizedBox(height: 12),
+                        _field('Email', _emailCtrl,
+                            keyboardType: TextInputType.emailAddress),
+                        const SizedBox(height: 12),
+                        _field('Phone number', _phoneCtrl,
+                            keyboardType: TextInputType.phone),
+                        const SizedBox(height: 12),
+                        _field('Area of Expertise', _expertiseCtrl),
+                        const SizedBox(height: 12),
+                        _field('Certification/License', _certificationCtrl),
+                        const SizedBox(height: 24),
+                        _sectionTitle(
+                          'Change Password',
+                          'Enter your current password before setting a new one.',
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _currentPasswordCtrl,
+                          obscureText: !_showPassword,
+                          decoration: _inputDecoration(
+                            label: 'Current Password',
+                            icon: Icons.lock_outline,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _newPasswordCtrl,
+                          obscureText: !_showPassword,
+                          decoration: _inputDecoration(
+                            label: 'New Password',
+                            icon: Icons.lock_reset_outlined,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _confirmPasswordCtrl,
+                          obscureText: !_showPassword,
+                          decoration: _inputDecoration(
+                            label: 'Confirm New Password',
+                            icon: Icons.verified_user_outlined,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _showPassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: AppColors.textLight,
+                              ),
+                              onPressed: () {
+                                setState(() => _showPassword = !_showPassword);
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Password must be at least 8 characters. Leave password fields blank if you do not want to change it.',
+                          style: GoogleFonts.poppins(
+                            color: AppColors.textLight,
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
-                  // ── Cancel button ─────────────────────────────
-                  OutlinedButton(
-                    onPressed: () => context.pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textMid,
-                      side: BorderSide(
-                          color: AppColors.textLight.withValues(alpha: 0.4)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        // ── Save button ───────────────────────────────
+                        ElevatedButton(
+                          onPressed: _saving ? null : _save,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.rose,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : Text('Save Changes',
+                                  style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // ── Cancel button ─────────────────────────────
+                        OutlinedButton(
+                          onPressed: () => context.pop(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.textMid,
+                            side: BorderSide(
+                                color:
+                                    AppColors.textLight.withValues(alpha: 0.4)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: Text('Cancel', style: GoogleFonts.poppins()),
+                        ),
+                      ],
                     ),
-                    child: Text('Cancel', style: GoogleFonts.poppins()),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -463,7 +474,8 @@ class _VolunteerEditProfileScreenState
       fillColor: AppColors.white,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: AppColors.textLight.withValues(alpha: 0.2)),
+        borderSide:
+            BorderSide(color: AppColors.textLight.withValues(alpha: 0.2)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -487,8 +499,7 @@ class _VolunteerEditProfileScreenState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: GoogleFonts.poppins(
-                color: AppColors.textMid, fontSize: 12)),
+            style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
         const SizedBox(height: 4),
         TextField(
           controller: ctrl,
@@ -500,15 +511,16 @@ class _VolunteerEditProfileScreenState
             fillColor: AppColors.white,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+                borderSide: BorderSide(
+                    color: AppColors.textLight.withValues(alpha: 0.3))),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+                borderSide: BorderSide(
+                    color: AppColors.textLight.withValues(alpha: 0.3))),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.rose, width: 1.5)),
+                borderSide:
+                    const BorderSide(color: AppColors.rose, width: 1.5)),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
@@ -16,7 +18,8 @@ class NextOfKinFaqScreen extends StatefulWidget {
 class _NextOfKinFaqScreenState extends State<NextOfKinFaqScreen> {
   List<Map<String, dynamic>> _faqs = [];
   bool _loading = true;
-  String _search = '';
+  final ValueNotifier<String> _search = ValueNotifier('');
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -24,13 +27,31 @@ class _NextOfKinFaqScreenState extends State<NextOfKinFaqScreen> {
     _load();
   }
 
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce =
+        Timer(const Duration(milliseconds: 250), () => _search.value = v);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final faqs = await SupabaseService.getFaqs(category: 'Next of Kin');
-    if (mounted) setState(() { _faqs = faqs; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _faqs = faqs;
+        _loading = false;
+      });
+    }
   }
 
   List<Map<String, dynamic>> get _filtered {
-    final q = _search.trim().toLowerCase();
+    final q = _search.value.trim().toLowerCase();
     if (q.isEmpty) return _faqs;
     return _faqs.where((f) {
       final question = (f['question'] as String? ?? '').toLowerCase();
@@ -50,49 +71,58 @@ class _NextOfKinFaqScreenState extends State<NextOfKinFaqScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
+                    onChanged: _onSearchChanged,
                     decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search, color: AppColors.textLight),
+                        prefixIcon:
+                            Icon(Icons.search, color: AppColors.textLight),
                         hintText: 'Search questions'),
                   ),
                 ),
                 Expanded(
-                  child: _filtered.isEmpty
-                      ? const TBEmptyState(
-                          emoji: '❓',
-                          title: 'No results',
-                          subtitle: 'Try a different search term.')
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _filtered.length,
-                          itemBuilder: (ctx, i) {
-                            final faq = _filtered[i];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: TBCard(
-                                padding: EdgeInsets.zero,
-                                child: ExpansionTile(
-                                  tilePadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 4),
-                                  childrenPadding:
-                                      const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                  iconColor: AppColors.rose,
-                                  collapsedIconColor: AppColors.textLight,
-                                  title: Text(faq['question'] ?? '',
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _search,
+                    builder: (context, _, __) {
+                      final filtered = _filtered;
+                      if (filtered.isEmpty) {
+                        return const TBEmptyState(
+                            emoji: '❓',
+                            title: 'No results',
+                            subtitle: 'Try a different search term.');
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (ctx, i) {
+                          final faq = filtered[i];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: TBCard(
+                              padding: EdgeInsets.zero,
+                              child: ExpansionTile(
+                                tilePadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                childrenPadding:
+                                    const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                iconColor: AppColors.rose,
+                                collapsedIconColor: AppColors.textLight,
+                                title: Text(faq['question'] ?? '',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14)),
+                                children: [
+                                  Text(faq['answer'] ?? '',
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.w600, fontSize: 14)),
-                                  children: [
-                                    Text(faq['answer'] ?? '',
-                                        style: const TextStyle(
-                                            color: AppColors.textMid,
-                                            fontSize: 14,
-                                            height: 1.6)),
-                                  ],
-                                ),
+                                          color: AppColors.textMid,
+                                          fontSize: 14,
+                                          height: 1.6)),
+                                ],
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

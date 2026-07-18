@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -35,7 +36,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _lastNavTime = now;
     return true;
   }
-
 
   String _normaliseNotificationType(dynamic rawType) {
     final type = (rawType ?? 'general').toString().trim().toLowerCase();
@@ -139,12 +139,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .select('source_table,source_id')
           .eq('user_id', userId);
 
-      return List<Map<String, dynamic>>.from(data).map((item) {
-        return _notificationReadReceiptKey(
-          item['source_table']?.toString() ?? '',
-          item['source_id']?.toString() ?? '',
-        );
-      }).where((key) => !key.endsWith('::')).toSet();
+      return List<Map<String, dynamic>>.from(data)
+          .map((item) {
+            return _notificationReadReceiptKey(
+              item['source_table']?.toString() ?? '',
+              item['source_id']?.toString() ?? '',
+            );
+          })
+          .where((key) => !key.endsWith('::'))
+          .toSet();
     } catch (e) {
       debugPrint('Failed to load dashboard read receipts: $e');
       return <String>{};
@@ -174,8 +177,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('Failed to save dashboard read receipt: $e');
     }
   }
-
-
 
   Future<bool> _openWebsite(dynamic rawUrl) async {
     final value = rawUrl?.toString().trim();
@@ -208,8 +209,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
-    final storedWeek = pregnancyProfile['current_week'] ??
-        pregnancyProfile['pregnancy_week'];
+    final storedWeek =
+        pregnancyProfile['current_week'] ?? pregnancyProfile['pregnancy_week'];
     if (storedWeek is num) return storedWeek.toInt().clamp(1, 42);
     if (storedWeek != null) {
       final parsed = int.tryParse(storedWeek.toString());
@@ -274,8 +275,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
   }
 
-
-
   List<String> _stringListFromArray(dynamic raw) {
     if (raw == null) return [];
     if (raw is List) {
@@ -304,7 +303,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _healthLogCreatedAt(Map<String, dynamic> item) {
-    return (item['logged_at'] ?? item['created_at'] ?? DateTime.now().toIso8601String())
+    return (item['logged_at'] ??
+            item['created_at'] ??
+            DateTime.now().toIso8601String())
         .toString();
   }
 
@@ -404,7 +405,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'source_table': 'health_logs',
         'severity': severity,
         'condition': 'Abnormal health log detected',
-        'full_content': '${issues.map((issue) => '• $issue').join('\n')}\n\nThis alert was generated from the user health log. If symptoms are severe, worsening, or the user feels unsafe, they should contact a doctor, clinic, maternity unit, or local emergency services immediately.',
+        'full_content':
+            '${issues.map((issue) => '• $issue').join('\n')}\n\nThis alert was generated from the user health log. If symptoms are severe, worsening, or the user feels unsafe, they should contact a doctor, clinic, maternity unit, or local emergency services immediately.',
       }
     ];
   }
@@ -424,11 +426,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'message': matches.first,
         'type': 'emergency',
         'is_read': false,
-        'created_at': (item['created_at'] ?? item['log_date'] ?? DateTime.now().toIso8601String()).toString(),
+        'created_at': (item['created_at'] ??
+                item['log_date'] ??
+                DateTime.now().toIso8601String())
+            .toString(),
         'source_table': 'pregnancy_logs',
         'severity': 'Urgent',
         'condition': 'Abnormal pregnancy log detected',
-        'full_content': '${matches.map((issue) => '• $issue').join('\n')}\n\nThis alert was generated from the pregnancy log. If symptoms are severe, worsening, or the user feels unsafe, they should seek medical advice immediately.',
+        'full_content':
+            '${matches.map((issue) => '• $issue').join('\n')}\n\nThis alert was generated from the pregnancy log. If symptoms are severe, worsening, or the user feels unsafe, they should seek medical advice immediately.',
       }
     ];
   }
@@ -452,7 +458,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final pregnancyLogs = await SupabaseService.client
           .from('pregnancy_logs')
-          .select('id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
+          .select(
+              'id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
           .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(10);
@@ -461,7 +468,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         alerts.addAll(_dashboardEmergencyRowsFromPregnancyLog(item));
       }
     } catch (e) {
-      debugPrint('Failed to scan pregnancy_logs for dashboard emergency alerts: $e');
+      debugPrint(
+          'Failed to scan pregnancy_logs for dashboard emergency alerts: $e');
     }
 
     return alerts;
@@ -593,7 +601,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       try {
         merged.addAll(await _loadDashboardHealthLogEmergencyAlerts(userId));
       } catch (e) {
-        debugPrint('Failed to scan health logs for dashboard emergency alerts: $e');
+        debugPrint(
+            'Failed to scan health logs for dashboard emergency alerts: $e');
       }
 
       try {
@@ -640,12 +649,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('Failed to load dashboard AI recommendations: $e');
     }
 
-
-
     try {
       final articleData = await SupabaseService.client
           .from('articles')
-          .select('id,title,excerpt,content,url,is_premium_only,created_at,published_at')
+          .select(
+              'id,title,excerpt,content,url,is_premium_only,created_at,published_at')
           .order('created_at', ascending: false)
           .limit(4);
 
@@ -665,7 +673,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'id': item['id'],
           'user_id': null,
           'title': item['title'] ?? 'Education Resource',
-          'message': message.isEmpty ? 'Tap to view this education resource.' : message,
+          'message': message.isEmpty
+              ? 'Tap to view this education resource.'
+              : message,
           'full_content': content,
           'type': 'education',
           'is_read': true,
@@ -685,7 +695,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .limit(3);
 
       merged.addAll(List<Map<String, dynamic>>.from(emergencyData).map((item) {
-        final condition = (item['condition'] ?? 'Emergency Guidance').toString();
+        final condition =
+            (item['condition'] ?? 'Emergency Guidance').toString();
         final severity = (item['severity'] ?? '').toString();
         final action = (item['action'] ?? '').toString();
 
@@ -693,7 +704,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'id': item['id'],
           'user_id': null,
           'title': severity.isEmpty ? condition : '$severity: $condition',
-          'message': action.isEmpty ? 'Tap to view emergency support guidance.' : action,
+          'message': action.isEmpty
+              ? 'Tap to view emergency support guidance.'
+              : action,
           'type': 'emergency',
           'is_read': true,
           'created_at': DateTime.now().toIso8601String(),
@@ -704,19 +717,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('Failed to load dashboard emergency rules: $e');
     }
 
-    if (!merged.any((item) => _normaliseNotificationType(item['type']) == 'milestone')) {
+    if (!merged.any(
+        (item) => _normaliseNotificationType(item['type']) == 'milestone')) {
       merged.add(_dashboardMilestoneNotification(pregnancyProfile));
     }
 
-    if (!merged.any((item) => _normaliseNotificationType(item['type']) == 'emergency')) {
+    if (!merged.any(
+        (item) => _normaliseNotificationType(item['type']) == 'emergency')) {
       merged.addAll(_dashboardEmergencyNotifications());
     }
 
     merged.add({
-      'id': 'daily-health-reminder-${DateFormat('yyyy-MM-dd').format(DateTime.now())}',
+      'id':
+          'daily-health-reminder-${DateFormat('yyyy-MM-dd').format(DateTime.now())}',
       'user_id': userId,
       'title': 'Daily Health Reminder',
-      'message': 'Remember to log your mood, symptoms and pregnancy notes today.',
+      'message':
+          'Remember to log your mood, symptoms and pregnancy notes today.',
       'type': 'reminder',
       'is_read': true,
       'created_at': DateTime.now().toIso8601String(),
@@ -833,7 +850,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, color: AppColors.textLight),
+                        icon:
+                            const Icon(Icons.close, color: AppColors.textLight),
                       ),
                     ],
                   ),
@@ -848,7 +866,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       height: 1.55,
                     ),
                   ),
-                  if (triggerType.isNotEmpty || triggerValue.isNotEmpty || priority.isNotEmpty) ...[
+                  if (triggerType.isNotEmpty ||
+                      triggerValue.isNotEmpty ||
+                      priority.isNotEmpty) ...[
                     const SizedBox(height: 18),
                     Container(
                       width: double.infinity,
@@ -932,9 +952,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _openDashboardNotification(Map<String, dynamic> notification) async {
+  Future<void> _openDashboardNotification(
+      Map<String, dynamic> notification) async {
     final id = notification['id']?.toString();
-    final sourceTable = notification['source_table']?.toString() ?? 'notifications';
+    final sourceTable =
+        notification['source_table']?.toString() ?? 'notifications';
     final type = _normaliseNotificationType(notification['type']);
 
     // Remove the card from the dashboard immediately after the user opens it.
@@ -943,7 +965,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _notifications = _notifications.where((n) {
           return !(n['id']?.toString() == id &&
-              (n['source_table']?.toString() ?? 'notifications') == sourceTable);
+              (n['source_table']?.toString() ?? 'notifications') ==
+                  sourceTable);
         }).toList();
       });
 
@@ -1168,7 +1191,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                        color: AppColors.textMid, fontSize: 13)),
+                                        color: AppColors.textMid,
+                                        fontSize: 13)),
                               ],
                             ),
                           ),
@@ -1177,9 +1201,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             onTap: () => context.push('/profile'),
                             child: CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                              backgroundColor:
+                                  AppColors.rose.withValues(alpha: 0.15),
                               backgroundImage: _photoUrl != null
-                                  ? NetworkImage(_photoUrl!)
+                                  ? CachedNetworkImageProvider(_photoUrl!,
+                                      maxWidth: 200)
                                   : null,
                               child: _photoUrl != null
                                   ? null
@@ -1450,7 +1476,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-
   Widget _buildMyQuestions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1514,9 +1539,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ? 'A volunteer has replied'
                               : 'Waiting for a volunteer to reply',
                           style: TextStyle(
-                              color: hasReply
-                                  ? AppColors.sage
-                                  : AppColors.gold,
+                              color: hasReply ? AppColors.sage : AppColors.gold,
                               fontSize: 11,
                               fontWeight: FontWeight.w700),
                         ),

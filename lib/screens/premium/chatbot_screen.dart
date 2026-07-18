@@ -519,24 +519,41 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
+            child: CustomScrollView(
               controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              children: [
-                _buildHeroCard(),
-                const SizedBox(height: 16),
-                _buildSectionSelector(),
-                const SizedBox(height: 18),
-                _buildGuidedQuestions(),
-                const SizedBox(height: 18),
-                const TBSectionTitle(title: 'Conversation'),
-                const SizedBox(height: 12),
-                for (final message in _messages)
-                  _buildBubble(
-                    message['role'] ?? '',
-                    message['text'] ?? '',
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildHeroCard(),
+                        const SizedBox(height: 16),
+                        _buildSectionSelector(),
+                        const SizedBox(height: 18),
+                        _buildGuidedQuestions(),
+                        const SizedBox(height: 18),
+                        const TBSectionTitle(title: 'Conversation'),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
                   ),
-                if (_typing) _buildTyping(),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  sliver: SliverList.builder(
+                    itemCount: _messages.length + (_typing ? 1 : 0),
+                    itemBuilder: (context, i) {
+                      if (i == _messages.length) return _buildTyping();
+                      final message = _messages[i];
+                      return _buildBubble(
+                        message['role'] ?? '',
+                        message['text'] ?? '',
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -58,17 +59,23 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     List<Map<String, dynamic>> consultations = [];
     final providerNames = <String, String>{};
     if (linkedMum != null) {
-      consultations =
-          await SupabaseService.getConsultationsForPatient(linkedMum['id'] as String);
+      consultations = await SupabaseService.getConsultationsForPatient(
+          linkedMum['id'] as String);
 
-      final activeSpecialistIds = consultations.where((c) {
-        final status = (c['status'] as String? ?? '').toLowerCase();
-        return status == 'pending' || status == 'confirmed';
-      }).take(2).map((c) => c['specialist_id'] as String?).whereType<String>().toSet();
+      final activeSpecialistIds = consultations
+          .where((c) {
+            final status = (c['status'] as String? ?? '').toLowerCase();
+            return status == 'pending' || status == 'confirmed';
+          })
+          .take(2)
+          .map((c) => c['specialist_id'] as String?)
+          .whereType<String>()
+          .toSet();
       for (final id in activeSpecialistIds) {
         try {
           final p = await SupabaseService.getProviderProfile(id);
-          final name = (p?['profiles'] as Map<String, dynamic>?)?['full_name'] as String?;
+          final name = (p?['profiles'] as Map<String, dynamic>?)?['full_name']
+              as String?;
           if (name != null) providerNames[id] = name;
         } catch (_) {}
       }
@@ -215,7 +222,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           backgroundColor:
                               AppColors.rose.withValues(alpha: 0.15),
                           backgroundImage: _photoUrl != null
-                              ? NetworkImage(_photoUrl!)
+                              ? CachedNetworkImageProvider(_photoUrl!,
+                                  maxWidth: 200)
                               : null,
                           child: _photoUrl != null
                               ? null
@@ -263,7 +271,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     return TBEmptyState(
       emoji: '🔗',
       title: 'Not linked yet',
-      subtitle: "Link to a pregnant user's account to see her pregnancy journey here.",
+      subtitle:
+          "Link to a pregnant user's account to see her pregnancy journey here.",
       buttonLabel: 'Link to Pregnant User',
       onButton: () => context.push('/next-of-kin/link'),
     );
@@ -356,7 +365,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
             const SizedBox(height: 6),
             Text(
                 'Week ${_trimesterWeekOverview.$1} of ${_trimesterWeekOverview.$2} this trimester',
-                style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textLight)),
           ],
         ),
       ),
@@ -369,25 +379,33 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         emoji: '📋',
         iconBg: AppColors.rose.withValues(alpha: 0.15),
         label: 'Health logs',
-        onTap: () { if (_canNav()) context.push('/logs'); },
+        onTap: () {
+          if (_canNav()) context.push('/logs');
+        },
       ),
       (
         emoji: '🎥',
         iconBg: AppColors.sage.withValues(alpha: 0.15),
         label: 'Join consult',
-        onTap: () { if (_canNav()) context.push('/consultation'); },
+        onTap: () {
+          if (_canNav()) context.push('/consultation');
+        },
       ),
       (
         emoji: '🎁',
         iconBg: AppColors.gold.withValues(alpha: 0.15),
         label: 'Gift premium',
-        onTap: () { if (_canNav()) context.push('/next-of-kin/gift-subscription'); },
+        onTap: () {
+          if (_canNav()) context.push('/next-of-kin/gift-subscription');
+        },
       ),
       (
         emoji: '💬',
         iconBg: AppColors.teal.withValues(alpha: 0.15),
         label: 'Chat volunteer',
-        onTap: () { if (_canNav()) context.push('/next-of-kin/chat-volunteer'); },
+        onTap: () {
+          if (_canNav()) context.push('/next-of-kin/chat-volunteer');
+        },
       ),
     ];
 
@@ -414,15 +432,16 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                  color: action.iconBg, borderRadius: BorderRadius.circular(12)),
+                  color: action.iconBg,
+                  borderRadius: BorderRadius.circular(12)),
               alignment: Alignment.center,
               child: Text(action.emoji, style: const TextStyle(fontSize: 20)),
             ),
             const SizedBox(height: 8),
             Text(action.label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 12)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
           ],
         ),
       ),
@@ -462,7 +481,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
   Widget _exploreCard(BuildContext context, Map<String, String> item) {
     return GestureDetector(
-      onTap: () { if (_canNav()) context.push(item['route']!); },
+      onTap: () {
+        if (_canNav()) context.push(item['route']!);
+      },
       child: TBCard(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -472,12 +493,12 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
             Text(item['emoji']!, style: const TextStyle(fontSize: 24)),
             const SizedBox(height: 6),
             Text(item['title']!,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 14)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             const SizedBox(height: 2),
             Text(item['desc']!,
-                style: const TextStyle(
-                    color: AppColors.textLight, fontSize: 11),
+                style:
+                    const TextStyle(color: AppColors.textLight, fontSize: 11),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
           ],
@@ -485,7 +506,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       ),
     );
   }
-
 
   Widget _buildActiveAlerts() {
     final week = _linkedMumWeek;
@@ -513,7 +533,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
           iconColor: AppColors.sage,
           title: _appointmentDateLabel(c['scheduled_date'] as String?),
           subtitle: _appointmentSubtitle(c),
-          onTap: () { if (_canNav()) context.push('/consultation'); },
+          onTap: () {
+            if (_canNav()) context.push('/consultation');
+          },
         ),
     ];
 
@@ -523,14 +545,17 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         TBSectionTitle(
           title: 'Active Alerts',
           action: 'View All',
-          onAction: () { if (_canNav()) context.push('/notifications'); },
+          onAction: () {
+            if (_canNav()) context.push('/notifications');
+          },
         ),
         const SizedBox(height: 12),
         if (alerts.isEmpty)
           const TBEmptyState(
               emoji: '🔔',
               title: 'No active alerts',
-              subtitle: 'Milestones and upcoming appointments will show up here.')
+              subtitle:
+                  'Milestones and upcoming appointments will show up here.')
         else
           ...alerts,
       ],
@@ -538,7 +563,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   }
 
   String _appointmentDateLabel(String? scheduledDate) {
-    final date = scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
+    final date =
+        scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
     if (date == null) return 'Upcoming Appointment';
     final today = DateTime.now();
     final diff = DateTime(date.year, date.month, date.day)
@@ -552,7 +578,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
   String _appointmentSubtitle(Map<String, dynamic> c) {
     final type = (c['consultation_type'] as String? ?? 'specialist');
-    final typeLabel = '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
+    final typeLabel =
+        '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
     final time = c['scheduled_time'] as String?;
     final providerName = _providerNames[c['specialist_id']];
     if (time == null && providerName == null) return typeLabel;

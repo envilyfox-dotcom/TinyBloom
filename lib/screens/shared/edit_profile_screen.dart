@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
@@ -52,21 +53,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
+    final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
     if (picked == null) return;
 
     setState(() => _photoBusy = true);
     try {
       final bytes = await picked.readAsBytes();
-      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final ext =
+          picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
       final url = await SupabaseService.uploadProfilePicture(
           bytes, ext.length <= 4 ? ext : 'jpg');
       if (mounted) setState(() => _photoUrl = url);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
     if (mounted) setState(() => _photoBusy = false);
@@ -77,8 +79,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove Photo'),
-        content: const Text(
-            'Are you sure you want to remove your profile photo?'),
+        content:
+            const Text('Are you sure you want to remove your profile photo?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -103,7 +105,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
     if (mounted) setState(() => _photoBusy = false);
@@ -307,8 +309,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   CircleAvatar(
                     radius: 44,
                     backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    backgroundImage:
-                        _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                    backgroundImage: _photoUrl != null
+                        ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 400)
+                        : null,
                     child: _photoBusy
                         ? const CircularProgressIndicator(color: AppColors.rose)
                         : (_photoUrl == null
@@ -347,8 +350,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               Center(
                 child: TextButton.icon(
                   onPressed: _photoBusy ? null : _confirmRemovePhoto,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                  label: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.red, size: 18),
+                  label: const Text('Remove Photo',
+                      style: TextStyle(color: Colors.red)),
                 ),
               ),
             ],

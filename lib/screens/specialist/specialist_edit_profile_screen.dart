@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/supabase_service.dart';
@@ -179,14 +180,15 @@ class _SpecialistEditProfileScreenState
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
+    final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery, maxWidth: 512, imageQuality: 80);
     if (picked == null) return;
 
     setState(() => _photoBusy = true);
     try {
       final bytes = await picked.readAsBytes();
-      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final ext =
+          picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
       final url = await SupabaseService.uploadProfilePicture(
           bytes, ext.length <= 4 ? ext : 'jpg');
       if (mounted) setState(() => _photoUrl = url);
@@ -205,8 +207,8 @@ class _SpecialistEditProfileScreenState
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove Photo'),
-        content: const Text(
-            'Are you sure you want to remove your profile photo?'),
+        content:
+            const Text('Are you sure you want to remove your profile photo?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -318,8 +320,10 @@ class _SpecialistEditProfileScreenState
                     CircleAvatar(
                       radius: 44,
                       backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                      backgroundImage:
-                          _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                      backgroundImage: _photoUrl != null
+                          ? CachedNetworkImageProvider(_photoUrl!,
+                              maxWidth: 400)
+                          : null,
                       child: _photoBusy
                           ? const CircularProgressIndicator(
                               color: AppColors.rose)
@@ -344,8 +348,8 @@ class _SpecialistEditProfileScreenState
                           decoration: BoxDecoration(
                             color: AppColors.rose,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                                color: AppColors.white, width: 2),
+                            border:
+                                Border.all(color: AppColors.white, width: 2),
                           ),
                           child: const Icon(Icons.camera_alt,
                               color: Colors.white, size: 16),

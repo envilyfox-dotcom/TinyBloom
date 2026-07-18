@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -122,7 +123,12 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     }
     try {
       final comments = await SupabaseService.getPublicComments(id);
-      if (mounted) setState(() { _comments = comments; _loadingComments = false; });
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+          _loadingComments = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _loadingComments = false);
     }
@@ -146,7 +152,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
   }
@@ -208,10 +214,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     final authorPhoto = author?['profile_picture_url'] as String?;
     final authorSpecialization = (author?['specialist_profiles']
         as Map<String, dynamic>?)?['specialization'] as String?;
-    final createdAt = DateTime.tryParse(
-        article['published_at'] as String? ??
-            article['created_at'] as String? ??
-            '');
+    final createdAt = DateTime.tryParse(article['published_at'] as String? ??
+        article['created_at'] as String? ??
+        '');
 
     final topLevel =
         _comments.where((c) => c['parent_comment_id'] == null).toList();
@@ -237,8 +242,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.white,
                     borderRadius: BorderRadius.circular(22),
-                    border:
-                        Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
+                    border: Border.all(
+                        color: AppColors.rose.withValues(alpha: 0.18)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +259,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                               backgroundColor:
                                   AppColors.rose.withValues(alpha: 0.15),
                               backgroundImage: authorPhoto != null
-                                  ? NetworkImage(authorPhoto)
+                                  ? CachedNetworkImageProvider(authorPhoto,
+                                      maxWidth: 200)
                                   : null,
                               child: authorPhoto == null
                                   ? Text(
@@ -285,8 +291,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                                     if (createdAt != null) _timeAgo(createdAt),
                                   ].join(' • '),
                                   style: const TextStyle(
-                                      color: AppColors.textLight,
-                                      fontSize: 11),
+                                      color: AppColors.textLight, fontSize: 11),
                                 ),
                               ],
                             ),
@@ -418,8 +423,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                         style:
                             TextStyle(color: AppColors.textLight, fontSize: 13))
                   else
-                    ...topLevel.map((c) =>
-                        _commentTile(c, repliesByParent[c['id']] ?? [])),
+                    ...topLevel.map(
+                        (c) => _commentTile(c, repliesByParent[c['id']] ?? [])),
                 ],
               ],
             ),
@@ -503,7 +508,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             CircleAvatar(
               radius: 16,
               backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-              backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+              backgroundImage: photoUrl != null
+                  ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
+                  : null,
               child: photoUrl == null
                   ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                       style: const TextStyle(
@@ -567,7 +574,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         CircleAvatar(
           radius: 16,
           backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+          backgroundImage: photoUrl != null
+              ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
+              : null,
           child: photoUrl == null
               ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: const TextStyle(
@@ -583,8 +592,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: AppColors.textLight.withValues(alpha: 0.3)),
+              border:
+                  Border.all(color: AppColors.textLight.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -630,8 +639,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                                   color: AppColors.textLight, fontSize: 12)),
                         ),
                         GestureDetector(
-                          onTap: () =>
-                              _deleteComment(c['id'] as String),
+                          onTap: () => _deleteComment(c['id'] as String),
                           child: const Padding(
                             padding: EdgeInsets.symmetric(vertical: 2),
                             child: Text('Delete',

@@ -19,13 +19,15 @@ const Duration _joinWindow = Duration(hours: 1);
 // ── Specialist Consultation Details ───────────────────────────────────
 class SpecialistConsultationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> consultation;
-  const SpecialistConsultationDetailScreen({super.key, required this.consultation});
+  const SpecialistConsultationDetailScreen(
+      {super.key, required this.consultation});
   @override
   State<SpecialistConsultationDetailScreen> createState() =>
       _SpecialistConsultationDetailScreenState();
 }
 
-class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultationDetailScreen> {
+class _SpecialistConsultationDetailScreenState
+    extends State<SpecialistConsultationDetailScreen> {
   Map<String, dynamic>? _provider;
   Map<String, dynamic>? _patientProfile;
   Map<String, dynamic>? _patientPregnancy;
@@ -85,21 +87,25 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
     }
   }
 
+  final ValueNotifier<DateTime> _now = ValueNotifier(DateTime.now());
+
   @override
   void initState() {
     super.initState();
     _load();
     // Re-evaluates the Join Zoom lock/unlock against the current time
     // without needing a manual refresh, so the join window opens on its
-    // own while this page is open.
+    // own while this page is open. Only the action-button area listens to
+    // _now, so the tick doesn't rebuild the whole screen.
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
+      if (mounted) _now.value = DateTime.now();
     });
   }
 
   @override
   void dispose() {
     _tickTimer?.cancel();
+    _now.dispose();
     super.dispose();
   }
 
@@ -124,7 +130,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
   }
 
   Future<void> _maybeMarkExpired() async {
-    final status = (widget.consultation['status'] as String? ?? '').toLowerCase();
+    final status =
+        (widget.consultation['status'] as String? ?? '').toLowerCase();
     if (status != 'pending') return;
 
     final scheduled = _scheduledDateTime();
@@ -252,7 +259,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
     final c = widget.consultation;
     final status = (c['status'] as String?) ?? 'pending';
     final patientName = _patientProfile?['full_name'] as String? ??
-        c['patient_name'] as String? ?? 'Patient';
+        c['patient_name'] as String? ??
+        'Patient';
     final patientAge = (_patientPregnancy?['age'] as num?)?.toString() ??
         _patientProfile?['age']?.toString() ??
         '—';
@@ -441,8 +449,9 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Builder(
-                    builder: (context) {
+                  ValueListenableBuilder<DateTime>(
+                    valueListenable: _now,
+                    builder: (context, _, __) {
                       final auth = context.watch<AuthProvider>();
                       final isSpecialist = auth.isSpecialist;
                       if (_canJoinMeeting(status)) {
@@ -462,8 +471,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                                   disabledBackgroundColor:
                                       AppColors.teal.withValues(alpha: 0.35),
                                   disabledForegroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 14)),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14)),
                             ),
                             if (!canJoinNow) ...[
                               const SizedBox(height: 6),
@@ -489,8 +498,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.teal,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14)),
                             child: _approving
                                 ? const SizedBox(
                                     width: 20,
@@ -509,8 +518,8 @@ class _SpecialistConsultationDetailScreenState extends State<SpecialistConsultat
                           child: OutlinedButton(
                             onPressed: _cancelling ? null : _cancel,
                             style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14)),
                             child: _cancelling
                                 ? const SizedBox(
                                     width: 20,

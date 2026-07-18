@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
@@ -47,8 +48,8 @@ class _ChatVolunteerScreenState extends State<ChatVolunteerScreen> {
   }
 
   void _comingSoon(String name) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Chat with $name — coming soon')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Chat with $name — coming soon')));
   }
 
   @override
@@ -123,7 +124,9 @@ class _ChatVolunteerScreenState extends State<ChatVolunteerScreen> {
                     borderRadius: BorderRadius.circular(18),
                     image: photoUrl != null
                         ? DecorationImage(
-                            image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                            image: CachedNetworkImageProvider(photoUrl,
+                                maxWidth: 400),
+                            fit: BoxFit.cover)
                         : null,
                   ),
                   child: photoUrl != null
@@ -161,9 +164,11 @@ class _ChatVolunteerScreenState extends State<ChatVolunteerScreen> {
                         runSpacing: 6,
                         children: [
                           if (rating != null)
-                            _chip('$rating Rating', AppColors.gold, Icons.star_rounded),
+                            _chip('$rating Rating', AppColors.gold,
+                                Icons.star_rounded),
                           if (years != null)
-                            _chip('$years Years', AppColors.rose, Icons.work_outline),
+                            _chip('$years Years', AppColors.rose,
+                                Icons.work_outline),
                         ],
                       ),
                     ],

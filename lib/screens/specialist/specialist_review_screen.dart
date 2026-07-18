@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -21,8 +22,7 @@ String _timeAgo(DateTime date) {
 class SpecialistReviewScreen extends StatefulWidget {
   const SpecialistReviewScreen({super.key});
   @override
-  State<SpecialistReviewScreen> createState() =>
-      _SpecialistReviewScreenState();
+  State<SpecialistReviewScreen> createState() => _SpecialistReviewScreenState();
 }
 
 class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
@@ -126,8 +126,9 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                  backgroundImage:
-                      authorPhoto != null ? NetworkImage(authorPhoto) : null,
+                  backgroundImage: authorPhoto != null
+                      ? CachedNetworkImageProvider(authorPhoto, maxWidth: 200)
+                      : null,
                   child: authorPhoto == null
                       ? Text(
                           authorName.isNotEmpty
@@ -168,16 +169,14 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
             const SizedBox(height: 10),
             Text(
               item['title'] as String? ?? 'Untitled',
-              style:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 6, children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: _statusColor(status).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(50),
@@ -263,26 +262,27 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
                           ),
                         )
                       : RefreshIndicator(
-                      color: AppColors.rose,
-                      onRefresh: _load,
-                      child: lists[_tab].isEmpty
-                          ? ListView(
-                              padding: const EdgeInsets.all(20),
-                              children: [
-                                const SizedBox(height: 60),
-                                TBEmptyState(
-                                  emoji: emptyEmojis[_tab],
-                                  title: 'Nothing here',
-                                  subtitle: emptyMessages[_tab],
+                          color: AppColors.rose,
+                          onRefresh: _load,
+                          child: lists[_tab].isEmpty
+                              ? ListView(
+                                  padding: const EdgeInsets.all(20),
+                                  children: [
+                                    const SizedBox(height: 60),
+                                    TBEmptyState(
+                                      emoji: emptyEmojis[_tab],
+                                      title: 'Nothing here',
+                                      subtitle: emptyMessages[_tab],
+                                    ),
+                                  ],
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.all(20),
+                                  itemCount: lists[_tab].length,
+                                  itemBuilder: (ctx, i) =>
+                                      _item(lists[_tab][i]),
                                 ),
-                              ],
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(20),
-                              itemCount: lists[_tab].length,
-                              itemBuilder: (ctx, i) => _item(lists[_tab][i]),
-                            ),
-                    ),
+                        ),
             ),
           ],
         ),

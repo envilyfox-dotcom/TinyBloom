@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -31,7 +32,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final p = await SupabaseService.getProfile();
       Map<String, dynamic>? linkedMum;
       if (p?['role'] == 'next_of_kin') {
-        try { linkedMum = await SupabaseService.getLinkedMum(); } catch (_) {}
+        try {
+          linkedMum = await SupabaseService.getLinkedMum();
+        } catch (_) {}
       }
 
       if (!mounted) return;
@@ -106,7 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 42,
                       backgroundColor: AppColors.rose.withValues(alpha: 0.15),
                       backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                          ? NetworkImage(photoUrl)
+                          ? CachedNetworkImageProvider(photoUrl, maxWidth: 400)
                           : null,
                       child: photoUrl == null || photoUrl.isEmpty
                           ? Text(
@@ -162,9 +165,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       const Center(
                         child: Text('Personal Information',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14,
-                            color: AppColors.textDark)),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: AppColors.textDark)),
                       ),
                       const SizedBox(height: 16),
                       _infoRow('Full name', name),
@@ -255,29 +259,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          _linkedMum != null ? Icons.favorite : Icons.link_off,
-                          color: AppColors.roseDeep, size: 20),
+                            _linkedMum != null
+                                ? Icons.favorite
+                                : Icons.link_off,
+                            color: AppColors.roseDeep,
+                            size: 20),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text('CONNECTED TO',
-                                style: TextStyle(
-                                  fontSize: 10, fontWeight: FontWeight.w700,
-                                  color: AppColors.roseDeep, letterSpacing: 1)),
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.roseDeep,
+                                      letterSpacing: 1)),
                               const SizedBox(height: 4),
                               Text(
-                                _linkedMum != null
-                                    ? (_linkedMum!['full_name'] as String? ?? 'Unnamed')
-                                    : 'Not linked to a pregnant user yet',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 15)),
+                                  _linkedMum != null
+                                      ? (_linkedMum!['full_name'] as String? ??
+                                          'Unnamed')
+                                      : 'Not linked to a pregnant user yet',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15)),
                               if (_linkedMum?['relationship'] != null) ...[
                                 const SizedBox(height: 2),
                                 Text(_linkedMum!['relationship'] as String,
-                                  style: const TextStyle(
-                                    color: AppColors.textMid, fontSize: 12)),
+                                    style: const TextStyle(
+                                        color: AppColors.textMid,
+                                        fontSize: 12)),
                               ],
                             ],
                           ),
@@ -300,7 +312,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _menuItem(
                           Icons.edit_note,
                           'Create Article',
-                          onTap: () => context.push('/specialist/create-article'),
+                          onTap: () =>
+                              context.push('/specialist/create-article'),
                         ),
                         _divider(),
                       ],
@@ -316,14 +329,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _menuItem(
                           Icons.link,
                           'Link to Pregnant User',
-                          onTap: () => context.push('/next-of-kin/link')
+                          onTap: () => context
+                              .push('/next-of-kin/link')
                               .then((_) => _load()),
                         ),
                         _divider(),
                         _menuItem(
                           Icons.card_giftcard_outlined,
                           'Gift Subscription',
-                          onTap: () => context.push('/next-of-kin/gift-subscription'),
+                          onTap: () =>
+                              context.push('/next-of-kin/gift-subscription'),
                         ),
                         _divider(),
                         _menuItem(
@@ -363,12 +378,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-            style: const TextStyle(
-              color: AppColors.textDark, fontSize: 12,
-              fontWeight: FontWeight.w600)),
+              style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(value,
-            style: const TextStyle(color: AppColors.textMid, fontSize: 14)),
+              style: const TextStyle(color: AppColors.textMid, fontSize: 14)),
         ],
       ),
     );

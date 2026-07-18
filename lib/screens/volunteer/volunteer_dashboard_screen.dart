@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -69,13 +70,17 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .neq('status', 'closed')
           .order('scheduled_date');
       final now = DateTime.now();
-      final rows = List<Map<String, dynamic>>.from(data).where((r) {
-        final date = DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
-        if (date == null) return false;
-        final timeStr = r['scheduled_time'] as String?;
-        final at = timeStr != null ? slotDateTime(date, timeStr) : null;
-        return (at ?? date).isAfter(now);
-      }).take(5).toList();
+      final rows = List<Map<String, dynamic>>.from(data)
+          .where((r) {
+            final date =
+                DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
+            if (date == null) return false;
+            final timeStr = r['scheduled_time'] as String?;
+            final at = timeStr != null ? slotDateTime(date, timeStr) : null;
+            return (at ?? date).isAfter(now);
+          })
+          .take(5)
+          .toList();
 
       final patientIds = rows
           .map((r) => r['patient_id'] as String?)
@@ -89,9 +94,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           if (name != null) names[id] = name;
         } catch (_) {}
       }));
-      sessions = rows
-          .map((r) => {...r, '_mumName': names[r['patient_id']]})
-          .toList();
+      sessions =
+          rows.map((r) => {...r, '_mumName': names[r['patient_id']]}).toList();
     } catch (_) {}
 
     try {
@@ -262,8 +266,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                   Text(DateFormat('EEEE, d MMMM').format(DateTime.now()),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(color: AppColors.textMid, fontSize: 13)),
+                      style: const TextStyle(
+                          color: AppColors.textMid, fontSize: 13)),
                 ],
               ),
             ),
@@ -273,8 +277,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
               child: CircleAvatar(
                 radius: 20,
                 backgroundColor: _pink.withValues(alpha: 0.15),
-                backgroundImage:
-                    _photoUrl != null ? NetworkImage(_photoUrl!) : null,
+                backgroundImage: _photoUrl != null
+                    ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200)
+                    : null,
                 child: _photoUrl != null
                     ? null
                     : Text(
@@ -575,8 +580,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                 color: AppColors.infoBlue.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child:
-                  const Icon(Icons.event_available_outlined, color: AppColors.infoBlue),
+              child: const Icon(Icons.event_available_outlined,
+                  color: AppColors.infoBlue),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -597,7 +602,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
+            const Icon(Icons.chevron_right,
+                color: AppColors.textLight, size: 18),
           ],
         ),
       ),

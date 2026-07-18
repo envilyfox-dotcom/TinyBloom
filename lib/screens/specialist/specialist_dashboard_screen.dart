@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -199,7 +200,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
   String? get _photoUrl => _profile?['profile_picture_url'] as String?;
 
   String get _specialization =>
-      (_specialistProfile?['specialization'] as String? ?? 'Healthcare Specialist');
+      (_specialistProfile?['specialization'] as String? ??
+          'Healthcare Specialist');
 
   // Build consultation card
   Widget _consultationCard(Map<String, dynamic> consultation,
@@ -227,15 +229,15 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     String formattedDate = '';
     if (showDate && scheduledDate != null) {
       try {
-        formattedDate = DateFormat('d MMM').format(DateTime.parse(scheduledDate));
+        formattedDate =
+            DateFormat('d MMM').format(DateTime.parse(scheduledDate));
       } catch (_) {
         formattedDate = scheduledDate;
       }
     }
 
     return TBCard(
-      onTap: () => context.push('/consultation/detail',
-          extra: consultation),
+      onTap: () => context.push('/consultation/detail', extra: consultation),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -282,8 +284,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor(status).withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(16),
@@ -521,8 +523,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
           children: [
             const Expanded(
               child: Text('Alerts & Notifications',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 16)),
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
             TextButton(
               onPressed: _openNotificationsCentre,
@@ -598,12 +599,15 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               backgroundColor:
                                   AppColors.rose.withValues(alpha: 0.15),
                               backgroundImage: _photoUrl != null
-                                  ? NetworkImage(_photoUrl!)
+                                  ? CachedNetworkImageProvider(_photoUrl!,
+                                      maxWidth: 200)
                                   : null,
                               child: _photoUrl != null
                                   ? null
                                   : Text(
-                                      _firstName.isNotEmpty ? _firstName[0] : '?',
+                                      _firstName.isNotEmpty
+                                          ? _firstName[0]
+                                          : '?',
                                       style: const TextStyle(
                                           color: AppColors.roseDeep,
                                           fontSize: 18,
@@ -638,12 +642,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ..._todayConsultations
-                        .map((c) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _consultationCard(c),
-                            ))
-                        ,
+                    ..._todayConsultations.map((c) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _consultationCard(c),
+                        )),
                     const SizedBox(height: 20),
                   ],
 
@@ -664,12 +666,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ..._upcomingConsultations
-                        .map((c) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _consultationCard(c, showDate: true),
-                            ))
-                        ,
+                    ..._upcomingConsultations.map((c) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _consultationCard(c, showDate: true),
+                        )),
                     const SizedBox(height: 20),
                   ],
 
@@ -682,13 +682,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                         style: TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 12),
-                    ..._testimonials
-                        .take(1)
-                        .map((t) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _reviewCard(t),
-                            ))
-                        ,
+                    ..._testimonials.take(1).map((t) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _reviewCard(t),
+                        )),
                   ] else
                     const Padding(
                       padding: EdgeInsets.only(bottom: 20),

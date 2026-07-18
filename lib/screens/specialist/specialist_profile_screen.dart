@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -88,17 +89,17 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-  backgroundColor: AppColors.background,
-  elevation: 0,
-  automaticallyImplyLeading: false,
-  title: const Text(
-    'My Profile',
-    style: TextStyle(
-      color: AppColors.textDark,
-      fontWeight: FontWeight.w700,
-    ),
-  ),
-),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: const Text(
+          'My Profile',
+          style: TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -111,8 +112,9 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    backgroundImage:
-                        photoUrl != null ? NetworkImage(photoUrl) : null,
+                    backgroundImage: photoUrl != null
+                        ? CachedNetworkImageProvider(photoUrl, maxWidth: 400)
+                        : null,
                     child: photoUrl != null
                         ? null
                         : Text(
@@ -177,50 +179,51 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
             const SizedBox(height: 20),
 
             // Credentials Section
-if (licenseNumber.isNotEmpty ||
-    qualification.isNotEmpty ||
-    hospital.isNotEmpty ||
-    certificateExpiryDate.isNotEmpty) ...[
-  SizedBox(
-    width: double.infinity,
-    child: TBCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Professional Credentials:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: AppColors.textMid,
+            if (licenseNumber.isNotEmpty ||
+                qualification.isNotEmpty ||
+                hospital.isNotEmpty ||
+                certificateExpiryDate.isNotEmpty) ...[
+              SizedBox(
+                width: double.infinity,
+                child: TBCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Professional Credentials:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: AppColors.textMid,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (licenseNumber.isNotEmpty) ...[
+                          _credentialRow('SMC / MCR Number', licenseNumber),
+                          const SizedBox(height: 10),
+                        ],
+                        if (qualification.isNotEmpty) ...[
+                          _credentialRow(
+                              'Medical Qualification', qualification),
+                          const SizedBox(height: 10),
+                        ],
+                        if (hospital.isNotEmpty) ...[
+                          _credentialRow('Place of Practice', hospital),
+                          const SizedBox(height: 10),
+                        ],
+                        if (certificateExpiryDate.isNotEmpty) ...[
+                          _credentialRow('Practising Certificate Expiry',
+                              certificateExpiryDate),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (licenseNumber.isNotEmpty) ...[
-              _credentialRow('SMC / MCR Number', licenseNumber),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
             ],
-            if (qualification.isNotEmpty) ...[
-              _credentialRow('Medical Qualification', qualification),
-              const SizedBox(height: 10),
-            ],
-            if (hospital.isNotEmpty) ...[
-              _credentialRow('Place of Practice', hospital),
-              const SizedBox(height: 10),
-            ],
-            if (certificateExpiryDate.isNotEmpty) ...[
-              _credentialRow(
-                  'Practising Certificate Expiry', certificateExpiryDate),
-            ],
-          ],
-        ),
-      ),
-    ),
-  ),
-  const SizedBox(height: 12),
-],
 
             // Description
             if (bio.isNotEmpty) ...[
@@ -255,178 +258,180 @@ if (licenseNumber.isNotEmpty ||
             ],
 
             // Available Hours
-           TBCard(
-  child: Padding(
-    padding: const EdgeInsets.all(12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.schedule_outlined,
-                size: 18, color: AppColors.textMid),
-            SizedBox(width: 8),
-            Text(
-              'Available Hours:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: AppColors.textMid,
+            TBCard(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.schedule_outlined,
+                            size: 18, color: AppColors.textMid),
+                        SizedBox(width: 8),
+                        Text(
+                          'Available Hours:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: AppColors.textMid,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        availableHours.isNotEmpty
+                            ? availableHours
+                            : 'Monday - Friday\n9:00 AM to 5:00 PM',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.center,
-          child: Text(
-            availableHours.isNotEmpty
-                ? availableHours
-                : 'Monday - Friday\n9:00 AM to 5:00 PM',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
-          ),
-        ),
-      ],
-    ),
-  ),
-),
             const SizedBox(height: 12),
 
             // Activity
             Center(
-  child: SizedBox(
-    width: 270,
-    child: TBCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.edit_outlined,
-                    size: 18, color: AppColors.textMid),
-                SizedBox(width: 8),
-                Text(
-                  'Activity:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.textMid,
+              child: SizedBox(
+                width: 270,
+                child: TBCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.edit_outlined,
+                                size: 18, color: AppColors.textMid),
+                            SizedBox(width: 8),
+                            Text(
+                              'Activity:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: AppColors.textMid,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Articles published: $_articlesPublished',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Articles reviewed: $_articlesReviewed',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Articles published: $_articlesPublished',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Articles reviewed: $_articlesReviewed',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    ),
-  ),
-),
             // Bottom padding, sign out and edit profile buttons
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-  child: GestureDetector(
-    onTap: () async {
-      await context.push(
-        '/specialist/edit-profile',
-        extra: _specialistProfile,
-      );
-      setState(() => _loading = true);
-      _load();
-    },
-    child: const TBCard(
-      child: Padding(
-        padding: EdgeInsets.all(12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.edit_outlined,
-                      size: 18, color: AppColors.textMid),
-                  SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'Edit Profile',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppColors.textDark,
+                  child: GestureDetector(
+                    onTap: () async {
+                      await context.push(
+                        '/specialist/edit-profile',
+                        extra: _specialistProfile,
+                      );
+                      setState(() => _loading = true);
+                      _load();
+                    },
+                    child: const TBCard(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.edit_outlined,
+                                      size: 18, color: AppColors.textMid),
+                                  SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Edit Profile',
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right,
+                                size: 18, color: AppColors.textMid),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right,
-                size: 18, color: AppColors.textMid),
-          ],
-        ),
-      ),
-    ),
-  ),
-),
-const SizedBox(width: 12),
-Expanded(
-  child: GestureDetector(
-    onTap: _showLogoutDialog,
-    child: const TBCard(
-      child: Padding(
-        padding: EdgeInsets.all(12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.logout, size: 18, color: Colors.red),
-                  SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'Sign Out',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: Colors.red,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _showLogoutDialog,
+                    child: const TBCard(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.logout,
+                                      size: 18, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Sign Out',
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.chevron_right,
+                                size: 18, color: Colors.red),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            SizedBox(width: 8),
-            Icon(Icons.chevron_right, size: 18, color: Colors.red),
-          ],
-        ),
-      ),
-    ),
-  ),
-),
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -435,6 +440,7 @@ Expanded(
       ),
     );
   }
+
   Widget _credentialRow(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,6 +474,7 @@ Expanded(
     }
     return '';
   }
+
   void _showLogoutDialog() {
     showDialog(
       context: context,

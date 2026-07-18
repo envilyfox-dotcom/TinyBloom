@@ -88,43 +88,61 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
                 : RefreshIndicator(
                     color: AppColors.rose,
                     onRefresh: _load,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      children: [
-                        Text('Specialist Consultation',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontSize: 26)),
-                        const SizedBox(height: 4),
-                        const Text(
-                          "Choose a verified healthcare specialist. Today's remaining timings are shown. You can select another date on the next screen.",
-                          style: TextStyle(
-                            color: AppColors.textMid,
-                            fontSize: 13,
-                            height: 1.35,
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text('Specialist Consultation',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(fontSize: 26)),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  "Choose a verified healthcare specialist. Today's remaining timings are shown. You can select another date on the next screen.",
+                                  style: TextStyle(
+                                    color: AppColors.textMid,
+                                    fontSize: 13,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        if (_error != null)
-                          TBEmptyState(
-                              emoji: '⚠️',
-                              title: 'Couldn\'t load specialists',
-                              subtitle: _error!,
-                              buttonLabel: 'Retry',
-                              onButton: () {
-                                setState(() => _loading = true);
-                                _load();
-                              })
-                        else if (_specialists.isEmpty)
-                          const TBEmptyState(
-                              emoji: '👩‍⚕️',
-                              title: 'No specialists available',
-                              subtitle:
-                                  'Check back later for verified specialists.')
-                        else
-                          ..._specialists.map(
-                              (s) => providerCard(context, s, 'specialist')),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          sliver: _error != null
+                              ? SliverToBoxAdapter(
+                                  child: TBEmptyState(
+                                      emoji: '⚠️',
+                                      title: 'Couldn\'t load specialists',
+                                      subtitle: _error!,
+                                      buttonLabel: 'Retry',
+                                      onButton: () {
+                                        setState(() => _loading = true);
+                                        _load();
+                                      }))
+                              : _specialists.isEmpty
+                                  ? const SliverToBoxAdapter(
+                                      child: TBEmptyState(
+                                          emoji: '👩‍⚕️',
+                                          title: 'No specialists available',
+                                          subtitle:
+                                              'Check back later for verified specialists.'))
+                                  : SliverList.builder(
+                                      itemCount: _specialists.length,
+                                      itemBuilder: (context, i) => providerCard(
+                                          context,
+                                          _specialists[i],
+                                          'specialist'),
+                                    ),
+                        ),
                       ],
                     ),
                   ),

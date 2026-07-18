@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/supabase_service.dart';
@@ -148,8 +149,9 @@ class _SpecialistProfileViewScreenState
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    backgroundImage:
-                        photoUrl != null ? NetworkImage(photoUrl) : null,
+                    backgroundImage: photoUrl != null
+                        ? CachedNetworkImageProvider(photoUrl, maxWidth: 400)
+                        : null,
                     child: photoUrl != null
                         ? null
                         : Text(
@@ -231,7 +233,8 @@ class _SpecialistProfileViewScreenState
                           const SizedBox(height: 10),
                         ],
                         if (qualification.isNotEmpty) ...[
-                          _credentialRow('Medical Qualification', qualification),
+                          _credentialRow(
+                              'Medical Qualification', qualification),
                           const SizedBox(height: 10),
                         ],
                         if (hospital.isNotEmpty) ...[

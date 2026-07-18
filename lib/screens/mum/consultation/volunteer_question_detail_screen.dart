@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -52,7 +53,8 @@ class _VolunteerQuestionDetailScreenState
   @override
   void initState() {
     super.initState();
-    _ctrl = TextEditingController(text: widget.request['question'] as String? ?? '');
+    _ctrl = TextEditingController(
+        text: widget.request['question'] as String? ?? '');
     _loadThread();
   }
 
@@ -86,8 +88,8 @@ class _VolunteerQuestionDetailScreenState
         widget.request['scheduled_date'] = freshRow['scheduled_date'];
         widget.request['scheduled_time'] = freshRow['scheduled_time'];
       }
-      final msgs =
-          await SupabaseService.getRequestMessages(widget.request['id'].toString());
+      final msgs = await SupabaseService.getRequestMessages(
+          widget.request['id'].toString());
       if (_myPhotoUrl == null && _myId != null) {
         try {
           final me = await SupabaseService.getProfileById(_myId!);
@@ -300,8 +302,9 @@ class _VolunteerQuestionDetailScreenState
       radius: 14,
       backgroundColor:
           mine ? AppColors.rose.withValues(alpha: 0.15) : AppColors.tealLight,
-      backgroundImage:
-          (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+      backgroundImage: (photo != null && photo.isNotEmpty)
+          ? CachedNetworkImageProvider(photo, maxWidth: 200)
+          : null,
       child: (photo == null || photo.isEmpty)
           ? Text(name[0],
               style: TextStyle(
@@ -342,7 +345,8 @@ class _VolunteerQuestionDetailScreenState
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.teal,
                 side: const BorderSide(color: AppColors.teal),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -418,10 +422,9 @@ class _VolunteerQuestionDetailScreenState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: (isCompleted
-                                    ? AppColors.sage
-                                    : AppColors.gold)
-                                .withValues(alpha: 0.18),
+                            color:
+                                (isCompleted ? AppColors.sage : AppColors.gold)
+                                    .withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -447,9 +450,9 @@ class _VolunteerQuestionDetailScreenState
                                 ? null
                                 : () => setState(() {
                                       _editing = false;
-                                      _ctrl.text =
-                                          widget.request['question'] as String? ??
-                                              '';
+                                      _ctrl.text = widget.request['question']
+                                              as String? ??
+                                          '';
                                     }),
                             child: const Text('Cancel'),
                           ),
@@ -497,65 +500,68 @@ class _VolunteerQuestionDetailScreenState
                 ? const Text('This chat has been closed.',
                     style: TextStyle(color: AppColors.textLight, fontSize: 12))
                 : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!_hasVolunteer)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: Text(
-                        'No volunteer has picked this up yet — they\'ll see anything you add here once they do.',
-                        style:
-                            TextStyle(color: AppColors.textLight, fontSize: 11)),
-                  ),
-                _videoCallControl(),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _replyCtrl,
-                        maxLines: 4,
-                        minLines: 1,
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: 'Type a message...',
-                          hintStyle: const TextStyle(
-                              color: AppColors.textLight, fontSize: 13),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(
-                                color: AppColors.textLight.withValues(alpha: 0.3)),
-                          ),
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(10)),
-                            borderSide:
-                                BorderSide(color: AppColors.rose, width: 1.5),
-                          ),
-                          filled: true,
-                          fillColor: AppColors.cream,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!_hasVolunteer)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: Text(
+                              'No volunteer has picked this up yet — they\'ll see anything you add here once they do.',
+                              style: TextStyle(
+                                  color: AppColors.textLight, fontSize: 11)),
                         ),
+                      _videoCallControl(),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _replyCtrl,
+                              maxLines: 4,
+                              minLines: 1,
+                              style: const TextStyle(fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: 'Type a message...',
+                                hintStyle: const TextStyle(
+                                    color: AppColors.textLight, fontSize: 13),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                      color: AppColors.textLight
+                                          .withValues(alpha: 0.3)),
+                                ),
+                                focusedBorder: const OutlineInputBorder(
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(10)),
+                                  borderSide: BorderSide(
+                                      color: AppColors.rose, width: 1.5),
+                                ),
+                                filled: true,
+                                fillColor: AppColors.cream,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton.filled(
+                            onPressed: _sending ? null : _sendReply,
+                            style: IconButton.styleFrom(
+                                backgroundColor: AppColors.rose,
+                                padding: const EdgeInsets.all(14)),
+                            icon: _sending
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white))
+                                : const Icon(Icons.send,
+                                    color: Colors.white, size: 18),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    IconButton.filled(
-                      onPressed: _sending ? null : _sendReply,
-                      style: IconButton.styleFrom(
-                          backgroundColor: AppColors.rose,
-                          padding: const EdgeInsets.all(14)),
-                      icon: _sending
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.send, color: Colors.white, size: 18),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                    ],
+                  ),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -152,8 +153,7 @@ class _SpecialistReviewThreadScreenState
     return count.clamp(0, 2);
   }
 
-  Color get _checksColor =>
-      _checksCount >= 2 ? AppColors.teal : AppColors.gold;
+  Color get _checksColor => _checksCount >= 2 ? AppColors.teal : AppColors.gold;
 
   // The reviewer who currently holds the active (non-superseded) stage-1
   // approval — approval 2 must come from someone else (Article_System
@@ -178,7 +178,9 @@ class _SpecialistReviewThreadScreenState
   // approval 1 yet, for the secondary-group notice below.
   bool get _hasSupersededStage1Approval =>
       List<Map<String, dynamic>>.from(_content?['approvals'] ?? []).any((a) =>
-          a['stage'] == 1 && a['decision'] == 'approve' && a['superseded'] == true);
+          a['stage'] == 1 &&
+          a['decision'] == 'approve' &&
+          a['superseded'] == true);
 
   Future<void> _approve() async {
     final confirm = await showDialog<bool>(
@@ -198,8 +200,8 @@ class _SpecialistReviewThreadScreenState
       ),
     );
     if (confirm == true) {
-      await _run(() =>
-          SupabaseService.approveContent(widget.contentId, _stage));
+      await _run(
+          () => SupabaseService.approveContent(widget.contentId, _stage));
     }
   }
 
@@ -252,13 +254,15 @@ class _SpecialistReviewThreadScreenState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Category', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Category',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [
                 ChoiceChip(
                   label: const Text('Clinical'),
                   selected: category == 'clinical',
-                  onSelected: (_) => setDialogState(() => category = 'clinical'),
+                  onSelected: (_) =>
+                      setDialogState(() => category = 'clinical'),
                 ),
                 ChoiceChip(
                   label: const Text('Non-clinical'),
@@ -308,10 +312,10 @@ class _SpecialistReviewThreadScreenState
     }
   }
 
-  int get _unresolvedIssueCount => List<Map<String, dynamic>>.from(
-          _content?['approvals'] ?? [])
-      .where((a) => a['decision'] == 'reject' && a['resolved'] != true)
-      .length;
+  int get _unresolvedIssueCount =>
+      List<Map<String, dynamic>>.from(_content?['approvals'] ?? [])
+          .where((a) => a['decision'] == 'reject' && a['resolved'] != true)
+          .length;
 
   // Only the author can resolve an issue (turn its "X" into a checklist —
   // enforced server-side too by resolve_review_issue). Other primary/
@@ -430,8 +434,7 @@ class _SpecialistReviewThreadScreenState
                 child: TBButton(
                   label: 'Submit',
                   loading: _acting,
-                  onPressed:
-                      (_acting || unresolved > 0) ? null : _resubmit,
+                  onPressed: (_acting || unresolved > 0) ? null : _resubmit,
                 ),
               ),
             ]),
@@ -527,8 +530,7 @@ class _SpecialistReviewThreadScreenState
             ),
             if (showApprovalChip)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.infoBlue.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(50),
@@ -578,19 +580,19 @@ class _SpecialistReviewThreadScreenState
             TextField(
               controller: _suggestionCtrl,
               maxLines: 3,
-              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(hintText: 'Comment required'),
             ),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
-              child: TBButton(
-                label: 'Send',
-                loading: _acting,
-                color: AppColors.infoBlue,
-                onPressed: _suggestionCtrl.text.trim().isEmpty
-                    ? null
-                    : _sendSuggestion,
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _suggestionCtrl,
+                builder: (context, value, _) => TBButton(
+                  label: 'Send',
+                  loading: _acting,
+                  color: AppColors.infoBlue,
+                  onPressed: value.text.trim().isEmpty ? null : _sendSuggestion,
+                ),
               ),
             ),
           ],
@@ -620,19 +622,20 @@ class _SpecialistReviewThreadScreenState
             TextField(
               controller: _issueReasonCtrl,
               maxLines: 3,
-              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(hintText: 'Comment required'),
             ),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
-              child: TBButton(
-                label: 'Send',
-                loading: _acting,
-                outline: true,
-                color: Colors.red,
-                onPressed:
-                    _issueReasonCtrl.text.trim().isEmpty ? null : _sendIssue,
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _issueReasonCtrl,
+                builder: (context, value, _) => TBButton(
+                  label: 'Send',
+                  loading: _acting,
+                  outline: true,
+                  color: Colors.red,
+                  onPressed: value.text.trim().isEmpty ? null : _sendIssue,
+                ),
               ),
             ),
           ],
@@ -647,7 +650,8 @@ class _SpecialistReviewThreadScreenState
     final authorPhoto = author?['profile_picture_url'] as String?;
     final authorSpecialization = (author?['specialist_profiles']
         as Map<String, dynamic>?)?['specialization'] as String?;
-    final createdAt = DateTime.tryParse(_content!['created_at'] as String? ?? '');
+    final createdAt =
+        DateTime.tryParse(_content!['created_at'] as String? ?? '');
     final bufferStartedAt = _content!['buffer_started_at'] != null
         ? DateTime.tryParse(_content!['buffer_started_at'] as String)
         : null;
@@ -669,8 +673,9 @@ class _SpecialistReviewThreadScreenState
               CircleAvatar(
                 radius: 20,
                 backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                backgroundImage:
-                    authorPhoto != null ? NetworkImage(authorPhoto) : null,
+                backgroundImage: authorPhoto != null
+                    ? CachedNetworkImageProvider(authorPhoto, maxWidth: 200)
+                    : null,
                 child: authorPhoto == null
                     ? Text(
                         authorName.isNotEmpty
@@ -729,8 +734,7 @@ class _SpecialistReviewThreadScreenState
               // testing_instant_publish_buffer.sql. Revert to
               // Duration(hours: 24) alongside that migration.
               'Goes live ${bufferStartedAt.add(Duration.zero).toLocal()}',
-              style:
-                  const TextStyle(color: AppColors.textLight, fontSize: 12),
+              style: const TextStyle(color: AppColors.textLight, fontSize: 12),
             ),
           ],
           const SizedBox(height: 14),
@@ -746,8 +750,8 @@ class _SpecialistReviewThreadScreenState
   // Shared avatar + bubble frame for both the flagged feed and History
   // entries — reviewer identity/timestamp look the same either way, only
   // the body content and (for the flagged feed) the border color differ.
-  Widget _entryBubble(Map<String, dynamic>? reviewer, DateTime? createdAt,
-      Widget body,
+  Widget _entryBubble(
+      Map<String, dynamic>? reviewer, DateTime? createdAt, Widget body,
       {Color? borderColor}) {
     final reviewerName = reviewer?['full_name'] as String? ?? 'Specialist';
     final reviewerPhoto = reviewer?['profile_picture_url'] as String?;
@@ -762,8 +766,9 @@ class _SpecialistReviewThreadScreenState
           CircleAvatar(
             radius: 16,
             backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-            backgroundImage:
-                reviewerPhoto != null ? NetworkImage(reviewerPhoto) : null,
+            backgroundImage: reviewerPhoto != null
+                ? CachedNetworkImageProvider(reviewerPhoto, maxWidth: 200)
+                : null,
             child: reviewerPhoto == null
                 ? Text(
                     reviewerName.isNotEmpty
@@ -857,15 +862,10 @@ class _SpecialistReviewThreadScreenState
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                      _supersededReasonIcon(
-                          a['superseded_reason'] as String),
-                      size: 12,
-                      color: AppColors.textLight),
+                  Icon(_supersededReasonIcon(a['superseded_reason'] as String),
+                      size: 12, color: AppColors.textLight),
                   const SizedBox(width: 4),
-                  Text(
-                      _supersededReasonLabel(
-                          a['superseded_reason'] as String),
+                  Text(_supersededReasonLabel(a['superseded_reason'] as String),
                       style: const TextStyle(
                           color: AppColors.textLight,
                           fontSize: 11,
@@ -903,8 +903,8 @@ class _SpecialistReviewThreadScreenState
               padding: const EdgeInsets.only(top: 6),
               child: RichText(
                 text: TextSpan(
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 12),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 12),
                   children: [
                     TextSpan(
                       text:
@@ -921,8 +921,8 @@ class _SpecialistReviewThreadScreenState
               padding: const EdgeInsets.only(top: 6),
               child: RichText(
                 text: TextSpan(
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 12),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 12),
                   children: [
                     TextSpan(
                       text: '★ $_authorName: ',
@@ -967,8 +967,7 @@ class _SpecialistReviewThreadScreenState
                         GestureDetector(
                           onTap: _acting
                               ? null
-                              : () =>
-                                  _submitIssueReply(a['id'] as String),
+                              : () => _submitIssueReply(a['id'] as String),
                           child: const Padding(
                             padding: EdgeInsets.all(6),
                             child: Icon(Icons.send,
@@ -1015,16 +1014,13 @@ class _SpecialistReviewThreadScreenState
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 4, top: 1),
-            child: Icon(
-                isReject ? Icons.cancel_outlined : Icons.check_circle,
-                size: 14,
-                color: isReject ? Colors.redAccent : AppColors.teal),
+            child: Icon(isReject ? Icons.cancel_outlined : Icons.check_circle,
+                size: 14, color: isReject ? Colors.redAccent : AppColors.teal),
           ),
           Expanded(
             child: Text(
               '${isReject ? 'Rejected' : 'Approved'} stage ${a['stage']}${a['superseded'] == true ? ' (superseded)' : ''}',
-              style:
-                  const TextStyle(color: AppColors.textMid, fontSize: 13),
+              style: const TextStyle(color: AppColors.textMid, fontSize: 13),
             ),
           ),
         ],
@@ -1064,8 +1060,8 @@ class _SpecialistReviewThreadScreenState
                       fontSize: 12,
                       decoration: TextDecoration.lineThrough)),
               Text('After: ${newVal.isEmpty ? '(empty)' : newVal}',
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 12)),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 12)),
             ],
           ),
         ),
@@ -1084,8 +1080,7 @@ class _SpecialistReviewThreadScreenState
         childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         leading: const Icon(Icons.edit_note, color: AppColors.textLight),
         title: Text('Article edited — $changedLabel',
-            style:
-                const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         subtitle: Text(createdAt != null ? _timeAgo(createdAt) : '',
             style: const TextStyle(color: AppColors.textLight, fontSize: 11)),
         children: [
@@ -1101,13 +1096,12 @@ class _SpecialistReviewThreadScreenState
   // Always-visible feed of "Approved with suggestion" and "Issues" entries,
   // sitting directly below Post verification (review_article_2.png).
   Widget _flaggedFeed() {
-    final approvals =
-        List<Map<String, dynamic>>.from(_content!['approvals'] ?? [])
-            .where((a) =>
-                a['decision'] == 'reject' || a['has_suggestion'] == true)
-            .toList()
-          ..sort((a, b) => (a['created_at'] as String)
-              .compareTo(b['created_at'] as String));
+    final approvals = List<Map<String, dynamic>>.from(
+            _content!['approvals'] ?? [])
+        .where((a) => a['decision'] == 'reject' || a['has_suggestion'] == true)
+        .toList()
+      ..sort((a, b) =>
+          (a['created_at'] as String).compareTo(b['created_at'] as String));
     if (approvals.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1122,8 +1116,8 @@ class _SpecialistReviewThreadScreenState
   Widget _historySection() {
     final approvals =
         List<Map<String, dynamic>>.from(_content!['approvals'] ?? []);
-    final editHistory =
-        List<Map<String, dynamic>>.from(_content!['article_edit_history'] ?? []);
+    final editHistory = List<Map<String, dynamic>>.from(
+        _content!['article_edit_history'] ?? []);
     final items = <_TimelineItem>[
       for (final a in approvals)
         _TimelineItem(
@@ -1153,8 +1147,7 @@ class _SpecialistReviewThreadScreenState
                     style:
                         TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                 const SizedBox(width: 8),
-                Icon(
-                    _historyExpanded ? Icons.expand_less : Icons.expand_more,
+                Icon(_historyExpanded ? Icons.expand_less : Icons.expand_more,
                     color: AppColors.textLight),
               ],
             ),
@@ -1165,8 +1158,7 @@ class _SpecialistReviewThreadScreenState
             padding: const EdgeInsets.only(top: 8),
             child: items.isEmpty
                 ? const Text('No reviews yet.',
-                    style:
-                        TextStyle(color: AppColors.textLight, fontSize: 13))
+                    style: TextStyle(color: AppColors.textLight, fontSize: 13))
                 : Column(
                     children: [
                       for (final item in items)
@@ -1209,7 +1201,9 @@ class _SpecialistReviewThreadScreenState
         CircleAvatar(
           radius: 16,
           backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+          backgroundImage: photoUrl != null
+              ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
+              : null,
           child: photoUrl == null
               ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: const TextStyle(
@@ -1225,8 +1219,8 @@ class _SpecialistReviewThreadScreenState
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: AppColors.textLight.withValues(alpha: 0.3)),
+              border:
+                  Border.all(color: AppColors.textLight.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1386,8 +1380,8 @@ class _SpecialistReviewThreadScreenState
               const Text('No comments yet.',
                   style: TextStyle(color: AppColors.textLight, fontSize: 13))
             else
-              ...topLevelComments.map((c) => _discussionTile(
-                  c, generalRepliesByParent[c['id']] ?? [])),
+              ...topLevelComments.map((c) =>
+                  _discussionTile(c, generalRepliesByParent[c['id']] ?? [])),
           ],
         ),
       ),

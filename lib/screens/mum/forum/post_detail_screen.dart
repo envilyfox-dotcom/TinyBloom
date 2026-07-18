@@ -79,61 +79,87 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                TBCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        CircleAvatar(
-                            radius: 18,
-                            backgroundColor:
-                                AppColors.rose.withValues(alpha: 0.15),
-                            child: Text(
-                                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                style: const TextStyle(
-                                    color: AppColors.roseDeep,
-                                    fontWeight: FontWeight.w700))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700, fontSize: 14)),
-                            Text(createdAt != null ? timeAgo(createdAt) : '',
-                                style: const TextStyle(
-                                    color: AppColors.textLight, fontSize: 11)),
-                          ],
-                        )),
-                      ]),
-                      const SizedBox(height: 12),
-                      Text(content,
-                          style: const TextStyle(
-                              color: AppColors.textDark,
-                              fontSize: 15,
-                              height: 1.5)),
-                    ],
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TBCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor:
+                                        AppColors.rose.withValues(alpha: 0.15),
+                                    child: Text(
+                                        name.isNotEmpty
+                                            ? name[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                            color: AppColors.roseDeep,
+                                            fontWeight: FontWeight.w700))),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                    child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14)),
+                                    Text(
+                                        createdAt != null
+                                            ? timeAgo(createdAt)
+                                            : '',
+                                        style: const TextStyle(
+                                            color: AppColors.textLight,
+                                            fontSize: 11)),
+                                  ],
+                                )),
+                              ]),
+                              const SizedBox(height: 12),
+                              Text(content,
+                                  style: const TextStyle(
+                                      color: AppColors.textDark,
+                                      fontSize: 15,
+                                      height: 1.5)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text('Comments',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15)),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                const Text('Comments',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                const SizedBox(height: 12),
-                if (_loading)
-                  const TBLoading()
-                else if (_comments.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Text('No comments yet. Be the first to reply!',
-                        style: TextStyle(color: AppColors.textLight)),
-                  )
-                else
-                  ..._comments.map((c) => _commentTile(c, myId)),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  sliver: _loading
+                      ? const SliverToBoxAdapter(child: TBLoading())
+                      : _comments.isEmpty
+                          ? const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: Text(
+                                    'No comments yet. Be the first to reply!',
+                                    style:
+                                        TextStyle(color: AppColors.textLight)),
+                              ),
+                            )
+                          : SliverList.builder(
+                              itemCount: _comments.length,
+                              itemBuilder: (context, i) =>
+                                  _commentTile(_comments[i], myId),
+                            ),
+                ),
               ],
             ),
           ),

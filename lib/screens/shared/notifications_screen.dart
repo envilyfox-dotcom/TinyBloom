@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -128,8 +129,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         DateTime.fromMillisecondsSinceEpoch(0);
   }
 
-
-
   int _currentPregnancyWeek(Map<String, dynamic>? pregnancyProfile) {
     if (pregnancyProfile == null) return 0;
 
@@ -143,8 +142,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     }
 
-    final storedWeek = pregnancyProfile['current_week'] ??
-        pregnancyProfile['pregnancy_week'];
+    final storedWeek =
+        pregnancyProfile['current_week'] ?? pregnancyProfile['pregnancy_week'];
     if (storedWeek is num) return storedWeek.toInt().clamp(1, 42);
     if (storedWeek != null) {
       final parsed = int.tryParse(storedWeek.toString());
@@ -198,12 +197,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .select('source_table,source_id')
           .eq('user_id', userId);
 
-      return List<Map<String, dynamic>>.from(data).map((item) {
-        return _notificationReadReceiptKey(
-          item['source_table']?.toString() ?? '',
-          item['source_id']?.toString() ?? '',
-        );
-      }).where((key) => !key.endsWith('::')).toSet();
+      return List<Map<String, dynamic>>.from(data)
+          .map((item) {
+            return _notificationReadReceiptKey(
+              item['source_table']?.toString() ?? '',
+              item['source_id']?.toString() ?? '',
+            );
+          })
+          .where((key) => !key.endsWith('::'))
+          .toSet();
     } catch (e) {
       debugPrint('Failed to load notification read receipts: $e');
       return <String>{};
@@ -246,7 +248,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final rows = items
         .map((item) {
           final sourceId = item['id']?.toString();
-          final sourceTable = item['source_table']?.toString() ?? 'notifications';
+          final sourceTable =
+              item['source_table']?.toString() ?? 'notifications';
 
           if (sourceId == null || sourceId.isEmpty) return null;
 
@@ -322,7 +325,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       };
     }).toList();
   }
-
 
   String _titleCase(String value) {
     final clean = value.trim();
@@ -429,8 +431,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
   }
 
-
-
   Future<Map<String, dynamic>?> _safePregnancyProfile() async {
     try {
       return await SupabaseService.getPregnancyProfile();
@@ -467,7 +467,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'id': item['id'],
         'user_id': null,
         'title': item['title'] ?? 'Education Resource',
-        'message': message.isEmpty ? 'Tap to view this education resource.' : message,
+        'message':
+            message.isEmpty ? 'Tap to view this education resource.' : message,
         'full_content': content,
         'type': 'education',
         'is_read': true,
@@ -503,9 +504,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'id': item['id'],
         'user_id': null,
         'title': serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle',
-        'message': description.isEmpty
-            ? 'Tap to view this session.'
-            : description,
+        'message':
+            description.isEmpty ? 'Tap to view this session.' : description,
         'type': 'session',
         'is_read': false,
         'created_at': item['created_at'],
@@ -589,7 +589,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final title = (item['development_title'] ?? '').toString().trim();
     final size = (item['baby_size'] ?? '').toString().trim();
     final emoji = (item['emoji'] ?? '🌸').toString().trim();
-    final description = (item['development_description'] ?? '').toString().trim();
+    final description =
+        (item['development_description'] ?? '').toString().trim();
 
     return [
       {
@@ -663,7 +664,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'id': item['id'],
         'user_id': null,
         'title': severity.isEmpty ? condition : '$severity: $condition',
-        'message': action.isEmpty ? 'Tap to view emergency support guidance.' : action,
+        'message':
+            action.isEmpty ? 'Tap to view emergency support guidance.' : action,
         'type': 'emergency',
         'is_read': true,
         'created_at': DateTime.now().toIso8601String(),
@@ -679,8 +681,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return rows.isEmpty ? _fallbackEmergencyRows() : rows;
   }
-
-
 
   List<String> _stringListFromArray(dynamic raw) {
     if (raw == null) return [];
@@ -710,7 +710,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   String _healthLogCreatedAt(Map<String, dynamic> item) {
-    return (item['logged_at'] ?? item['created_at'] ?? DateTime.now().toIso8601String())
+    return (item['logged_at'] ??
+            item['created_at'] ??
+            DateTime.now().toIso8601String())
         .toString();
   }
 
@@ -801,9 +803,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final bpText = systolic != null && diastolic != null
         ? 'Blood pressure: $systolic/$diastolic mmHg\n'
         : '';
-    final symptomsText = symptoms.isNotEmpty
-        ? 'Symptoms logged: ${symptoms.join(', ')}\n'
-        : '';
+    final symptomsText =
+        symptoms.isNotEmpty ? 'Symptoms logged: ${symptoms.join(', ')}\n' : '';
     final notesText = notes.trim().isNotEmpty ? 'Notes: ${notes.trim()}\n' : '';
 
     final fullContent = '${issues.map((issue) => '• $issue').join('\n')}\n\n'
@@ -847,7 +848,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'message': matches.first,
         'type': 'emergency',
         'is_read': false,
-        'created_at': (item['created_at'] ?? item['log_date'] ?? DateTime.now().toIso8601String()).toString(),
+        'created_at': (item['created_at'] ??
+                item['log_date'] ??
+                DateTime.now().toIso8601String())
+            .toString(),
         'source_table': 'pregnancy_logs',
         'severity': 'Urgent',
         'condition': 'Abnormal pregnancy log detected',
@@ -880,7 +884,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final pregnancyLogs = await SupabaseService.client
           .from('pregnancy_logs')
-          .select('id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
+          .select(
+              'id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
           .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(10);
@@ -1251,7 +1256,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, color: AppColors.textLight),
+                        icon:
+                            const Icon(Icons.close, color: AppColors.textLight),
                       ),
                     ],
                   ),
@@ -1266,7 +1272,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       height: 1.55,
                     ),
                   ),
-                  if (triggerType.isNotEmpty || triggerValue.isNotEmpty || priority.isNotEmpty) ...[
+                  if (triggerType.isNotEmpty ||
+                      triggerValue.isNotEmpty ||
+                      priority.isNotEmpty) ...[
                     const SizedBox(height: 18),
                     Container(
                       width: double.infinity,
@@ -1414,14 +1422,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, color: AppColors.textLight),
+                        icon:
+                            const Icon(Icons.close, color: AppColors.textLight),
                       ),
                     ],
                   ),
                   if (category.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: AppColors.blush.withValues(alpha: 0.55),
                         borderRadius: BorderRadius.circular(20),
@@ -1487,7 +1497,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       },
     );
   }
-
 
   Future<void> _showInfoSheet({
     required String label,
@@ -1564,7 +1573,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, color: AppColors.textLight),
+                        icon:
+                            const Icon(Icons.close, color: AppColors.textLight),
                       ),
                     ],
                   ),
@@ -1906,8 +1916,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final photoUrl = profile?['profile_picture_url']?.toString();
     final expertise = (volunteer?['expertise'] ?? '').toString().trim();
     final affiliation = (volunteer?['affiliation'] ?? '').toString().trim();
-    final certification =
-        (volunteer?['certification'] ?? '').toString().trim();
+    final certification = (volunteer?['certification'] ?? '').toString().trim();
     final years = volunteer?['years_experience'];
     final helpsWith = (volunteer?['helps_with'] as List?)
             ?.map((e) => e.toString())
@@ -1953,7 +1962,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           borderRadius: BorderRadius.circular(18),
                           image: photoUrl != null && photoUrl.isNotEmpty
                               ? DecorationImage(
-                                  image: NetworkImage(photoUrl),
+                                  image: CachedNetworkImageProvider(photoUrl,
+                                      maxWidth: 400),
                                   fit: BoxFit.cover)
                               : null,
                         ),
@@ -1961,9 +1971,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ? null
                             : Center(
                                 child: Text(
-                                  name.isNotEmpty
-                                      ? name[0].toUpperCase()
-                                      : 'V',
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'V',
                                   style: const TextStyle(
                                       color: AppColors.sage,
                                       fontSize: 22,
@@ -1997,8 +2005,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close,
-                            color: AppColors.textLight),
+                        icon:
+                            const Icon(Icons.close, color: AppColors.textLight),
                       ),
                     ],
                   ),
@@ -2230,7 +2238,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = _notifications.where((n) => n['is_read'] != true).length;
+    final unreadCount =
+        _notifications.where((n) => n['is_read'] != true).length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -2242,85 +2251,101 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             : RefreshIndicator(
                 color: AppColors.rose,
                 onRefresh: _loadNotifications,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            if (context.canPop()) {
-                              context.pop();
-                            } else {
-                              context.go('/dashboard');
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new,
-                            size: 18,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (_urgentCount > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
+                child: CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    if (context.canPop()) {
+                                      context.pop();
+                                    } else {
+                                      context.go('/dashboard');
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios_new,
+                                    size: 18,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_urgentCount > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '$_urgentCount Urgent',
+                                      style: const TextStyle(
+                                        color: Colors.redAccent,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                            child: Text(
-                              '$_urgentCount Urgent',
-                              style: const TextStyle(
-                                color: Colors.redAccent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                            const SizedBox(height: 8),
+                            const Center(
+                              child: Text(
+                                'Notifications Centre',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textDark,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Center(
-                      child: Text(
-                        'Notifications Centre',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textDark,
+                            const SizedBox(height: 4),
+                            Center(
+                              child: Text(
+                                unreadCount == 0
+                                    ? 'You are all caught up 🌸'
+                                    : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+                                style: const TextStyle(
+                                  color: AppColors.textMid,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (_notifications.any((n) => n['is_read'] != true))
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: _markAllAsRead,
+                                  icon: const Icon(Icons.done_all, size: 16),
+                                  label: const Text('Mark all as read'),
+                                ),
+                              ),
+                            const SizedBox(height: 6),
+                            _buildFilters(),
+                            const SizedBox(height: 20),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Center(
-                      child: Text(
-                        unreadCount == 0
-                            ? 'You are all caught up 🌸'
-                            : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
-                        style: const TextStyle(
-                          color: AppColors.textMid,
-                          fontSize: 13,
-                        ),
-                      ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                      sliver: _filteredNotifications.isEmpty
+                          ? SliverToBoxAdapter(child: _emptyState())
+                          : SliverList.builder(
+                              itemCount: _filteredNotifications.length,
+                              itemBuilder: (context, i) =>
+                                  _notificationCard(_filteredNotifications[i]),
+                            ),
                     ),
-                    const SizedBox(height: 16),
-                    if (_notifications.any((n) => n['is_read'] != true))
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: _markAllAsRead,
-                          icon: const Icon(Icons.done_all, size: 16),
-                          label: const Text('Mark all as read'),
-                        ),
-                      ),
-                    const SizedBox(height: 6),
-                    _buildFilters(),
-                    const SizedBox(height: 20),
-                    if (_filteredNotifications.isEmpty)
-                      _emptyState()
-                    else
-                      ..._filteredNotifications.map(_notificationCard),
                   ],
                 ),
               ),

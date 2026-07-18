@@ -91,43 +91,59 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
             : RefreshIndicator(
                 color: AppColors.rose,
                 onRefresh: _load,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  children: [
-                    Text('Volunteer Consultation',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(fontSize: 26)),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "Choose a community volunteer. Today's remaining timings are shown. You can select another date on the next screen.",
-                      style: TextStyle(
-                        color: AppColors.textMid,
-                        fontSize: 13,
-                        height: 1.35,
+                child: CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('Volunteer Consultation',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontSize: 26)),
+                            const SizedBox(height: 4),
+                            const Text(
+                              "Choose a community volunteer. Today's remaining timings are shown. You can select another date on the next screen.",
+                              style: TextStyle(
+                                color: AppColors.textMid,
+                                fontSize: 13,
+                                height: 1.35,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    if (_error != null)
-                      TBEmptyState(
-                          emoji: '⚠️',
-                          title: 'Couldn\'t load volunteers',
-                          subtitle: _error!,
-                          buttonLabel: 'Retry',
-                          onButton: () {
-                            setState(() => _loading = true);
-                            _load();
-                          })
-                    else if (_volunteers.isEmpty)
-                      const TBEmptyState(
-                          emoji: '🤝',
-                          title: 'No volunteers available',
-                          subtitle:
-                              'Check back later for available volunteers.')
-                    else
-                      ..._volunteers
-                          .map((v) => providerCard(context, v, 'volunteer')),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      sliver: _error != null
+                          ? SliverToBoxAdapter(
+                              child: TBEmptyState(
+                                  emoji: '⚠️',
+                                  title: 'Couldn\'t load volunteers',
+                                  subtitle: _error!,
+                                  buttonLabel: 'Retry',
+                                  onButton: () {
+                                    setState(() => _loading = true);
+                                    _load();
+                                  }))
+                          : _volunteers.isEmpty
+                              ? const SliverToBoxAdapter(
+                                  child: TBEmptyState(
+                                      emoji: '🤝',
+                                      title: 'No volunteers available',
+                                      subtitle:
+                                          'Check back later for available volunteers.'))
+                              : SliverList.builder(
+                                  itemCount: _volunteers.length,
+                                  itemBuilder: (context, i) => providerCard(
+                                      context, _volunteers[i], 'volunteer'),
+                                ),
+                    ),
                   ],
                 ),
               ),
