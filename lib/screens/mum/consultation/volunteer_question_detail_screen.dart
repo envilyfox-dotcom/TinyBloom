@@ -147,6 +147,16 @@ class _VolunteerQuestionDetailScreenState
     try {
       await SupabaseService.acceptVideoCall(widget.request['id'].toString());
       widget.request['call_status'] = 'accepted';
+      // Posted as a real chat message (not just the "waiting" banner,
+      // which disappears once the volunteer sends the link) so the
+      // agreed date/time stays visible in the thread for both sides.
+      if (_scheduledDate != null && _scheduledTime != null) {
+        await SupabaseService.sendRequestMessage(
+            widget.request['id'].toString(),
+            'You have accepted the video call for '
+            '${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime.');
+        await _loadThread();
+      }
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
