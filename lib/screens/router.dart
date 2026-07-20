@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_provider.dart';
+import '../services/supabase_service.dart';
 import 'auth/login_screen.dart';
 import 'auth/forgot_password_screen.dart';
 
@@ -275,15 +276,35 @@ final router = GoRouter(
               purpose: extra['purpose'] as String);
         }),
     GoRoute(
+        path: '/consultation/detail/:id',
+        builder: (context, state) {
+          final consultationId = state.pathParameters['id'] ?? '';
+          return _ConsultationDetailLoaderScreen(
+            consultationId: consultationId,
+          );
+        }),
+    GoRoute(
         path: '/consultation/detail',
         builder: (context, state) {
-          final auth = context.read<AuthProvider>();
-          final consultation = state.extra as Map<String, dynamic>;
-          if (auth.isSpecialist) {
-            return SpecialistConsultationDetailScreen(
-                consultation: consultation);
+          final extra = state.extra;
+          final queryId = state.uri.queryParameters['consultationId'] ??
+              state.uri.queryParameters['id'];
+
+          if (extra is Map<String, dynamic>) {
+            final auth = context.read<AuthProvider>();
+            if (auth.isSpecialist) {
+              return SpecialistConsultationDetailScreen(consultation: extra);
+            }
+            return ConsultationDetailScreen(consultation: extra);
           }
-          return ConsultationDetailScreen(consultation: consultation);
+
+          if (queryId != null && queryId.isNotEmpty) {
+            return _ConsultationDetailLoaderScreen(
+              consultationId: queryId,
+            );
+          }
+
+          return const _ConsultationNotFoundScreen();
         }),
     GoRoute(
         path: '/subscription', builder: (_, __) => const SubscriptionScreen()),
@@ -293,8 +314,8 @@ final router = GoRouter(
             article: (state.extra as Map<String, dynamic>?) ?? {})),
     GoRoute(
         path: '/specialist/profile-view',
-        builder: (context, state) => SpecialistProfileViewScreen(
-            specialistId: state.extra as String)),
+        builder: (context, state) =>
+            SpecialistProfileViewScreen(specialistId: state.extra as String)),
 
     GoRoute(
         path: '/baby-development',
@@ -317,8 +338,8 @@ final router = GoRouter(
             article: state.extra as Map<String, dynamic>)),
     GoRoute(
         path: '/specialist/review/thread',
-        builder: (context, state) => SpecialistReviewThreadScreen(
-            contentId: state.extra as String)),
+        builder: (context, state) =>
+            SpecialistReviewThreadScreen(contentId: state.extra as String)),
 
     GoRoute(
         path: '/specialist/edit-profile',
@@ -356,6 +377,127 @@ final router = GoRouter(
     ),
   ],
 );
+
+class _ConsultationDetailLoaderScreen extends StatefulWidget {
+  final String consultationId;
+
+  const _ConsultationDetailLoaderScreen({required this.consultationId});
+
+  @override
+  State<_ConsultationDetailLoaderScreen> createState() =>
+      _ConsultationDetailLoaderScreenState();
+}
+
+class _ConsultationDetailLoaderScreenState
+    extends State<_ConsultationDetailLoaderScreen> {
+  late final Future<Map<String, dynamic>?> _consultationFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _consultationFuture = _loadConsultation();
+  }
+
+  Future<Map<String, dynamic>?> _loadConsultation() async {
+    final id = widget.consultationId.trim();
+    if (id.isEmpty) return null;
+
+    try {
+      final data = await SupabaseService.client
+          .from('consultations')
+          .select(
+              'id,patient_id,specialist_id,status,consultation_type,scheduled_at,scheduled_date,scheduled_time,purpose,platform,meeting_link,notes,created_at')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (data == null) return null;
+
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      debugPrint('Failed to load consultation detail by id: $e');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _consultationFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFFE8A0B4)),
+            ),
+          );
+        }
+
+        final consultation = snapshot.data;
+
+        if (consultation == null) {
+          return const _ConsultationNotFoundScreen();
+        }
+
+        final auth = context.read<AuthProvider>();
+
+        if (auth.isSpecialist) {
+          return SpecialistConsultationDetailScreen(
+            consultation: consultation,
+          );
+        }
+
+        return ConsultationDetailScreen(
+          consultation: consultation,
+        );
+      },
+    );
+  }
+}
+
+class _ConsultationNotFoundScreen extends StatelessWidget {
+  const _ConsultationNotFoundScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Consultation')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.calendar_month_outlined,
+                size: 48,
+                color: Color(0xFFE8A0B4),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Could not open this consultation.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'It may have been removed or you may not have access to it.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              ElevatedButton(
+                onPressed: () => context.go('/consultation'),
+                child: const Text('Back to consultations'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();

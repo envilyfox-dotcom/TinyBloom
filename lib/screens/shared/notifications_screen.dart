@@ -350,6 +350,135 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return 'Time not confirmed yet';
   }
 
+  Future<Map<String, dynamic>?> _safeLinkedProfile(String? userId) async {
+    final cleanUserId = userId?.trim();
+    if (cleanUserId == null || cleanUserId.isEmpty) return null;
+
+    try {
+      final data = await SupabaseService.client
+          .from('profiles')
+          .select('id,full_name,profile_picture_url,role')
+          .eq('id', cleanUserId)
+          .maybeSingle();
+
+      if (data == null) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      debugPrint('Failed to load linked profile $cleanUserId: $e');
+      return null;
+    }
+  }
+
+  String _firstNonEmptyValue(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  Map<String, dynamic>? _normaliseSpecialistProvider(
+    Map<String, dynamic>? specialistRow,
+    Map<String, dynamic>? linkedProfile,
+  ) {
+    if (specialistRow == null && linkedProfile == null) return null;
+
+    final name = _firstNonEmptyValue([
+      linkedProfile?['full_name'],
+      specialistRow?['full_name'],
+      specialistRow?['display_name'],
+      specialistRow?['name'],
+      specialistRow?['specialist_name'],
+    ]);
+
+    final photoUrl = _firstNonEmptyValue([
+      linkedProfile?['profile_picture_url'],
+      specialistRow?['profile_picture_url'],
+      specialistRow?['avatar_url'],
+      specialistRow?['photo_url'],
+    ]);
+
+    final role = _firstNonEmptyValue([
+      specialistRow?['specialty'],
+      specialistRow?['specialisation'],
+      specialistRow?['expertise'],
+      specialistRow?['profession'],
+      'Specialist',
+    ]);
+
+    final id = _firstNonEmptyValue([
+      linkedProfile?['id'],
+      specialistRow?['user_id'],
+      specialistRow?['profile_id'],
+      specialistRow?['id'],
+    ]);
+
+    return {
+      'id': id,
+      'name': name.isEmpty ? 'Specialist' : name,
+      'photo_url': photoUrl,
+      'role': role.isEmpty ? 'Specialist' : role,
+    };
+  }
+
+  Future<Map<String, dynamic>?> _safeSpecialistProfileRow(
+    String column,
+    String value,
+  ) async {
+    try {
+      final data = await SupabaseService.client
+          .from('specialist_profiles')
+          .select('*')
+          .eq(column, value)
+          .maybeSingle();
+
+      if (data == null) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      debugPrint('Failed to load specialist_profiles by $column: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _safeSpecialistProvider(
+    String? specialistId,
+  ) async {
+    final cleanSpecialistId = specialistId?.trim();
+    if (cleanSpecialistId == null || cleanSpecialistId.isEmpty) return null;
+
+    // Some consultations store specialist_id as profiles.id.
+    final directProfile = await _safeLinkedProfile(cleanSpecialistId);
+    if (directProfile != null) {
+      return _normaliseSpecialistProvider(null, directProfile);
+    }
+
+    // Other consultations store specialist_id as specialist_profiles.user_id.
+    var specialistRow =
+        await _safeSpecialistProfileRow('user_id', cleanSpecialistId);
+
+    // Some schemas store specialist_id as specialist_profiles.id.
+    specialistRow ??= await _safeSpecialistProfileRow('id', cleanSpecialistId);
+
+    if (specialistRow == null) return null;
+
+    final linkedUserId = _firstNonEmptyValue([
+      specialistRow['user_id'],
+      specialistRow['profile_id'],
+    ]);
+
+    final linkedProfile =
+        linkedUserId.isEmpty ? null : await _safeLinkedProfile(linkedUserId);
+
+    return _normaliseSpecialistProvider(specialistRow, linkedProfile);
+  }
+
+  String _compactJoin(List<String> values) {
+    return values
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .join(' • ');
+  }
+
   Future<List<Map<String, dynamic>>> _loadRowsFromConsultationsTable(
       String userId) async {
     final data = await SupabaseService.client
@@ -360,27 +489,53 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('created_at', ascending: false)
         .limit(12);
 
-    return List<Map<String, dynamic>>.from(data).map((item) {
+    final rows = <Map<String, dynamic>>[];
+
+    for (final rawItem in List<Map<String, dynamic>>.from(data)) {
+      final item = Map<String, dynamic>.from(rawItem);
       final status = (item['status'] ?? 'booked').toString();
       final consultationType =
           (item['consultation_type'] ?? 'consultation').toString();
       final purpose = (item['purpose'] ?? '').toString().trim();
       final scheduled = _formatConsultationDate(item);
+      final platform = (item['platform'] ?? '').toString().trim();
+      final specialistId = item['specialist_id']?.toString();
+      final specialistProvider = await _safeSpecialistProvider(specialistId);
 
-      return {
+      final providerName =
+          (specialistProvider?['name'] ?? 'Specialist').toString().trim();
+      final providerPhotoUrl =
+          (specialistProvider?['photo_url'] ?? '').toString().trim();
+      final providerRole =
+          (specialistProvider?['role'] ?? 'Specialist').toString().trim();
+      final providerId =
+          (specialistProvider?['id'] ?? specialistId ?? '').toString().trim();
+
+      final consultationLabel =
+          '${_titleCase(status)} ${_titleCase(consultationType)}'.trim();
+
+      final message = _compactJoin([
+        if (purpose.isNotEmpty) purpose,
+        if (scheduled.isNotEmpty) scheduled,
+        if (platform.isNotEmpty) platform,
+        consultationLabel,
+      ]);
+
+      rows.add({
         'id': 'consultation-${item['id']}',
         'consultation_id': item['id'],
         'user_id': item['patient_id'],
-        'title': '${_titleCase(status)} ${_titleCase(consultationType)}',
-        'message': purpose.isEmpty
+        'title': providerName.isEmpty ? 'Specialist' : providerName,
+        'message': message.isEmpty
             ? 'Your consultation is scheduled for $scheduled.'
-            : '$purpose • $scheduled',
+            : message,
         'type': 'consultation',
         'is_read': true,
         'created_at': item['created_at'] ?? item['scheduled_at'],
         'source_table': 'consultations',
         'status': status,
         'consultation_type': consultationType,
+        'consultation_label': consultationLabel,
         'scheduled_display': scheduled,
         'scheduled_at': item['scheduled_at'],
         'scheduled_date': item['scheduled_date'],
@@ -389,6 +544,166 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'platform': item['platform'],
         'meeting_link': item['meeting_link'],
         'notes': item['notes'],
+        'specialist_id': item['specialist_id'],
+        'provider_id': providerId,
+        'provider_name': providerName.isEmpty ? 'Specialist' : providerName,
+        'provider_role': providerRole.isEmpty ? 'Specialist' : providerRole,
+        'provider_photo_url': providerPhotoUrl,
+      });
+    }
+
+    return rows;
+  }
+
+  DateTime? _consultationReminderDateTime(Map<String, dynamic> item) {
+    final scheduledAt = item['scheduled_at']?.toString().trim();
+    if (scheduledAt != null && scheduledAt.isNotEmpty) {
+      final parsed = DateTime.tryParse(scheduledAt);
+      if (parsed != null) return parsed.toLocal();
+    }
+
+    final date = item['scheduled_date']?.toString().trim();
+    if (date == null || date.isEmpty) return null;
+
+    final rawTime = item['scheduled_time']?.toString().trim() ?? '';
+    final cleanedTime = rawTime
+        .replaceAll(RegExp(r'(?i)^today\s*'), '')
+        .split('-')
+        .first
+        .trim();
+
+    final candidates = <String>[
+      if (cleanedTime.isNotEmpty) '$date $cleanedTime',
+      if (cleanedTime.isNotEmpty) '${date}T$cleanedTime',
+      date,
+    ];
+
+    for (final candidate in candidates) {
+      final parsed = DateTime.tryParse(candidate);
+      if (parsed != null) return parsed.toLocal();
+    }
+
+    try {
+      if (cleanedTime.isNotEmpty) {
+        final parsedDate = DateTime.tryParse(date);
+        if (parsedDate != null) {
+          final parsedTime = DateFormat.jm().parseLoose(cleanedTime);
+          return DateTime(
+            parsedDate.year,
+            parsedDate.month,
+            parsedDate.day,
+            parsedTime.hour,
+            parsedTime.minute,
+          );
+        }
+      }
+    } catch (_) {}
+
+    return DateTime.tryParse(date)?.toLocal();
+  }
+
+  bool _isUpcomingConsultationStatus(String status) {
+    final clean = status.trim().toLowerCase();
+    return ![
+      'cancelled',
+      'canceled',
+      'completed',
+      'done',
+      'rejected',
+      'declined',
+      'no_show',
+      'noshow',
+    ].contains(clean);
+  }
+
+  String _consultationReminderWindow(DateTime scheduledAt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final scheduledDay = DateTime(
+      scheduledAt.year,
+      scheduledAt.month,
+      scheduledAt.day,
+    );
+    final dayDiff = scheduledDay.difference(today).inDays;
+    final time = DateFormat('h:mm a').format(scheduledAt);
+
+    if (dayDiff == 0) return 'Today at $time';
+    if (dayDiff == 1) return 'Tomorrow at $time';
+    if (dayDiff > 1 && dayDiff <= 7) {
+      return '${DateFormat('EEE, d MMM').format(scheduledAt)} at $time';
+    }
+
+    return DateFormat('d MMM yyyy, h:mm a').format(scheduledAt);
+  }
+
+  List<Map<String, dynamic>> _upcomingConsultationReminderRows(
+    List<Map<String, dynamic>> consultationRows,
+  ) {
+    final now = DateTime.now();
+    final upcoming = consultationRows.where((item) {
+      final status = (item['status'] ?? '').toString();
+      if (!_isUpcomingConsultationStatus(status)) return false;
+
+      final scheduledAt = _consultationReminderDateTime(item);
+      if (scheduledAt == null) return true;
+
+      // Keep consultations from the last 2 hours visible because users may still
+      // need the meeting link or appointment notes just after the start time.
+      return scheduledAt.isAfter(now.subtract(const Duration(hours: 2)));
+    }).toList();
+
+    upcoming.sort((a, b) {
+      final aDate = _consultationReminderDateTime(a) ?? _createdAt(a);
+      final bDate = _consultationReminderDateTime(b) ?? _createdAt(b);
+      return aDate.compareTo(bDate);
+    });
+
+    return upcoming.take(5).map((item) {
+      final consultationId = item['consultation_id'] ?? item['id'];
+      final providerName =
+          (item['provider_name'] ?? item['title'] ?? 'Specialist')
+              .toString()
+              .trim();
+      final scheduledAt = _consultationReminderDateTime(item);
+      final scheduled = scheduledAt == null
+          ? (item['scheduled_display'] ?? 'Time not confirmed yet').toString()
+          : _consultationReminderWindow(scheduledAt);
+      final purpose = (item['purpose'] ?? '').toString().trim();
+      final platform = (item['platform'] ?? '').toString().trim();
+      final status = (item['status'] ?? '').toString().trim();
+      final consultationType =
+          (item['consultation_type'] ?? 'consultation').toString().trim();
+
+      final message = _compactJoin([
+        scheduled,
+        if (purpose.isNotEmpty) purpose,
+        if (platform.isNotEmpty) platform,
+        if (status.isNotEmpty) _titleCase(status),
+      ]);
+
+      return {
+        ...item,
+        'id': 'consultation-reminder-$consultationId',
+        'reminder_source_id': consultationId,
+        'title': providerName.isEmpty
+            ? 'Upcoming Consultation'
+            : 'Upcoming consultation with $providerName',
+        'message':
+            message.isEmpty ? 'You have an upcoming consultation.' : message,
+        'full_content': _compactJoin([
+          'Upcoming ${consultationType.replaceAll('_', ' ')} with ${providerName.isEmpty ? 'your provider' : providerName}.',
+          'Scheduled: $scheduled',
+          if (purpose.isNotEmpty) 'Purpose: $purpose',
+          if (platform.isNotEmpty) 'Platform: $platform',
+          if (status.isNotEmpty) 'Status: ${_titleCase(status)}',
+        ]),
+        'type': 'reminder',
+        'is_read': false,
+        'created_at': scheduledAt?.toIso8601String() ??
+            item['scheduled_at'] ??
+            item['created_at'],
+        'source_table': 'consultation_reminders',
+        'reminder_kind': 'consultation',
       };
     }).toList();
   }
@@ -486,35 +801,58 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     final data = await SupabaseService.client
         .from('volunteer_services')
-        .select('*, volunteer:profiles!volunteer_id(full_name)')
+        .select(
+            '*, volunteer:profiles!volunteer_id(full_name,profile_picture_url)')
         .eq('status', 'available')
         .order('created_at', ascending: false)
         .limit(20);
 
     return List<Map<String, dynamic>>.from(data).map((item) {
+      final volunteer = item['volunteer'] is Map<String, dynamic>
+          ? item['volunteer'] as Map<String, dynamic>
+          : null;
       final volunteerName =
-          (item['volunteer'] as Map<String, dynamic>?)?['full_name']
-                  ?.toString() ??
-              'A volunteer';
+          volunteer?['full_name']?.toString().trim().isNotEmpty == true
+              ? volunteer!['full_name'].toString().trim()
+              : 'A volunteer';
+      final volunteerPhotoUrl =
+          (volunteer?['profile_picture_url'] ?? '').toString().trim();
       final description = (item['description'] ?? '').toString().trim();
       final serviceId = formatServiceId(item['service_number']);
       final rawTitle = (item['title'] ?? 'Volunteer Session').toString();
+      final sessionTitle =
+          serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle';
+      final availability = (item['availability'] ?? '').toString().trim();
+      final availabilityDisplay =
+          availability.isEmpty ? '' : formatAvailabilityDisplay(availability);
+      final consultationMethod =
+          (item['consultation_method'] ?? '').toString().trim();
+
+      final message = _compactJoin([
+        sessionTitle,
+        if (description.isNotEmpty) description,
+        if (availabilityDisplay.isNotEmpty) availabilityDisplay,
+        if (consultationMethod.isNotEmpty) consultationMethod,
+      ]);
 
       return {
         'id': item['id'],
         'user_id': null,
-        'title': serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle',
-        'message':
-            description.isEmpty ? 'Tap to view this session.' : description,
+        'title': volunteerName,
+        'message': message.isEmpty ? 'Tap to view this session.' : message,
         'type': 'session',
         'is_read': false,
         'created_at': item['created_at'],
         'source_table': 'volunteer_services',
         'zoom_link': item['zoom_link'],
         'availability': item['availability'],
+        'availability_display': availabilityDisplay,
         'consultation_method': item['consultation_method'],
         'category': item['category'],
+        'session_title': sessionTitle,
+        'session_description': description,
         'volunteer_name': volunteerName,
+        'volunteer_photo_url': volunteerPhotoUrl,
         'volunteer_id': item['volunteer_id'],
       };
     }).toList();
@@ -816,13 +1154,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'id': 'health-log-emergency-${item['id']}',
         'user_id': item['user_id'] ?? SupabaseService.currentUser?.id,
         'title': title,
-        'message': issues.first,
+        'message': 'From your health log: ${issues.first}',
         'type': 'emergency',
         'is_read': false,
         'created_at': createdAt,
         'source_table': 'health_logs',
         'severity': severity,
         'condition': 'Abnormal health log detected',
+        'preview_source': 'User health log',
+        'alert_reasons': issues,
         'full_content': fullContent,
         'blood_pressure_systolic': systolic,
         'blood_pressure_diastolic': diastolic,
@@ -988,7 +1328,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (userId != null) {
       try {
-        merged.addAll(await _loadRowsFromConsultationsTable(userId));
+        final consultationRows = await _loadRowsFromConsultationsTable(userId);
+        merged.addAll(consultationRows);
+        merged.addAll(_upcomingConsultationReminderRows(consultationRows));
       } catch (e) {
         debugPrint('Failed to load rows from consultations table: $e');
       }
@@ -1732,9 +2074,45 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Future<void> _openSpecificConsultationPage(
+    Map<String, dynamic> item,
+  ) async {
+    final rawConsultationId = item['consultation_id'] ?? item['id'];
+    var consultationId = rawConsultationId?.toString().trim() ?? '';
+
+    if (consultationId.startsWith('consultation-')) {
+      consultationId = consultationId.replaceFirst('consultation-', '');
+    }
+
+    if (!mounted) return;
+
+    if (consultationId.isEmpty) {
+      context.push('/consultation');
+      return;
+    }
+
+    final consultationForDetail = {
+      ...item,
+      // ConsultationDetailScreen expects the actual consultation id here.
+      'id': consultationId,
+      'consultation_id': consultationId,
+      'notification_id': item['id'],
+    };
+
+    context.push('/consultation/detail', extra: consultationForDetail);
+  }
+
   Future<void> _showConsultationDetails(Map<String, dynamic> item) async {
     final consultationId = item['consultation_id']?.toString();
-    final title = (item['title'] ?? 'Consultation Booking').toString();
+    final providerName = (item['provider_name'] ?? 'Specialist').toString();
+    final providerRole = (item['provider_role'] ?? 'Specialist').toString();
+    final providerPhotoUrl =
+        (item['provider_photo_url'] ?? '').toString().trim();
+    final providerId =
+        (item['provider_id'] ?? item['specialist_id'])?.toString();
+    final consultationLabel =
+        (item['consultation_label'] ?? item['title'] ?? 'Consultation Booking')
+            .toString();
     final scheduled = (item['scheduled_display'] ?? '').toString().trim();
     final purpose = (item['purpose'] ?? '').toString().trim();
     final status = (item['status'] ?? '').toString().trim();
@@ -1743,6 +2121,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final notes = (item['notes'] ?? '').toString().trim();
 
     final body = [
+      'Provider: $providerName',
       if (scheduled.isNotEmpty) 'Scheduled: $scheduled',
       if (purpose.isNotEmpty) 'Purpose: $purpose',
       if (status.isNotEmpty) 'Status: ${_titleCase(status)}',
@@ -1755,11 +2134,115 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     await _showInfoSheet(
       label: 'Consultation Booking',
-      title: title,
+      title: providerName,
       body: body,
       icon: Icons.calendar_month_outlined,
       color: AppColors.sage,
       extraChildren: [
+        InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: providerId == null || providerId.isEmpty
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                  context.push('/specialist/profile-view', extra: providerId);
+                },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.sage.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(13),
+                    image: providerPhotoUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: CachedNetworkImageProvider(
+                              providerPhotoUrl,
+                              maxWidth: 400,
+                            ),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: providerPhotoUrl.isNotEmpty
+                      ? null
+                      : Center(
+                          child: Text(
+                            providerName.isNotEmpty
+                                ? providerName[0].toUpperCase()
+                                : 'S',
+                            style: const TextStyle(
+                              color: AppColors.sage,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        providerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textDark,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        providerRole,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textMid,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (providerId != null && providerId.isNotEmpty)
+                  const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.textLight,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.sage.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            consultationLabel,
+            style: const TextStyle(
+              color: AppColors.textMid,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (meetingLink.isNotEmpty)
           SizedBox(
             width: double.infinity,
@@ -1782,10 +2265,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           child: TextButton.icon(
             onPressed: () {
               Navigator.of(context).pop();
-              context.push('/consultation');
+              _openSpecificConsultationPage(item);
             },
-            icon: const Icon(Icons.calendar_month_outlined, size: 17),
-            label: const Text('Open consultations page'),
+            icon: const Icon(Icons.open_in_new, size: 17),
+            label: const Text('Open this consultation'),
           ),
         ),
       ],
@@ -1793,25 +2276,36 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _showSessionDetails(Map<String, dynamic> item) async {
-    final title = (item['title'] ?? 'Volunteer Session').toString();
-    final description = (item['message'] ?? '').toString().trim();
     final volunteerName = (item['volunteer_name'] ?? 'A volunteer').toString();
     final volunteerId = item['volunteer_id']?.toString();
+    final sessionTitle =
+        (item['session_title'] ?? item['title'] ?? 'Volunteer Session')
+            .toString();
+    final description = (item['session_description'] ?? item['message'] ?? '')
+        .toString()
+        .trim();
     final availability = (item['availability'] ?? '').toString().trim();
+    final availabilityDisplay = (item['availability_display'] ??
+            (availability.isEmpty
+                ? ''
+                : formatAvailabilityDisplay(availability)))
+        .toString()
+        .trim();
     final consultationMethod =
         (item['consultation_method'] ?? '').toString().trim();
     final zoomLink = (item['zoom_link'] ?? '').toString().trim();
 
     final body = [
+      'Hosted by: $volunteerName',
+      if (sessionTitle.isNotEmpty) 'Session: $sessionTitle',
       if (description.isNotEmpty) description,
-      if (availability.isNotEmpty)
-        'Scheduled: ${formatAvailabilityDisplay(availability)}',
+      if (availabilityDisplay.isNotEmpty) 'Scheduled: $availabilityDisplay',
       if (consultationMethod.isNotEmpty) 'Mode: $consultationMethod',
     ].join('\n\n');
 
     await _showInfoSheet(
       label: 'Volunteer Session',
-      title: title,
+      title: volunteerName,
       body: body,
       icon: Icons.video_call_outlined,
       color: AppColors.infoBlue,
@@ -2139,7 +2633,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         break;
 
       case 'reminder':
-        await _showReminderDetails(item);
+        if (item['consultation_id'] != null ||
+            item['reminder_kind'] == 'consultation') {
+          await _showConsultationDetails(item);
+        } else {
+          await _showReminderDetails(item);
+        }
         break;
 
       case 'ai':
@@ -2429,6 +2928,196 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  String _displayTitleForNotification(Map<String, dynamic> item) {
+    final type = _normaliseType(item['type']);
+
+    if (type == 'consultation') {
+      final providerName = (item['provider_name'] ?? '').toString().trim();
+      if (providerName.isNotEmpty) return providerName;
+    }
+
+    if (type == 'session') {
+      final volunteerName = (item['volunteer_name'] ?? '').toString().trim();
+      if (volunteerName.isNotEmpty) return volunteerName;
+    }
+
+    return (item['title'] ?? 'Notification').toString();
+  }
+
+  String _shortenPreview(String value, {int maxLength = 92}) {
+    final clean = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (clean.length <= maxLength) return clean;
+    return '${clean.substring(0, maxLength).trim()}...';
+  }
+
+  List<String> _previewLinesForNotification(Map<String, dynamic> item) {
+    final type = _normaliseType(item['type']);
+
+    if (type == 'consultation') {
+      final scheduled = (item['scheduled_display'] ?? '').toString().trim();
+      final purpose = (item['purpose'] ?? '').toString().trim();
+      final status = (item['status'] ?? '').toString().trim();
+      final platform = (item['platform'] ?? '').toString().trim();
+      final consultationLabel =
+          (item['consultation_label'] ?? item['consultation_type'] ?? '')
+              .toString()
+              .trim();
+
+      return [
+        if (scheduled.isNotEmpty && scheduled != 'Time not confirmed yet')
+          'Time: $scheduled',
+        if (purpose.isNotEmpty) 'Purpose: ${_shortenPreview(purpose)}',
+        if (platform.isNotEmpty) 'Mode: $platform',
+        if (status.isNotEmpty) 'Status: ${_titleCase(status)}',
+        if (consultationLabel.isNotEmpty) consultationLabel,
+      ].take(4).toList();
+    }
+
+    if (type == 'session') {
+      final sessionTitle = (item['session_title'] ?? '').toString().trim();
+      final availabilityDisplay =
+          (item['availability_display'] ?? '').toString().trim();
+      final consultationMethod =
+          (item['consultation_method'] ?? '').toString().trim();
+      final category = (item['category'] ?? '').toString().trim();
+
+      return [
+        if (sessionTitle.isNotEmpty)
+          'Session: ${_shortenPreview(sessionTitle)}',
+        if (availabilityDisplay.isNotEmpty) 'Time: $availabilityDisplay',
+        if (consultationMethod.isNotEmpty) 'Mode: $consultationMethod',
+        if (category.isNotEmpty) 'Category: $category',
+      ].take(4).toList();
+    }
+
+    if (type == 'emergency') {
+      final sourceTable = item['source_table']?.toString() ?? '';
+      final severity = (item['severity'] ?? '').toString().trim();
+      final condition = (item['condition'] ?? '').toString().trim();
+      final systolic = item['blood_pressure_systolic'];
+      final diastolic = item['blood_pressure_diastolic'];
+      final symptoms = _stringListFromArray(item['symptoms']);
+      final notes = (item['notes'] ?? '').toString().trim();
+      final kickCount = item['kick_count'];
+
+      return [
+        if (sourceTable == 'health_logs') 'From: Your health log',
+        if (sourceTable == 'pregnancy_logs') 'From: Your pregnancy log',
+        if (severity.isNotEmpty) 'Severity: $severity',
+        if (condition.isNotEmpty) 'Issue: $condition',
+        if (systolic != null && diastolic != null)
+          'Blood pressure: $systolic/$diastolic mmHg',
+        if (kickCount != null) 'Baby movement count: $kickCount',
+        if (symptoms.isNotEmpty)
+          'Symptoms: ${_shortenPreview(symptoms.join(', '))}',
+        if (notes.isNotEmpty) 'Notes: ${_shortenPreview(notes)}',
+      ].take(5).toList();
+    }
+
+    return const [];
+  }
+
+  Widget _previewPanel(List<String> lines, Color color) {
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final line in lines) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 5,
+                  height: 5,
+                  margin: const EdgeInsets.only(top: 6),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    line,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textMid,
+                      fontSize: 11.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (line != lines.last) const SizedBox(height: 5),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _notificationLeading(
+      Map<String, dynamic> item, Color color, IconData icon) {
+    final type = _normaliseType(item['type']);
+
+    if (type == 'consultation' || type == 'session') {
+      final name = type == 'consultation'
+          ? (item['provider_name'] ?? item['title'] ?? 'Specialist').toString()
+          : (item['volunteer_name'] ?? item['title'] ?? 'Volunteer').toString();
+      final photoUrl = type == 'consultation'
+          ? (item['provider_photo_url'] ?? '').toString().trim()
+          : (item['volunteer_photo_url'] ?? '').toString().trim();
+
+      return Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+          image: photoUrl.isNotEmpty
+              ? DecorationImage(
+                  image: CachedNetworkImageProvider(photoUrl, maxWidth: 400),
+                  fit: BoxFit.cover,
+                )
+              : null,
+        ),
+        child: photoUrl.isNotEmpty
+            ? null
+            : Center(
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+      );
+    }
+
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 24),
+    );
+  }
+
   Widget _notificationCard(Map<String, dynamic> item) {
     final type = _normaliseType(item['type']);
     final color = _colorForType(type);
@@ -2438,6 +3127,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final sourceTable = item['source_table']?.toString() ?? 'notifications';
     final isActiveAlert = sourceTable == 'active_alerts';
     final isAiRecommendation = sourceTable == 'ai_recommendations';
+    final isLogAlert =
+        sourceTable == 'health_logs' || sourceTable == 'pregnancy_logs';
+    final displayTitle = _displayTitleForNotification(item);
+    final previewLines = _previewLinesForNotification(item);
+    final message = (item['message'] ?? '').toString();
 
     return GestureDetector(
       onTap: () => _openNotification(item),
@@ -2463,15 +3157,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
+            _notificationLeading(item, color, icon),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -2501,7 +3187,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                           child: Text(
                             isEmergency
-                                ? 'Urgent'
+                                ? (isLogAlert ? 'Log alert' : 'Urgent')
                                 : isAiRecommendation
                                     ? 'AI'
                                     : 'Active',
@@ -2516,7 +3202,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    (item['title'] ?? '').toString(),
+                    displayTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -2525,17 +3211,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    (item['message'] ?? '').toString(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textMid,
-                      fontSize: 12,
-                      height: 1.35,
+                  if (message.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      maxLines:
+                          type == 'consultation' || type == 'session' ? 3 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textMid,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
                     ),
-                  ),
+                  ],
+                  if (previewLines.isNotEmpty) ...[
+                    const SizedBox(height: 9),
+                    _previewPanel(previewLines, color),
+                  ],
                   const SizedBox(height: 8),
                   Text(
                     _timeAgo(item['created_at']),

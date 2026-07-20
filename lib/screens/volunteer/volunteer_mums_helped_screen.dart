@@ -13,8 +13,7 @@ class VolunteerMumsHelpedScreen extends StatefulWidget {
       _VolunteerMumsHelpedScreenState();
 }
 
-class _VolunteerMumsHelpedScreenState
-    extends State<VolunteerMumsHelpedScreen> {
+class _VolunteerMumsHelpedScreenState extends State<VolunteerMumsHelpedScreen> {
   List<Map<String, dynamic>> _mums = [];
   bool _loading = true;
 
@@ -45,7 +44,8 @@ class _VolunteerMumsHelpedScreenState
         } else {
           existing['sessionCount'] = (existing['sessionCount'] as int) + 1;
           final lastDate = existing['lastDate'] as String?;
-          if (date != null && (lastDate == null || date.compareTo(lastDate) > 0)) {
+          if (date != null &&
+              (lastDate == null || date.compareTo(lastDate) > 0)) {
             existing['lastDate'] = date;
           }
         }
@@ -61,8 +61,8 @@ class _VolunteerMumsHelpedScreenState
           'lastDate': entry.value['lastDate'],
         });
       }
-      mums.sort((a, b) =>
-          (b['lastDate'] as String? ?? '').compareTo(a['lastDate'] as String? ?? ''));
+      mums.sort((a, b) => (b['lastDate'] as String? ?? '')
+          .compareTo(a['lastDate'] as String? ?? ''));
 
       if (mounted) {
         setState(() {
@@ -92,7 +92,8 @@ class _VolunteerMumsHelpedScreenState
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.rose))
           : _mums.isEmpty
               ? Center(
                   child: Text('No completed sessions yet.',
@@ -108,8 +109,8 @@ class _VolunteerMumsHelpedScreenState
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (ctx, i) {
                       final mum = _mums[i];
-                      final date = DateTime.tryParse(
-                          mum['lastDate']?.toString() ?? '');
+                      final date =
+                          DateTime.tryParse(mum['lastDate']?.toString() ?? '');
                       final dateStr = date != null
                           ? DateFormat('d MMM yyyy').format(date)
                           : 'Unknown date';
@@ -126,8 +127,10 @@ class _VolunteerMumsHelpedScreenState
                           children: [
                             CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                              child: const Icon(Icons.person, color: AppColors.rose),
+                              backgroundColor:
+                                  AppColors.rose.withValues(alpha: 0.15),
+                              child: const Icon(Icons.person,
+                                  color: AppColors.rose),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -143,7 +146,8 @@ class _VolunteerMumsHelpedScreenState
                                   Text(
                                     '$sessionCount completed session${sessionCount == 1 ? '' : 's'} · Last: $dateStr',
                                     style: GoogleFonts.poppins(
-                                        color: AppColors.textLight, fontSize: 12),
+                                        color: AppColors.textLight,
+                                        fontSize: 12),
                                   ),
                                 ],
                               ),

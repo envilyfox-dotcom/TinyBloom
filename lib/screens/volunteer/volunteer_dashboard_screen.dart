@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -277,9 +276,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
               child: CircleAvatar(
                 radius: 20,
                 backgroundColor: _pink.withValues(alpha: 0.15),
-                backgroundImage: _photoUrl != null
-                    ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 200)
-                    : null,
+                backgroundImage:
+                    _photoUrl != null ? NetworkImage(_photoUrl!) : null,
                 child: _photoUrl != null
                     ? null
                     : Text(

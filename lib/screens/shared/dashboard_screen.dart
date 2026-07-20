@@ -110,6 +110,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return 'ai';
     }
 
+    if ([
+      'session',
+      'sessions',
+      'volunteersession',
+      'volunteerservice',
+      'volunteerservices',
+      'volunteerupdate',
+      'volunteerupdates',
+    ].contains(clean)) {
+      return 'session';
+    }
+
     return type.isEmpty ? 'general' : type;
   }
 
@@ -499,6 +511,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return 'Time not confirmed yet';
   }
 
+  Future<Map<String, String?>> _loadProviderDisplay(
+    String? providerId, {
+    required String fallbackName,
+  }) async {
+    final cleanId = providerId?.trim();
+
+    if (cleanId == null || cleanId.isEmpty) {
+      return {
+        'name': fallbackName,
+        'photo_url': null,
+      };
+    }
+
+    try {
+      final provider = await SupabaseService.getProviderProfile(cleanId);
+      final profile = provider?['profiles'];
+
+      if (profile is Map<String, dynamic>) {
+        final name = (profile['full_name'] ?? '').toString().trim();
+        final photoUrl = (profile['profile_picture_url'] ?? '').toString();
+
+        if (name.isNotEmpty) {
+          return {
+            'name': name,
+            'photo_url': photoUrl.isEmpty ? null : photoUrl,
+          };
+        }
+      }
+
+      final directName = (provider?['full_name'] ?? '').toString().trim();
+      final directPhotoUrl =
+          (provider?['profile_picture_url'] ?? '').toString().trim();
+
+      if (directName.isNotEmpty) {
+        return {
+          'name': directName,
+          'photo_url': directPhotoUrl.isEmpty ? null : directPhotoUrl,
+        };
+      }
+    } catch (e) {
+      debugPrint('Provider profile lookup failed for $cleanId: $e');
+    }
+
+    try {
+      final profile = await SupabaseService.client
+          .from('profiles')
+          .select('full_name,profile_picture_url')
+          .eq('id', cleanId)
+          .maybeSingle();
+
+      final name = (profile?['full_name'] ?? '').toString().trim();
+      final photoUrl = (profile?['profile_picture_url'] ?? '').toString();
+
+      if (name.isNotEmpty) {
+        return {
+          'name': name,
+          'photo_url': photoUrl.isEmpty ? null : photoUrl,
+        };
+      }
+    } catch (e) {
+      debugPrint('Direct profile lookup failed for $cleanId: $e');
+    }
+
+    return {
+      'name': fallbackName,
+      'photo_url': null,
+    };
+  }
+
+  String _joinPreviewParts(List<String> parts) {
+    return parts
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .join(' • ');
+  }
+
   Future<List<Map<String, dynamic>>> _loadDashboardConsultationNotifications(
       String userId) async {
     final data = await SupabaseService.client
@@ -509,21 +597,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .order('created_at', ascending: false)
         .limit(8);
 
-    return List<Map<String, dynamic>>.from(data).map((item) {
+    final rows = <Map<String, dynamic>>[];
+
+    for (final item in List<Map<String, dynamic>>.from(data)) {
       final status = (item['status'] ?? 'booked').toString();
       final consultationType =
           (item['consultation_type'] ?? 'consultation').toString();
       final purpose = (item['purpose'] ?? '').toString().trim();
       final scheduled = _formatDashboardConsultationDate(item);
+      final platform = (item['platform'] ?? '').toString().trim();
 
-      return {
+      final provider = await _loadProviderDisplay(
+        item['specialist_id']?.toString(),
+        fallbackName: 'Specialist',
+      );
+
+      final providerName = provider['name'] ?? 'Specialist';
+      final providerPhotoUrl = provider['photo_url'];
+
+      final typeLabel =
+          '${_titleCase(consultationType)} consultation'.replaceAll('_', ' ');
+      final statusLabel = _titleCase(status);
+
+      final preview = _joinPreviewParts([
+        statusLabel,
+        typeLabel,
+        scheduled,
+        if (purpose.isNotEmpty) purpose,
+        if (platform.isNotEmpty) platform,
+      ]);
+
+      rows.add({
         'id': 'consultation-${item['id']}',
         'consultation_id': item['id'],
         'user_id': item['patient_id'],
-        'title': '${_titleCase(status)} ${_titleCase(consultationType)}',
-        'message': purpose.isEmpty
-            ? 'Your consultation is scheduled for $scheduled.'
-            : '$purpose • $scheduled',
+        'title': providerName,
+        'message': preview.isEmpty
+            ? 'Consultation update from $providerName.'
+            : preview,
         'type': 'consultation',
         'is_read': false,
         'created_at': item['created_at'] ?? item['scheduled_at'],
@@ -538,8 +649,116 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'platform': item['platform'],
         'meeting_link': item['meeting_link'],
         'notes': item['notes'],
-      };
-    }).toList();
+        'provider_name': providerName,
+        'provider_photo_url': providerPhotoUrl,
+        'provider_role': 'Specialist',
+      });
+    }
+
+    return rows;
+  }
+
+  Future<List<Map<String, dynamic>>>
+      _loadDashboardVolunteerSessionNotifications(
+          Map<String, dynamic>? profile) async {
+    final role = profile?['role']?.toString().toLowerCase();
+    final isMum = role == 'free_user' || role == 'premium_user';
+
+    if (!isMum) return [];
+
+    dynamic data;
+
+    try {
+      data = await SupabaseService.client
+          .from('volunteer_services')
+          .select(
+              '*, volunteer:profiles!volunteer_id(full_name,profile_picture_url)')
+          .eq('status', 'available')
+          .order('created_at', ascending: false)
+          .limit(6);
+    } catch (e) {
+      debugPrint(
+          'Volunteer service join lookup failed, retrying without join: $e');
+
+      try {
+        data = await SupabaseService.client
+            .from('volunteer_services')
+            .select(
+                'id,volunteer_id,title,description,category,availability,consultation_method,zoom_link,status,created_at')
+            .eq('status', 'available')
+            .order('created_at', ascending: false)
+            .limit(6);
+      } catch (fallbackError) {
+        debugPrint(
+            'Failed to load dashboard volunteer sessions: $fallbackError');
+        return [];
+      }
+    }
+
+    final rows = <Map<String, dynamic>>[];
+
+    for (final item in List<Map<String, dynamic>>.from(data)) {
+      final volunteer = item['volunteer'];
+      String volunteerName = 'Volunteer';
+      String? volunteerPhotoUrl;
+
+      if (volunteer is Map<String, dynamic>) {
+        final name = (volunteer['full_name'] ?? '').toString().trim();
+        final photo =
+            (volunteer['profile_picture_url'] ?? '').toString().trim();
+
+        if (name.isNotEmpty) volunteerName = name;
+        if (photo.isNotEmpty) volunteerPhotoUrl = photo;
+      }
+
+      if (volunteerName == 'Volunteer') {
+        final provider = await _loadProviderDisplay(
+          item['volunteer_id']?.toString(),
+          fallbackName: 'Volunteer',
+        );
+        volunteerName = provider['name'] ?? 'Volunteer';
+        volunteerPhotoUrl = provider['photo_url'];
+      }
+
+      final rawTitle = (item['title'] ?? 'Volunteer Session').toString();
+      final description = (item['description'] ?? '').toString().trim();
+      final availability = (item['availability'] ?? '').toString().trim();
+      final method = (item['consultation_method'] ?? '').toString().trim();
+      final category = (item['category'] ?? '').toString().trim();
+
+      final preview = _joinPreviewParts([
+        rawTitle,
+        if (availability.isNotEmpty) availability,
+        if (method.isNotEmpty) method,
+        if (category.isNotEmpty) category,
+        if (description.isNotEmpty) description,
+      ]);
+
+      rows.add({
+        'id': 'volunteer-service-${item['id']}',
+        'service_id': item['id'],
+        'user_id': null,
+        'title': volunteerName,
+        'message':
+            preview.isEmpty ? 'New volunteer session available.' : preview,
+        'type': 'session',
+        'is_read': false,
+        'created_at': item['created_at'],
+        'source_table': 'volunteer_services',
+        'provider_name': volunteerName,
+        'provider_photo_url': volunteerPhotoUrl,
+        'provider_role': 'Volunteer',
+        'session_title': rawTitle,
+        'description': description,
+        'availability': availability,
+        'consultation_method': method,
+        'category': category,
+        'zoom_link': item['zoom_link'],
+        'volunteer_id': item['volunteer_id'],
+      });
+    }
+
+    return rows;
   }
 
   Future<List<Map<String, dynamic>>> _loadDashboardNotifications(
@@ -609,6 +828,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         merged.addAll(await _loadDashboardConsultationNotifications(userId));
       } catch (e) {
         debugPrint('Failed to load dashboard consultation notifications: $e');
+      }
+
+      try {
+        merged
+            .addAll(await _loadDashboardVolunteerSessionNotifications(profile));
+      } catch (e) {
+        debugPrint(
+            'Failed to load dashboard volunteer session notifications: $e');
       }
     }
 
@@ -763,10 +990,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
 
     visible.sort((a, b) {
+      final aEmergency =
+          _normaliseNotificationType(a['type']) == 'emergency' ? 0 : 1;
+      final bEmergency =
+          _normaliseNotificationType(b['type']) == 'emergency' ? 0 : 1;
+      final emergencyCompare = aEmergency.compareTo(bEmergency);
+      if (emergencyCompare != 0) return emergencyCompare;
+
       final aRead = a['is_read'] == true ? 1 : 0;
       final bRead = b['is_read'] == true ? 1 : 0;
       final unreadCompare = aRead.compareTo(bRead);
       if (unreadCompare != 0) return unreadCompare;
+
       return _notificationCreatedAt(b).compareTo(_notificationCreatedAt(a));
     });
 
@@ -952,6 +1187,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  String? _extractConsultationId(Map<String, dynamic> notification) {
+    final directId = notification['consultation_id']?.toString();
+
+    if (directId != null && directId.isNotEmpty) {
+      return directId;
+    }
+
+    final rawId = notification['id']?.toString();
+
+    if (rawId != null && rawId.startsWith('consultation-')) {
+      final cleaned = rawId.replaceFirst('consultation-', '').trim();
+      return cleaned.isEmpty ? null : cleaned;
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _loadSingleConsultationForDashboard(
+    String consultationId,
+  ) async {
+    try {
+      final data = await SupabaseService.client
+          .from('consultations')
+          .select(
+              'id,patient_id,specialist_id,status,consultation_type,scheduled_at,scheduled_date,scheduled_time,purpose,platform,meeting_link,notes,created_at')
+          .eq('id', consultationId)
+          .maybeSingle();
+
+      if (data == null) return null;
+
+      final consultation = Map<String, dynamic>.from(data);
+      final provider = await _loadProviderDisplay(
+        consultation['specialist_id']?.toString(),
+        fallbackName: 'Specialist',
+      );
+
+      consultation['provider_name'] = provider['name'];
+      consultation['provider_photo_url'] = provider['photo_url'];
+      consultation['scheduled_display'] =
+          _formatDashboardConsultationDate(consultation);
+
+      return consultation;
+    } catch (e) {
+      debugPrint('Failed to load selected dashboard consultation: $e');
+      return null;
+    }
+  }
+
+  Future<void> _openDashboardConsultation(
+    Map<String, dynamic> notification,
+  ) async {
+    final consultationId = _extractConsultationId(notification);
+
+    if (consultationId == null || consultationId.isEmpty) {
+      await _openNotificationsCentre();
+      return;
+    }
+
+    if (!mounted) return;
+
+    // Use the ID route instead of relying only on state.extra.
+    // This forces the detail screen to load the exact consultation from Supabase.
+    await context.push('/consultation/detail/$consultationId');
+
+    if (mounted) {
+      await _load();
+    }
+  }
+
   Future<void> _openDashboardNotification(
       Map<String, dynamic> notification) async {
     final id = notification['id']?.toString();
@@ -996,14 +1300,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (!mounted) return;
 
+    final hasConsultationId = _extractConsultationId(notification) != null;
+
+    if (hasConsultationId ||
+        type == 'consultation' ||
+        sourceTable == 'consultations') {
+      await _openDashboardConsultation(notification);
+      return;
+    }
+
     if (type == 'ai') {
       await _showRecommendationDetails(notification);
       return;
     }
 
-    // For dashboard preview cards, open the full Notifications Centre.
-    // The Notifications Centre now shows the correct detail sheet for
-    // emergency, consultation, milestone, education, reminder and AI items.
+    // For non-consultation dashboard preview cards, open the full
+    // Notifications Centre so the correct detail sheet can be shown there.
     await _openNotificationsCentre();
   }
 
@@ -1037,8 +1349,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     List<Map<String, dynamic>> myQuestions = [];
     try {
-      myQuestions = await SupabaseService.getMyVolunteerQuestions();
-    } catch (_) {}
+      final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
+      myQuestions = await _enrichQuickChatQuestions(
+        List<Map<String, dynamic>>.from(rawQuestions),
+      );
+    } catch (e) {
+      debugPrint('Failed to load quick chat volunteer questions: $e');
+    }
 
     // Load latest notifications and active alerts for the dashboard preview.
     notifications = await _loadDashboardNotifications(profile, pp);
@@ -1421,6 +1738,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  String _dashboardAlertTitle(Map<String, dynamic> item) {
+    final type = _normaliseNotificationType(item['type']);
+    final providerName = (item['provider_name'] ?? '').toString().trim();
+
+    if ((type == 'consultation' || type == 'session') &&
+        providerName.isNotEmpty) {
+      return providerName;
+    }
+
+    return (item['title'] ?? 'Notification').toString();
+  }
+
+  String _dashboardAlertMessage(Map<String, dynamic> item) {
+    final type = _normaliseNotificationType(item['type']);
+
+    if (type == 'consultation') {
+      return _joinPreviewParts([
+        (item['provider_role'] ?? 'Specialist').toString(),
+        (item['status'] ?? '').toString().isNotEmpty
+            ? _titleCase((item['status'] ?? '').toString())
+            : '',
+        (item['scheduled_display'] ?? '').toString(),
+        (item['purpose'] ?? '').toString(),
+        (item['platform'] ?? '').toString(),
+      ]);
+    }
+
+    if (type == 'session') {
+      return _joinPreviewParts([
+        (item['provider_role'] ?? 'Volunteer').toString(),
+        (item['session_title'] ?? '').toString(),
+        (item['availability'] ?? '').toString(),
+        (item['consultation_method'] ?? '').toString(),
+        (item['category'] ?? '').toString(),
+      ]);
+    }
+
+    return (item['message'] ?? '').toString();
+  }
+
+  String? _dashboardAlertPhotoUrl(Map<String, dynamic> item) {
+    final url = (item['provider_photo_url'] ?? '').toString().trim();
+    return url.isEmpty ? null : url;
+  }
+
+  String? _dashboardAlertInitial(Map<String, dynamic> item) {
+    final name = _dashboardAlertTitle(item).trim();
+    return name.isEmpty ? null : name[0].toUpperCase();
+  }
+
   Widget _buildActiveAlerts() {
     final cards = <Widget>[];
 
@@ -1433,10 +1800,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       cards.add(
         _notificationPreviewCard(
-          title: (n['title'] ?? 'Notification').toString(),
-          message: (n['message'] ?? '').toString(),
+          title: _dashboardAlertTitle(n),
+          message: _dashboardAlertMessage(n),
           type: type,
           isRead: n['is_read'] == true,
+          avatarUrl: _dashboardAlertPhotoUrl(n),
+          avatarInitial: _dashboardAlertInitial(n),
           onTap: () => _openDashboardNotification(n),
         ),
       );
@@ -1476,6 +1845,415 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  String _firstNonEmptyText(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return '';
+  }
+
+  Map<String, dynamic>? _nestedMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  String? _quickChatVolunteerId(Map<String, dynamic> q) {
+    final id = _firstNonEmptyText([
+      q['volunteer_id'],
+      q['assigned_volunteer_id'],
+      q['volunteer_user_id'],
+      q['provider_id'],
+      q['responder_id'],
+      q['answered_by'],
+      q['last_reply_by'],
+      q['reply_by'],
+    ]);
+
+    return id.isEmpty ? null : id;
+  }
+
+  String _quickChatVolunteerName(Map<String, dynamic> q) {
+    final direct = _firstNonEmptyText([
+      q['volunteer_name'],
+      q['provider_name'],
+      q['assigned_volunteer_name'],
+      q['responder_name'],
+      q['helper_name'],
+    ]);
+
+    if (direct.isNotEmpty) return direct;
+
+    for (final key in [
+      'volunteer',
+      'provider',
+      'assigned_volunteer',
+      'responder',
+      'profiles',
+    ]) {
+      final map = _nestedMap(q[key]);
+      if (map == null) continue;
+
+      final nestedName = _firstNonEmptyText([
+        map['full_name'],
+        map['name'],
+        map['display_name'],
+        map['username'],
+      ]);
+      if (nestedName.isNotEmpty) return nestedName;
+
+      final nestedProfile = _nestedMap(map['profiles']);
+      if (nestedProfile != null) {
+        final profileName = _firstNonEmptyText([
+          nestedProfile['full_name'],
+          nestedProfile['name'],
+          nestedProfile['display_name'],
+        ]);
+        if (profileName.isNotEmpty) return profileName;
+      }
+    }
+
+    return 'Volunteer Support';
+  }
+
+  String? _quickChatVolunteerPhotoUrl(Map<String, dynamic> q) {
+    final direct = _firstNonEmptyText([
+      q['provider_photo_url'],
+      q['volunteer_photo_url'],
+      q['profile_picture_url'],
+      q['photo_url'],
+      q['avatar_url'],
+    ]);
+
+    if (direct.isNotEmpty) return direct;
+
+    for (final key in [
+      'volunteer',
+      'provider',
+      'assigned_volunteer',
+      'responder',
+      'profiles',
+    ]) {
+      final map = _nestedMap(q[key]);
+      if (map == null) continue;
+
+      final nestedPhoto = _firstNonEmptyText([
+        map['profile_picture_url'],
+        map['photo_url'],
+        map['avatar_url'],
+      ]);
+      if (nestedPhoto.isNotEmpty) return nestedPhoto;
+
+      final nestedProfile = _nestedMap(map['profiles']);
+      if (nestedProfile != null) {
+        final profilePhoto = _firstNonEmptyText([
+          nestedProfile['profile_picture_url'],
+          nestedProfile['photo_url'],
+          nestedProfile['avatar_url'],
+        ]);
+        if (profilePhoto.isNotEmpty) return profilePhoto;
+      }
+    }
+
+    return null;
+  }
+
+  String _quickChatQuestionText(Map<String, dynamic> q) {
+    final text = _firstNonEmptyText([
+      q['question'],
+      q['title'],
+      q['subject'],
+      q['content'],
+    ]);
+
+    return text.isEmpty ? 'No question details available.' : text;
+  }
+
+  String _quickChatLatestReplyText(Map<String, dynamic> q) {
+    final question = _quickChatQuestionText(q);
+    final reply = _firstNonEmptyText([
+      q['latest_reply'],
+      q['last_reply'],
+      q['volunteer_reply'],
+      q['reply'],
+      q['response'],
+      q['answer'],
+      q['latest_message'],
+      q['last_message'],
+      q['message'],
+    ]);
+
+    if (reply.isEmpty || reply == question) return '';
+    return reply;
+  }
+
+  String _quickChatStatusText(Map<String, dynamic> q) {
+    final status = (q['status'] ?? '').toString().trim().toLowerCase();
+    final reply = _quickChatLatestReplyText(q);
+
+    if (status == 'pending' || status == 'open' || status == 'waiting') {
+      return 'Waiting for volunteer reply';
+    }
+
+    if (status == 'closed' || status == 'completed' || status == 'resolved') {
+      return 'Chat completed';
+    }
+
+    if (status == 'answered' || status == 'replied' || reply.isNotEmpty) {
+      return 'Volunteer replied';
+    }
+
+    if (status.isEmpty) return 'Quick chat';
+    return _titleCase(status.replaceAll('_', ' '));
+  }
+
+  Color _quickChatStatusColor(Map<String, dynamic> q) {
+    final status = (q['status'] ?? '').toString().trim().toLowerCase();
+    final reply = _quickChatLatestReplyText(q);
+
+    if (status == 'pending' || status == 'open' || status == 'waiting') {
+      return AppColors.gold;
+    }
+
+    if (status == 'closed' || status == 'completed' || status == 'resolved') {
+      return AppColors.textMid;
+    }
+
+    if (status == 'answered' || status == 'replied' || reply.isNotEmpty) {
+      return AppColors.sage;
+    }
+
+    return AppColors.infoBlue;
+  }
+
+  String _quickChatTimeText(Map<String, dynamic> q) {
+    final raw = _firstNonEmptyText([
+      q['last_reply_at'],
+      q['updated_at'],
+      q['created_at'],
+      q['submitted_at'],
+    ]);
+
+    if (raw.isEmpty) return '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return '';
+
+    return DateFormat('d MMM, h:mm a').format(parsed.toLocal());
+  }
+
+  String _quickChatPreviewText(Map<String, dynamic> q) {
+    final question = _quickChatQuestionText(q);
+    final reply = _quickChatLatestReplyText(q);
+    final status = _quickChatStatusText(q);
+    final time = _quickChatTimeText(q);
+
+    return _joinPreviewParts([
+      status,
+      if (time.isNotEmpty) time,
+      if (reply.isNotEmpty) 'Latest reply: $reply' else 'Question: $question',
+    ]);
+  }
+
+  Future<List<Map<String, dynamic>>> _enrichQuickChatQuestions(
+    List<Map<String, dynamic>> questions,
+  ) async {
+    final enriched = <Map<String, dynamic>>[];
+
+    for (final question in questions) {
+      final row = Map<String, dynamic>.from(question);
+      final existingName = _quickChatVolunteerName(row);
+      final existingPhoto = _quickChatVolunteerPhotoUrl(row);
+      final volunteerId = _quickChatVolunteerId(row);
+
+      if (volunteerId != null &&
+          (existingName == 'Volunteer Support' || existingPhoto == null)) {
+        try {
+          final provider = await _loadProviderDisplay(
+            volunteerId,
+            fallbackName: existingName,
+          );
+
+          final providerName = provider['name']?.trim();
+          final providerPhoto = provider['photo_url']?.trim();
+
+          if (providerName != null &&
+              providerName.isNotEmpty &&
+              providerName != 'Volunteer Support') {
+            row['provider_name'] = providerName;
+          }
+
+          if (providerPhoto != null && providerPhoto.isNotEmpty) {
+            row['provider_photo_url'] = providerPhoto;
+          }
+        } catch (e) {
+          debugPrint('Failed to enrich quick chat volunteer $volunteerId: $e');
+        }
+      }
+
+      enriched.add(row);
+    }
+
+    enriched.sort((a, b) {
+      final aDate = DateTime.tryParse(_firstNonEmptyText([
+            a['last_reply_at'],
+            a['updated_at'],
+            a['created_at'],
+            a['submitted_at'],
+          ])) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = DateTime.tryParse(_firstNonEmptyText([
+            b['last_reply_at'],
+            b['updated_at'],
+            b['created_at'],
+            b['submitted_at'],
+          ])) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+
+    return enriched;
+  }
+
+  Widget _quickChatPreviewCard(Map<String, dynamic> q) {
+    final volunteerName = _quickChatVolunteerName(q);
+    final photoUrl = _quickChatVolunteerPhotoUrl(q);
+    final status = _quickChatStatusText(q);
+    final statusColor = _quickChatStatusColor(q);
+    final question = _quickChatQuestionText(q);
+    final preview = _quickChatPreviewText(q);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TBCard(
+        onTap: () async {
+          await context.push('/ask-volunteer/detail', extra: q);
+          if (mounted) await _load();
+        },
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(14),
+                image: photoUrl != null && photoUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: CachedNetworkImageProvider(
+                          photoUrl,
+                          maxWidth: 200,
+                        ),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: photoUrl != null && photoUrl.isNotEmpty
+                  ? null
+                  : Center(
+                      child: Text(
+                        volunteerName.isNotEmpty
+                            ? volunteerName[0].toUpperCase()
+                            : 'V',
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Quick Chat with Volunteer',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.infoBlue,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          status,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    volunteerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    question,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textLight,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMyQuestions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1484,7 +2262,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             const Expanded(
               child: Text(
-                'My Questions to Volunteers',
+                'Quick Chat with Volunteer',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -1500,59 +2278,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 4),
+        const Text(
+          'Latest volunteer replies and question updates at a glance.',
+          style: TextStyle(
+            color: AppColors.textMid,
+            fontSize: 12,
+            height: 1.35,
+          ),
+        ),
         const SizedBox(height: 12),
-        ..._myQuestions.take(3).map((q) {
-          // Whether *any* reply has happened, not whether the chat is
-          // still active — a closed chat already had a reply, so it
-          // shouldn't regress back to "waiting" once it's completed.
-          final hasReply = q['status'] != 'pending';
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: TBCard(
-              onTap: () async {
-                await context.push('/ask-volunteer/detail', extra: q);
-                _load();
-              },
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor:
-                        (hasReply ? AppColors.sage : AppColors.gold)
-                            .withValues(alpha: 0.15),
-                    child: Text(hasReply ? '✅' : '⏳'),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          q['question'] as String? ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13),
-                        ),
-                        Text(
-                          hasReply
-                              ? 'A volunteer has replied'
-                              : 'Waiting for a volunteer to reply',
-                          style: TextStyle(
-                              color: hasReply ? AppColors.sage : AppColors.gold,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right,
-                      color: AppColors.textLight, size: 18),
-                ],
-              ),
-            ),
-          );
-        }),
+        ..._myQuestions.take(3).map(_quickChatPreviewCard),
         const SizedBox(height: 8),
       ],
     );
@@ -1605,6 +2341,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Icons.smart_toy_outlined;
       case 'reminder':
         return Icons.water_drop_outlined;
+      case 'session':
+        return Icons.video_call_outlined;
       default:
         return Icons.notifications_none_outlined;
     }
@@ -1624,6 +2362,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Colors.purpleAccent;
       case 'reminder':
         return AppColors.roseDeep;
+      case 'session':
+        return AppColors.infoBlue;
       default:
         return AppColors.textMid;
     }
@@ -1634,6 +2374,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String message,
     required String type,
     required bool isRead,
+    String? avatarUrl,
+    String? avatarInitial,
     required VoidCallback onTap,
   }) {
     final color = _notificationColor(type);
@@ -1655,8 +2397,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
+                image: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: CachedNetworkImageProvider(
+                          avatarUrl,
+                          maxWidth: 200,
+                        ),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              child: Icon(_notificationIcon(type), color: color, size: 20),
+              child: avatarUrl != null && avatarUrl.isNotEmpty
+                  ? null
+                  : avatarInitial != null && avatarInitial.isNotEmpty
+                      ? Center(
+                          child: Text(
+                            avatarInitial,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        )
+                      : Icon(_notificationIcon(type), color: color, size: 20),
             ),
             const SizedBox(width: 8),
             Expanded(

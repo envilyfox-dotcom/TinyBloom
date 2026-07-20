@@ -11,8 +11,7 @@ class VolunteerProfileScreen extends StatefulWidget {
   const VolunteerProfileScreen({super.key});
 
   @override
-  State<VolunteerProfileScreen> createState() =>
-      _VolunteerProfileScreenState();
+  State<VolunteerProfileScreen> createState() => _VolunteerProfileScreenState();
 }
 
 class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
@@ -54,7 +53,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         title: Text('Sign Out',
             style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         content: Text('Are you sure you want to sign out?',
-            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight)),
+            style:
+                GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -104,14 +104,15 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.rose))
           : RefreshIndicator(
               color: AppColors.rose,
               onRefresh: _load,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Column(
                   children: [
                     // ── Title ────────────────────────────────────
@@ -171,21 +172,20 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
-                              onPressed: () => context.push(
-                                  '/volunteer/edit-profile',
-                                  extra: {...?_profile, ...?_volunteerProfile}
-                              ).then((_) => _load()),
+                              onPressed: () => context
+                                  .push('/volunteer/edit-profile', extra: {
+                                ...?_profile,
+                                ...?_volunteerProfile
+                              }).then((_) => _load()),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.rose,
                                 side: const BorderSide(color: AppColors.rose),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(8)),
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
-                              child: Text('Edit',
-                                  style: GoogleFonts.poppins()),
+                              child: Text('Edit', style: GoogleFonts.poppins()),
                             ),
                           ),
                         ],
@@ -222,8 +222,8 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(value,
-              style: GoogleFonts.poppins(
-                  color: AppColors.textMid, fontSize: 14)),
+              style:
+                  GoogleFonts.poppins(color: AppColors.textMid, fontSize: 14)),
         ],
       ),
     );
@@ -257,9 +257,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
             const SizedBox(width: 12),
             Text(label,
                 style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: c,
-                    fontWeight: FontWeight.w500)),
+                    fontSize: 14, color: c, fontWeight: FontWeight.w500)),
             const Spacer(),
             Icon(Icons.chevron_right,
                 color: c.withValues(alpha: 0.5), size: 20),

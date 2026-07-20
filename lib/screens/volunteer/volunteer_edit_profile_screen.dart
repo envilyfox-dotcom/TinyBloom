@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -263,8 +262,7 @@ class _VolunteerEditProfileScreenState
                               AppColors.rose.withValues(alpha: 0.2),
                           backgroundImage:
                               _photoUrl != null && _photoUrl!.isNotEmpty
-                                  ? CachedNetworkImageProvider(_photoUrl!,
-                                      maxWidth: 400)
+                                  ? NetworkImage(_photoUrl!)
                                   : null,
                           child: _photoBusy
                               ? const CircularProgressIndicator(

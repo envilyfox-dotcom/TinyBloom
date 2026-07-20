@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,24 +7,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import '../mum/forum/forum_shared.dart';
-
-// Used by BookingDetailCard below, which shows a mum's historical booking
-// (a leftover from before the volunteer-scheduling feature was replaced by
-// this open Q&A board) inline on the Consultation tab.
-IconData _statusIcon(String status) {
-  switch (status.toLowerCase()) {
-    case 'confirmed':
-      return Icons.check_circle_outline;
-    case 'completed':
-      return Icons.task_alt;
-    case 'cancelled':
-      return Icons.cancel_outlined;
-    case 'expired':
-      return Icons.hourglass_bottom;
-    default:
-      return Icons.hourglass_empty;
-  }
-}
 
 // ── User Requests — open Q&A board ────────────────────────────────────────
 // Any mum can post a question; any volunteer can see every question and
@@ -41,7 +22,9 @@ class VolunteerRequestsScreen extends StatefulWidget {
 class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
+  final _searchCtrl = TextEditingController();
   List<Map<String, dynamic>> _requests = [];
+  String _searchQuery = '';
   bool _loading = true;
 
   @override
@@ -54,6 +37,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
   @override
   void dispose() {
     _tabs.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -67,6 +51,8 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           .select()
           .order('created_at', ascending: false);
       final rows = List<Map<String, dynamic>>.from(data);
+      await SupabaseService.autoCloseStaleRequests(rows);
+      await SupabaseService.expireStaleCallRequests(rows);
 
       final patientIds = rows
           .map((r) => r['patient_id'] as String?)
@@ -92,15 +78,16 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                 },
               })
           .toList();
-      // Pending questions need action, so they surface first; everything
-      // else stays sorted newest-first behind them.
+      // Unclaimed questions need a volunteer most, so they surface first,
+      // then actively-claimed ones, then completed ones sink to the
+      // bottom — newest-first within each group.
       requests.sort((a, b) {
-        final aPending = _isPending(a);
-        final bPending = _isPending(b);
-        if (aPending != bPending) return aPending ? -1 : 1;
-        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '');
-        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '');
-        if (aDate == null || bDate == null) return 0;
+        final priorityCompare = _priority(a).compareTo(_priority(b));
+        if (priorityCompare != 0) return priorityCompare;
+        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
         return bDate.compareTo(aDate);
       });
       if (mounted) {
@@ -114,11 +101,37 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     }
   }
 
-  bool _isPending(Map<String, dynamic> r) =>
-      (r['status'] as String? ?? 'pending') == 'pending';
+  // A thread is "Completed" once closed (manually or via 48h auto-close).
+  // Otherwise, "Available" means no volunteer has claimed it yet
+  // (volunteer_id is still null — visible to every volunteer via RLS), and
+  // "Ongoing" means a volunteer has claimed it and is actively chatting.
+  String _category(Map<String, dynamic> r) {
+    if ((r['status'] as String? ?? 'pending') == 'closed') return 'completed';
+    return r['volunteer_id'] == null ? 'available' : 'ongoing';
+  }
 
-  List<Map<String, dynamic>> _filter(bool pending) =>
-      _requests.where((r) => _isPending(r) == pending).toList();
+  int _priority(Map<String, dynamic> r) {
+    switch (_category(r)) {
+      case 'available':
+        return 0;
+      case 'ongoing':
+        return 1;
+      default:
+        return 2;
+    }
+  }
+
+  bool _matchesSearch(Map<String, dynamic> r) {
+    if (_searchQuery.isEmpty) return true;
+    final question = (r['question'] as String? ?? '').toLowerCase();
+    final mumName =
+        ((r['profiles'] as Map?)?['full_name'] as String? ?? '').toLowerCase();
+    return question.contains(_searchQuery) || mumName.contains(_searchQuery);
+  }
+
+  List<Map<String, dynamic>> _filter(String category) => _requests
+      .where((r) => _category(r) == category && _matchesSearch(r))
+      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -148,21 +161,73 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           unselectedLabelColor: AppColors.textLight,
           labelStyle: GoogleFonts.poppins(fontSize: 13),
           tabs: const [
-            Tab(text: 'All'),
-            Tab(text: 'Pending'),
-            Tab(text: 'Responded'),
+            Tab(text: 'Available'),
+            Tab(text: 'Ongoing'),
+            Tab(text: 'Completed'),
           ],
         ),
       ),
       body: _loading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.rose))
-          : TabBarView(
-              controller: _tabs,
+          : Column(
               children: [
-                _RequestList(requests: _requests, onRefresh: _load),
-                _RequestList(requests: _filter(true), onRefresh: _load),
-                _RequestList(requests: _filter(false), onRefresh: _load),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) =>
+                        setState(() => _searchQuery = v.trim().toLowerCase()),
+                    style: GoogleFonts.poppins(fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search requests or mum\'s name',
+                      hintStyle: GoogleFonts.poppins(
+                          fontSize: 13, color: AppColors.textLight),
+                      prefixIcon: const Icon(Icons.search,
+                          color: AppColors.textLight, size: 20),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close,
+                                  color: AppColors.textLight, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            ),
+                      filled: true,
+                      fillColor: AppColors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color:
+                                  AppColors.textLight.withValues(alpha: 0.3))),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color:
+                                  AppColors.textLight.withValues(alpha: 0.3))),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: AppColors.rose, width: 1.5)),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabs,
+                    children: [
+                      _RequestList(
+                          requests: _filter('available'), onRefresh: _load),
+                      _RequestList(
+                          requests: _filter('ongoing'), onRefresh: _load),
+                      _RequestList(
+                          requests: _filter('completed'), onRefresh: _load),
+                    ],
+                  ),
+                ),
               ],
             ),
     );
@@ -211,9 +276,13 @@ class _RequestCard extends StatelessWidget {
     final mumName =
         (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
     final status = request['status'] as String? ?? 'pending';
-    final isPending = status == 'pending';
-    final badgeLabel = isPending ? 'Pending' : 'Responded';
-    final badgeColor = isPending ? AppColors.gold : AppColors.sage;
+    final isCompleted = status == 'closed';
+    final isAvailable = !isCompleted && request['volunteer_id'] == null;
+    final badgeLabel =
+        isCompleted ? 'Completed' : (isAvailable ? 'Available' : 'Ongoing');
+    final badgeColor = isCompleted
+        ? AppColors.sage
+        : (isAvailable ? AppColors.infoBlue : AppColors.gold);
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -261,7 +330,7 @@ class _RequestCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.circle, size: 6, color: AppColors.textLight),
+                Icon(Icons.circle, size: 6, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(mumName,
                     style: GoogleFonts.poppins(
@@ -288,6 +357,7 @@ class RequestDetailScreen extends StatefulWidget {
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
   final _ctrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _linkCtrl = TextEditingController();
   List<Map<String, dynamic>> _messages = [];
   bool _loading = true;
   bool _sending = false;
@@ -295,12 +365,21 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   // claimed this thread first — locks out further replies from this side.
   bool _lockedOut = false;
   String? _myPhotoUrl;
+  bool _closing = false;
+  bool _requestingCall = false;
+  bool _sendingLink = false;
 
   String? get _myId => SupabaseService.currentUser?.id;
   String? get _volunteerId => widget.request['volunteer_id'] as String?;
   bool get _isMine => _volunteerId != null && _volunteerId == _myId;
   bool get _isOpen => _volunteerId == null;
-  bool get _canReply => !_lockedOut && (_isOpen || _isMine);
+  bool get _isClosed => widget.request['status'] == 'closed';
+  bool get _canReply => !_lockedOut && !_isClosed && (_isOpen || _isMine);
+  String get _callStatus => widget.request['call_status'] as String? ?? 'none';
+  String? get _meetingLink => widget.request['meeting_link'] as String?;
+  DateTime? get _scheduledDate =>
+      DateTime.tryParse(widget.request['scheduled_date']?.toString() ?? '');
+  String? get _scheduledTime => widget.request['scheduled_time'] as String?;
 
   @override
   void initState() {
@@ -312,6 +391,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   void dispose() {
     _ctrl.dispose();
     _scrollCtrl.dispose();
+    _linkCtrl.dispose();
     super.dispose();
   }
 
@@ -326,17 +406,23 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           .eq('id', widget.request['id'])
           .maybeSingle();
       if (fresh == null) {
-        if (mounted) {
+        if (mounted)
           setState(() {
             _lockedOut = true;
             _loading = false;
           });
-        }
         return;
       }
-      widget.request['volunteer_id'] = fresh['volunteer_id'];
-      widget.request['status'] = fresh['status'];
-      widget.request['question'] = fresh['question'];
+      final freshRow = Map<String, dynamic>.from(fresh);
+      await SupabaseService.autoCloseStaleRequests([freshRow]);
+      await SupabaseService.expireStaleCallRequests([freshRow]);
+      widget.request['volunteer_id'] = freshRow['volunteer_id'];
+      widget.request['status'] = freshRow['status'];
+      widget.request['question'] = freshRow['question'];
+      widget.request['call_status'] = freshRow['call_status'];
+      widget.request['meeting_link'] = freshRow['meeting_link'];
+      widget.request['scheduled_date'] = freshRow['scheduled_date'];
+      widget.request['scheduled_time'] = freshRow['scheduled_time'];
       final msgs = await SupabaseService.getRequestMessages(
           widget.request['id'].toString());
       if (_myPhotoUrl == null && _myId != null) {
@@ -400,20 +486,345 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
+  Future<void> _closeChat() async {
+    setState(() => _closing = true);
+    try {
+      await SupabaseService.closeRequestChat(widget.request['id'].toString());
+      widget.request['status'] = 'closed';
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Chat closed.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _closing = false);
+    }
+  }
+
+  // Video calls used to be pure "call me right now", which meant nothing
+  // stopped a volunteer from ending up double-booked at the same time —
+  // so requesting one now means proposing a specific slot instead.
+  Future<(DateTime, String)?> _pickCallSlot() async {
+    DateTime selectedDate = DateTime.now();
+    String? selectedTime;
+    // Slots this volunteer has already proposed to some mum (still
+    // pending, not yet 48h stale) aren't offered again, so the same time
+    // can't be double-proposed to two different mums at once.
+    Set<String> heldTimes =
+        await SupabaseService.getHeldCallTimesForDate(selectedDate);
+    if (!mounted) return null;
+    return showModalBottomSheet<(DateTime, String)?>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final times =
+              futureTimesForDate(defaultConsultationTimes, selectedDate)
+                  .where((t) => !heldTimes.contains(t))
+                  .toList();
+          return Padding(
+            padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Propose a call time',
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(height: 16),
+                  Text('Date',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.textMid, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 90)),
+                      );
+                      if (picked != null) {
+                        final newHeld =
+                            await SupabaseService.getHeldCallTimesForDate(
+                                picked);
+                        setSheetState(() {
+                          selectedDate = picked;
+                          selectedTime = null;
+                          heldTimes = newHeld;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.textLight.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(DateFormat('d MMM yyyy').format(selectedDate),
+                          style: GoogleFonts.poppins(
+                              fontSize: 14, color: AppColors.textDark)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Time',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.textMid, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  if (times.isEmpty)
+                    Text('No time slots left on this date — pick another day.',
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, color: AppColors.textLight))
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: times
+                          .map((t) => ChoiceChip(
+                                label: Text(t),
+                                selected: selectedTime == t,
+                                onSelected: (_) =>
+                                    setSheetState(() => selectedTime = t),
+                              ))
+                          .toList(),
+                    ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: selectedTime == null
+                          ? null
+                          : () =>
+                              Navigator.pop(ctx, (selectedDate, selectedTime!)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.teal,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24))),
+                      child: const Text('Request This Time'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _requestVideoCall() async {
+    final slot = await _pickCallSlot();
+    if (slot == null) return;
+    setState(() => _requestingCall = true);
+    try {
+      await SupabaseService.requestVideoCall(
+          widget.request['id'].toString(), slot.$1, slot.$2);
+      widget.request['call_status'] = 'requested';
+      widget.request['scheduled_date'] =
+          slot.$1.toIso8601String().split('T').first;
+      widget.request['scheduled_time'] = slot.$2;
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Video call request sent — waiting for the mum to accept.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _requestingCall = false);
+    }
+  }
+
+  // Volunteers tend to paste the whole Zoom invite (join link, chat link,
+  // meeting ID, passcode) rather than just the URL, so the stored
+  // meeting_link keeps all of that (displayed as-is to both sides) while
+  // this pulls out just the http(s) link to actually launch on tap.
+  static final _urlPattern = RegExp(r'https?://\S+');
+
+  Future<void> _openMeetingLink(String link) async {
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the video call link.')));
+    }
+  }
+
+  // Posted into the chat as a normal message (so it appears in the
+  // conversation like anything else either side sends) as well as saved
+  // onto meeting_link (so the persistent "Join Video Call" button and the
+  // My Sessions list keep working without scrolling back through history).
+  Future<void> _sendMeetingLink() async {
+    final pasted = _linkCtrl.text.trim();
+    if (pasted.isEmpty) return;
+    if (!_urlPattern.hasMatch(pasted)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Couldn\'t find a meeting link in what you pasted.')));
+      return;
+    }
+    setState(() => _sendingLink = true);
+    try {
+      await SupabaseService.sendMeetingLink(
+          widget.request['id'].toString(), pasted);
+      await SupabaseService.sendRequestMessage(
+          widget.request['id'].toString(), pasted);
+      widget.request['meeting_link'] = pasted;
+      _linkCtrl.clear();
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _sendingLink = false);
+    }
+  }
+
+  Widget _videoCallControl() {
+    switch (_callStatus) {
+      case 'requested':
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.videocam_outlined,
+                  size: 16, color: AppColors.gold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    'Waiting for the mum to accept your video call request for ${_scheduledDate != null ? DateFormat('d MMM').format(_scheduledDate!) : ''} at ${_scheduledTime ?? ''}...',
+                    style: GoogleFonts.poppins(
+                        color: AppColors.textMid, fontSize: 12)),
+              ),
+            ],
+          ),
+        );
+      case 'accepted':
+        if (_meetingLink == null || _meetingLink!.trim().isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.teal.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                    'Mum accepted! Paste the Zoom invite (link, meeting ID, passcode — however much you\'ve got) to share it with her.',
+                    style: GoogleFonts.poppins(
+                        color: AppColors.textDark, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _linkCtrl,
+                  minLines: 3,
+                  maxLines: 8,
+                  style: GoogleFonts.poppins(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText:
+                        'Join Zoom Meeting\nhttps://zoom.us/j/...\n\nMeeting ID: 123 456 7890\nPasscode: abcd12',
+                    hintStyle: GoogleFonts.poppins(fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.white,
+                    contentPadding: const EdgeInsets.all(10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _sendingLink ? null : _sendMeetingLink,
+                    icon: _sendingLink
+                        ? const SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.send, size: 16),
+                    label: Text(_sendingLink ? 'Sending...' : 'Send to Mum',
+                        style: GoogleFonts.poppins(fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        // Once a link's been sent, the "Join Call" button attached to
+        // that message in the thread (see _messageTile) is enough — no
+        // need for a second, persistent one down here too.
+        return const SizedBox.shrink();
+      default:
+        return OutlinedButton.icon(
+          onPressed: _requestingCall ? null : _requestVideoCall,
+          icon: _requestingCall
+              ? const SizedBox(
+                  height: 14,
+                  width: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.videocam_outlined, size: 16),
+          label: Text(_requestingCall ? 'Requesting...' : 'Request Video Call',
+              style: GoogleFonts.poppins(fontSize: 13)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.teal,
+            side: const BorderSide(color: AppColors.teal),
+          ),
+        );
+    }
+  }
+
   Widget _messageTile(
       Map<String, dynamic> msg, String mumName, String? mumPhoto) {
     final mine = msg['sender_id'] == _myId;
     final name = mine ? 'You' : mumName;
     final photo = mine ? _myPhotoUrl : mumPhoto;
     final createdAt = DateTime.tryParse(msg['created_at']?.toString() ?? '');
+    final text = msg['message'] as String? ?? '';
+    final messageLink = _urlPattern.firstMatch(text)?.group(0);
 
     final avatar = CircleAvatar(
       radius: 14,
       backgroundColor:
           mine ? AppColors.rose.withValues(alpha: 0.15) : AppColors.tealLight,
-      backgroundImage: (photo != null && photo.isNotEmpty)
-          ? CachedNetworkImageProvider(photo, maxWidth: 200)
-          : null,
+      backgroundImage:
+          (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
       child: (photo == null || photo.isEmpty)
           ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
               style: TextStyle(
@@ -442,10 +853,27 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             ],
           ),
           const SizedBox(height: 2),
-          Text(msg['message'] ?? '',
+          SelectableText(text,
               textAlign: mine ? TextAlign.right : TextAlign.left,
               style:
                   GoogleFonts.poppins(color: AppColors.textMid, fontSize: 13)),
+          if (messageLink != null) ...[
+            const SizedBox(height: 6),
+            OutlinedButton.icon(
+              onPressed: () => _openMeetingLink(messageLink),
+              icon: const Icon(Icons.videocam, size: 14),
+              label:
+                  Text('Join Call', style: GoogleFonts.poppins(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.teal,
+                side: const BorderSide(color: AppColors.teal),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -513,7 +941,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                 fontWeight: FontWeight.w500)),
                         const SizedBox(height: 8),
                         Row(children: [
-                          const Icon(Icons.circle,
+                          Icon(Icons.circle,
                               size: 6, color: AppColors.textLight),
                           const SizedBox(width: 4),
                           Text(mumName,
@@ -545,55 +973,88 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 if (_canReply)
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _ctrl,
-                            maxLines: 4,
-                            minLines: 1,
-                            style: GoogleFonts.poppins(
-                                color: AppColors.textDark, fontSize: 13),
-                            decoration: InputDecoration(
-                              hintText: _isOpen
-                                  ? 'Type your response...'
-                                  : 'Type a message...',
-                              hintStyle: GoogleFonts.poppins(
-                                  color: AppColors.textLight, fontSize: 13),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                    color: AppColors.textLight
-                                        .withValues(alpha: 0.3)),
+                        if (_isMine)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _videoCallControl(),
+                          ),
+                        if (_isMine)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: OutlinedButton.icon(
+                              onPressed: _closing ? null : _closeChat,
+                              icon: _closing
+                                  ? const SizedBox(
+                                      height: 14,
+                                      width: 14,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : const Icon(Icons.check_circle_outline,
+                                      size: 16),
+                              label: Text(
+                                  _closing ? 'Closing...' : 'Close Chat',
+                                  style: GoogleFonts.poppins(fontSize: 13)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.roseDeep,
+                                side:
+                                    const BorderSide(color: AppColors.roseDeep),
                               ),
-                              focusedBorder: const OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(10)),
-                                borderSide: BorderSide(
-                                    color: AppColors.rose, width: 1.5),
-                              ),
-                              filled: true,
-                              fillColor: AppColors.cream,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        IconButton.filled(
-                          onPressed: _sending ? null : _send,
-                          style: IconButton.styleFrom(
-                              backgroundColor: AppColors.rose,
-                              padding: const EdgeInsets.all(14)),
-                          icon: _sending
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.send,
-                                  color: Colors.white, size: 18),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _ctrl,
+                                maxLines: 4,
+                                minLines: 1,
+                                style: GoogleFonts.poppins(
+                                    color: AppColors.textDark, fontSize: 13),
+                                decoration: InputDecoration(
+                                  hintText: _isOpen
+                                      ? 'Type your response...'
+                                      : 'Type a message...',
+                                  hintStyle: GoogleFonts.poppins(
+                                      color: AppColors.textLight, fontSize: 13),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(
+                                        color: AppColors.textLight
+                                            .withValues(alpha: 0.3)),
+                                  ),
+                                  focusedBorder: const OutlineInputBorder(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(10)),
+                                    borderSide: BorderSide(
+                                        color: AppColors.rose, width: 1.5),
+                                  ),
+                                  filled: true,
+                                  fillColor: AppColors.cream,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            IconButton.filled(
+                              onPressed: _sending ? null : _send,
+                              style: IconButton.styleFrom(
+                                  backgroundColor: AppColors.rose,
+                                  padding: const EdgeInsets.all(14)),
+                              icon: _sending
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white))
+                                  : const Icon(Icons.send,
+                                      color: Colors.white, size: 18),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -602,356 +1063,16 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
-                        _lockedOut
-                            ? 'Another volunteer already answered this question.'
-                            : 'This question was claimed by another volunteer.',
+                        _isClosed
+                            ? 'This chat has been closed.'
+                            : (_lockedOut
+                                ? 'Another volunteer already answered this question.'
+                                : 'This question was claimed by another volunteer.'),
                         style: GoogleFonts.poppins(
                             color: AppColors.textLight, fontSize: 12)),
                   ),
               ],
             ),
-    );
-  }
-}
-
-// ── Booking Detail Card ──────────────────────────────────────────────────────
-// Shows a mum's booking from before the volunteer-scheduling feature was
-// replaced by the open Q&A board above. Kept only so the Consultation tab
-// can still display historical bookings that were made under the old flow.
-class BookingDetailCard extends StatefulWidget {
-  final Map<String, dynamic> request;
-  final VoidCallback? onUpdated;
-  final void Function(String id)? onMarkCompleted;
-  const BookingDetailCard(
-      {super.key, required this.request, this.onUpdated, this.onMarkCompleted});
-
-  @override
-  State<BookingDetailCard> createState() => _BookingDetailCardState();
-}
-
-class _BookingDetailCardState extends State<BookingDetailCard> {
-  Map<String, dynamic>? _patientProfile;
-  Map<String, dynamic>? _patientPregnancy;
-  int _patientWeek = 0;
-  bool _loading = true;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final patientId = widget.request['patient_id'] as String?;
-    if (patientId == null) {
-      if (mounted) setState(() => _loading = false);
-      return;
-    }
-    Map<String, dynamic>? profile;
-    Map<String, dynamic>? pregnancy;
-    try {
-      profile = await SupabaseService.getProfileById(patientId);
-    } catch (_) {}
-    try {
-      pregnancy = await SupabaseService.getPregnancyProfileByUserId(patientId);
-    } catch (_) {}
-    // Derived from the same fetch above rather than a second round-trip via
-    // getCurrentPregnancyWeekByUserId — two independent queries risked one
-    // succeeding while the other failed, showing week but not age (or vice
-    // versa) even though both live on the same pregnancy_profiles row.
-    final week = SupabaseService.pregnancyWeekFromProfile(pregnancy);
-    if (mounted) {
-      setState(() {
-        _patientProfile = profile;
-        _patientPregnancy = pregnancy;
-        _patientWeek = week;
-        _loading = false;
-      });
-    }
-  }
-
-  Future<void> _acceptBooking() async {
-    setState(() => _saving = true);
-    try {
-      await SupabaseService.updateConsultationStatus(
-          widget.request['id'].toString(), 'confirmed');
-      if (mounted) {
-        setState(() => widget.request['status'] = 'confirmed');
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Booking confirmed!')));
-        widget.onUpdated?.call();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _declineBooking() async {
-    setState(() => _saving = true);
-    try {
-      await SupabaseService.cancelConsultation(widget.request['id'].toString(),
-          reason: 'Declined by volunteer');
-      if (mounted) {
-        setState(() => widget.request['status'] = 'cancelled');
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Booking declined.')));
-        widget.onUpdated?.call();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _startSession() async {
-    final link = widget.request['meeting_link']?.toString().trim() ?? '';
-    if (link.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Zoom meeting link is not available yet.')));
-      return;
-    }
-    final uri = Uri.tryParse(link);
-    if (uri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid Zoom meeting link.')));
-      return;
-    }
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open Zoom meeting link.')));
-    }
-  }
-
-  Widget _infoLine(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-                text: '$label: ',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: AppColors.textDark)),
-            TextSpan(
-                text: value,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.textMid)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator(color: AppColors.rose)),
-      );
-    }
-
-    final r = widget.request;
-    final id = r['id']?.toString() ?? '';
-    final mumName = _patientProfile?['full_name'] as String? ??
-        r['_mumName'] as String? ??
-        'A mum';
-    final patientAge = (_patientPregnancy?['age'] as num?)?.toString() ??
-        _patientProfile?['age']?.toString() ??
-        '—';
-    final photoUrl = _patientProfile?['profile_picture_url'] as String?;
-    final status = r['status'] as String? ?? 'pending';
-    final isPending = status == 'pending';
-    final isConfirmed = status == 'confirmed';
-    final dateStr = r['scheduled_date'] != null
-        ? DateFormat('d MMMM yyyy')
-            .format(DateTime.parse(r['scheduled_date'].toString()))
-        : '—';
-    final timeStr = r['scheduled_time'] as String? ?? '—';
-    final purpose = r['purpose'] as String? ?? '';
-    final platform = r['platform'] as String? ?? 'Zoom Meeting';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.rose.withValues(alpha: 0.18)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Expanded(
-                    child: Text('Patient details',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 20,
-                            color: AppColors.textDark)),
-                  ),
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    backgroundImage: photoUrl != null
-                        ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
-                        : null,
-                    child: photoUrl != null
-                        ? null
-                        : Text(
-                            mumName.isNotEmpty ? mumName[0].toUpperCase() : '?',
-                            style: const TextStyle(
-                                color: AppColors.roseDeep,
-                                fontWeight: FontWeight.w700),
-                          ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _infoLine('Appointment ID', appointmentIdLabel(id, 'volunteer')),
-              _infoLine('Name', mumName),
-              _infoLine('Age', patientAge == '—' ? '—' : '$patientAge yrs old'),
-              _infoLine(
-                  'Pregnancy',
-                  _patientWeek > 0
-                      ? 'Week $_patientWeek · ${trimesterLabel(_patientWeek)}'
-                      : '—'),
-              _infoLine('Date', dateStr),
-              _infoLine('Time', timeStr),
-              _infoLine('Platform', platform),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    const Text('Status: ',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: AppColors.textDark)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: statusColor(status).withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20)),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(_statusIcon(status),
-                              size: 13, color: statusColor(status)),
-                          const SizedBox(width: 4),
-                          Text(statusLabel(status),
-                              style: TextStyle(
-                                  color: statusColor(status),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                  'Descriptions: ${purpose.isEmpty ? 'No purpose specified.' : purpose}',
-                  style:
-                      const TextStyle(color: AppColors.textMid, fontSize: 13)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (isConfirmed) ...[
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _startSession,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.roseDeep,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24))),
-              child: const Text('Start Session',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ),
-          if (widget.onMarkCompleted != null) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => widget.onMarkCompleted!(id),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.roseDeep,
-                  side: const BorderSide(color: AppColors.roseDeep),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24)),
-                ),
-                child: const Text('Mark as Completed'),
-              ),
-            ),
-          ],
-        ] else if (isPending)
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _saving ? null : _declineBooking,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
-                  ),
-                  child: const Text('Decline'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _acceptBooking,
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.roseDeep,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24))),
-                  child: _saving
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Accept Booking',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ],
-          ),
-      ],
     );
   }
 }
