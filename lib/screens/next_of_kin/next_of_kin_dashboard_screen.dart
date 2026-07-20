@@ -22,6 +22,10 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   Map<String, String> _providerNames = {};
   bool _loading = true;
   DateTime? _lastNavTime;
+  // Local-only "seen" tracking — resets each session. There's no backend
+  // read-receipt store for these derived alerts (unlike the mum's
+  // notifications table), so this is a placeholder until that's designed.
+  final Set<String> _dismissedAlertKeys = {};
 
   bool _canNav() {
     final now = DateTime.now();
@@ -459,6 +463,12 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         'desc': 'Get personalised pregnancy guidance',
         'route': '/chatbot',
       },
+      {
+        'emoji': '👩‍⚕️',
+        'title': 'Consultations',
+        'desc': 'Book volunteer or specialist support',
+        'route': '/consultation',
+      },
     ];
 
     return Column(
@@ -515,49 +525,93 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       return status == 'pending' || status == 'confirmed';
     }).toList();
 
-    final alerts = <Widget>[
+    final specs = <(
+      String key,
+      IconData icon,
+      Color iconBg,
+      Color iconColor,
+      String title,
+      String subtitle,
+      VoidCallback onTap
+    )>[
       if (week > 0)
-        _alertCard(
-          icon: Icons.auto_awesome,
-          iconBg: AppColors.rose.withValues(alpha: 0.15),
-          iconColor: AppColors.roseDeep,
-          title: 'New Milestone',
-          subtitle:
-              'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
-          onTap: () => _comingSoon('Milestone journey'),
+        (
+          'milestone-$week',
+          Icons.auto_awesome,
+          AppColors.rose.withValues(alpha: 0.15),
+          AppColors.roseDeep,
+          'New Milestone',
+          'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
+          () => _comingSoon('Milestone journey'),
         ),
       for (final c in activeConsultations.take(2))
-        _alertCard(
-          icon: Icons.calendar_today_outlined,
-          iconBg: AppColors.sage.withValues(alpha: 0.15),
-          iconColor: AppColors.sage,
-          title: _appointmentDateLabel(c['scheduled_date'] as String?),
-          subtitle: _appointmentSubtitle(c),
-          onTap: () {
+        (
+          'consultation-${c['id']}',
+          Icons.calendar_today_outlined,
+          AppColors.sage.withValues(alpha: 0.15),
+          AppColors.sage,
+          _appointmentDateLabel(c['scheduled_date'] as String?),
+          _appointmentSubtitle(c),
+          () {
             if (_canNav()) context.push('/consultation');
           },
         ),
     ];
 
+    final visible =
+        specs.where((s) => !_dismissedAlertKeys.contains(s.$1)).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TBSectionTitle(
-          title: 'Active Alerts',
+          title: 'Active Alerts & Notifications',
           action: 'View All',
           onAction: () {
-            if (_canNav()) context.push('/notifications');
+            if (_canNav()) context.push('/next-of-kin/alerts');
           },
         ),
         const SizedBox(height: 12),
-        if (alerts.isEmpty)
-          const TBEmptyState(
-              emoji: '🔔',
-              title: 'No active alerts',
-              subtitle:
-                  'Milestones and upcoming appointments will show up here.')
+        if (visible.isEmpty)
+          TBCard(
+            onTap: () {
+              if (_canNav()) context.push('/next-of-kin/alerts');
+            },
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                      color: AppColors.rose.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.notifications_none_outlined,
+                      color: AppColors.roseDeep, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                      'No new alerts today. Tap View All to open the Notifications Centre.',
+                      style: TextStyle(color: AppColors.textMid, fontSize: 13)),
+                ),
+                const Icon(Icons.chevron_right,
+                    color: AppColors.textLight, size: 18),
+              ],
+            ),
+          )
         else
-          ...alerts,
+          for (final s in visible)
+            _alertCard(
+              icon: s.$2,
+              iconBg: s.$3,
+              iconColor: s.$4,
+              title: s.$5,
+              subtitle: s.$6,
+              onTap: () {
+                setState(() => _dismissedAlertKeys.add(s.$1));
+                s.$7();
+              },
+            ),
       ],
     );
   }

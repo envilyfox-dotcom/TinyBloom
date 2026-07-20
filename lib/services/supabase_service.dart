@@ -1346,4 +1346,86 @@ static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
   static Future<void> deleteForumComment(String id) async {
     await client.from('forum_comments').delete().eq('id', id);
   }
+
+  // ── Checklist (next-of-kin support checklist) ────────────────────
+  static Future<List<Map<String, dynamic>>> getChecklistTemplates() async {
+    final res = await client
+        .from('checklist_templates')
+        .select('*')
+        .order('display_order');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  // Returns the current user's checklist rows, materialising them from
+  // checklist_templates on first use (one row per template, same order).
+  static Future<List<Map<String, dynamic>>> getOrCreateChecklistItems() async {
+    final user = currentUser;
+    if (user == null) return [];
+
+    var items = List<Map<String, dynamic>>.from(await client
+        .from('checklist_items')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('display_order'));
+
+    if (items.isEmpty) {
+      final templates = await getChecklistTemplates();
+      if (templates.isNotEmpty) {
+        await client.from('checklist_items').insert([
+          for (final t in templates)
+            {
+              'user_id': user.id,
+              'template_item_id': t['id'],
+              'phase': t['phase'],
+              'phase_emoji': t['phase_emoji'],
+              'category': t['category'],
+              'item_text': t['item_text'],
+              'display_order': t['display_order'],
+            }
+        ]);
+        items = List<Map<String, dynamic>>.from(await client
+            .from('checklist_items')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('display_order'));
+      }
+    }
+    return items;
+  }
+
+  static Future<void> setChecklistItemCompleted(
+      String id, bool completed) async {
+    await client
+        .from('checklist_items')
+        .update({'is_completed': completed}).eq('id', id);
+  }
+
+  static Future<void> updateChecklistItemText(String id, String text) async {
+    await client
+        .from('checklist_items')
+        .update({'item_text': text}).eq('id', id);
+  }
+
+  static Future<void> deleteChecklistItem(String id) async {
+    await client.from('checklist_items').delete().eq('id', id);
+  }
+
+  static Future<void> addChecklistItem({
+    required String phase,
+    required String phaseEmoji,
+    required String category,
+    required String itemText,
+    required int displayOrder,
+  }) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client.from('checklist_items').insert({
+      'user_id': user.id,
+      'phase': phase,
+      'phase_emoji': phaseEmoji,
+      'category': category,
+      'item_text': itemText,
+      'display_order': displayOrder,
+    });
+  }
 }

@@ -5,176 +5,85 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
 // ── Support Checklist (Next of Kin) ───────────────────────────────────
-// A full-pregnancy plan for a next-of-kin: every phase (including
-// postpartum) is browsable, grouped into categories, with the mum's
-// current phase auto-expanded based on her real week. Checked state is
-// local only for now (not persisted) — this is the base UI to design
-// against; a checklist_items/checklist_progress table (or similar) can
-// replace the static data + in-memory Set once that's built.
-typedef _Category = ({String title, List<String> items});
-typedef _Phase = ({String label, String emoji, List<_Category> categories});
+// Backed by Supabase (checklist_templates + checklist_items — see
+// supabase/migrations/add_checklist_tables.sql). On first load the user's
+// checklist_items are materialised from checklist_templates. Ticking a box
+// saves immediately; adding/editing/deleting items is staged locally while
+// in edit mode and only pushed to Supabase when Save is tapped (Cancel
+// discards the staged changes without touching the database).
+class ChecklistItem {
+  final String id; // real Supabase uuid, or 'temp-N' for an unsaved new item
+  String text;
+  bool isCompleted;
+  ChecklistItem({required this.id, required this.text, this.isCompleted = false});
+  ChecklistItem copy() =>
+      ChecklistItem(id: id, text: text, isCompleted: isCompleted);
+}
 
-const _checklistPhases = <_Phase>[
-  (
-    label: 'First Trimester',
-    emoji: '🌱',
-    categories: [
-      (
-        title: 'Medical & Health',
-        items: [
-          'Attend the first prenatal appointment together',
-          'Learn about common first-trimester symptoms (nausea, fatigue, mood changes)',
-          'Help manage morning sickness (bland snacks, ginger tea, rest)',
-          'Discuss choice of OB/GP or midwife',
-          'Understand the prenatal vitamins/supplements she needs',
+class ChecklistCategory {
+  final String title;
+  final List<ChecklistItem> items;
+  ChecklistCategory({required this.title, required this.items});
+  ChecklistCategory copy() => ChecklistCategory(
+      title: title, items: items.map((i) => i.copy()).toList());
+}
+
+class ChecklistPhase {
+  final String label;
+  final String emoji;
+  final List<ChecklistCategory> categories;
+  ChecklistPhase(
+      {required this.label, required this.emoji, required this.categories});
+  ChecklistPhase copy() => ChecklistPhase(
+      label: label,
+      emoji: emoji,
+      categories: categories.map((c) => c.copy()).toList());
+}
+
+// Groups the flat checklist_items rows into phases/categories, preserving
+// first-seen order (rows come pre-sorted by display_order, so this lines
+// up with the intended phase/category sequence without needing it stored
+// separately).
+List<ChecklistPhase> _phasesFromRows(List<Map<String, dynamic>> rows) {
+  final phaseOrder = <String>[];
+  final phaseEmojis = <String, String>{};
+  final categoryOrderByPhase = <String, List<String>>{};
+  final itemsByPhaseCategory = <String, Map<String, List<ChecklistItem>>>{};
+
+  for (final row in rows) {
+    final phase = row['phase'] as String;
+    final category = row['category'] as String;
+    if (!phaseOrder.contains(phase)) {
+      phaseOrder.add(phase);
+      phaseEmojis[phase] = row['phase_emoji'] as String? ?? '';
+      categoryOrderByPhase[phase] = [];
+      itemsByPhaseCategory[phase] = {};
+    }
+    if (!categoryOrderByPhase[phase]!.contains(category)) {
+      categoryOrderByPhase[phase]!.add(category);
+      itemsByPhaseCategory[phase]![category] = [];
+    }
+    itemsByPhaseCategory[phase]![category]!.add(ChecklistItem(
+      id: row['id'] as String,
+      text: row['item_text'] as String,
+      isCompleted: row['is_completed'] as bool? ?? false,
+    ));
+  }
+
+  return [
+    for (final phase in phaseOrder)
+      ChecklistPhase(
+        label: phase,
+        emoji: phaseEmojis[phase] ?? '',
+        categories: [
+          for (final category in categoryOrderByPhase[phase]!)
+            ChecklistCategory(
+                title: category,
+                items: itemsByPhaseCategory[phase]![category]!),
         ],
       ),
-      (
-        title: 'Practical Support',
-        items: [
-          'Take over extra household chores as fatigue sets in',
-          'Reduce exposure to strong smells/triggers at home',
-          'Start a shared pregnancy calendar',
-        ],
-      ),
-      (
-        title: 'Emotional & Relational',
-        items: [
-          'Check in regularly on how she\'s feeling, physically and emotionally',
-          'Discuss how and when to share the pregnancy news',
-          'Be patient and understanding around mood swings',
-        ],
-      ),
-      (
-        title: 'Financial & Planning',
-        items: [
-          'Talk about parental leave options and timing',
-          'Research healthcare/insurance coverage for pregnancy and birth',
-          'Start a rough budget for baby-related costs',
-        ],
-      ),
-    ],
-  ),
-  (
-    label: 'Second Trimester',
-    emoji: '🌼',
-    categories: [
-      (
-        title: 'Medical & Health',
-        items: [
-          'Attend prenatal appointments and scans together (e.g. anatomy scan)',
-          'Learn what to expect at the anatomy scan',
-          'Go over any screening test results together',
-          'Help her stay active with safe, gentle exercise',
-        ],
-      ),
-      (
-        title: 'Practical Support',
-        items: [
-          'Start setting up and shopping for the nursery',
-          'Research and compare paediatricians',
-          'Attend a birth preparation / antenatal class together',
-          'Start researching baby gear (car seat, stroller, crib)',
-        ],
-      ),
-      (
-        title: 'Emotional & Relational',
-        items: [
-          'Track baby movements/kicks together',
-          'Talk about parenting values and expectations',
-          'Plan quality time together before the baby arrives',
-        ],
-      ),
-      (
-        title: 'Financial & Planning',
-        items: [
-          'Finalise parental leave arrangements with employers',
-          'Set up or review a baby savings fund',
-          'Look into childcare options and costs for after birth',
-        ],
-      ),
-    ],
-  ),
-  (
-    label: 'Third Trimester',
-    emoji: '🌸',
-    categories: [
-      (
-        title: 'Medical & Health',
-        items: [
-          'Attend more frequent prenatal appointments together',
-          'Learn the signs of labour and when to head to the hospital',
-          'Go over the birth plan together',
-          'Learn basic newborn care (feeding, diapering, soothing, safe sleep)',
-        ],
-      ),
-      (
-        title: 'Practical Support',
-        items: [
-          'Pack the hospital bag together',
-          'Install and double-check the car seat',
-          'Finalise the nursery and baby essentials',
-          'Prepare and freeze meals for after the birth',
-        ],
-      ),
-      (
-        title: 'Emotional & Relational',
-        items: [
-          'Reassure her as anxiety about labour may increase',
-          'Plan who will be present during labour/delivery',
-          'Discuss visitor policies and boundaries for after birth',
-        ],
-      ),
-      (
-        title: 'Financial & Planning',
-        items: [
-          'Confirm parental leave start date and paperwork',
-          'Review health insurance/hospital billing details',
-          'Finalise birth announcement plans',
-        ],
-      ),
-    ],
-  ),
-  (
-    label: 'Postpartum (0–3 Months)',
-    emoji: '🍼',
-    categories: [
-      (
-        title: 'Medical & Health',
-        items: [
-          'Attend the postpartum check-up together',
-          'Watch for signs of postpartum depression/anxiety in her',
-          'Help track baby\'s feeding and diaper schedule',
-          'Learn safe sleep practices for the baby',
-        ],
-      ),
-      (
-        title: 'Practical Support',
-        items: [
-          'Take on nighttime duties to help her rest',
-          'Manage visitors and household tasks',
-          'Help with meal prep and errands',
-        ],
-      ),
-      (
-        title: 'Emotional & Relational',
-        items: [
-          'Check in on her emotional wellbeing regularly',
-          'Share nighttime/feeding duties to prevent burnout',
-          'Celebrate small wins together as new parents',
-        ],
-      ),
-      (
-        title: 'Financial & Planning',
-        items: [
-          'Register the birth and apply for relevant benefits',
-          'Update insurance to include the baby',
-          'Review and adjust the household budget for baby expenses',
-        ],
-      ),
-    ],
-  ),
-];
+  ];
+}
 
 class NextOfKinChecklistScreen extends StatefulWidget {
   const NextOfKinChecklistScreen({super.key});
@@ -186,7 +95,12 @@ class NextOfKinChecklistScreen extends StatefulWidget {
 class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
   Map<String, dynamic>? _linkedMum;
   bool _loading = true;
-  final Set<String> _checked = {};
+  List<ChecklistPhase> _phases = [];
+
+  bool _editing = false;
+  bool _saving = false;
+  List<ChecklistPhase>? _phasesSnapshot;
+  int _tempIdCounter = 0;
 
   @override
   void initState() {
@@ -195,8 +109,23 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
   }
 
   Future<void> _load() async {
-    final mum = await SupabaseService.getLinkedMum();
-    if (mounted) setState(() { _linkedMum = mum; _loading = false; });
+    Map<String, dynamic>? mum;
+    List<Map<String, dynamic>> rows = [];
+    try {
+      mum = await SupabaseService.getLinkedMum();
+    } catch (_) {}
+    if (mum != null) {
+      try {
+        rows = await SupabaseService.getOrCreateChecklistItems();
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() {
+        _linkedMum = mum;
+        _phases = _phasesFromRows(rows);
+        _loading = false;
+      });
+    }
   }
 
   // 0-2 for trimesters 1-3; postpartum (index 3) has no real-data signal
@@ -208,16 +137,187 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
     return 2;
   }
 
-  int _phaseTotal(_Phase phase) =>
+  int _phaseTotal(ChecklistPhase phase) =>
       phase.categories.fold(0, (sum, c) => sum + c.items.length);
 
-  int _phaseDone(_Phase phase) => phase.categories
-      .fold(0, (sum, c) => sum + c.items.where(_checked.contains).length);
+  int _phaseDone(ChecklistPhase phase) => phase.categories
+      .fold(0, (sum, c) => sum + c.items.where((i) => i.isCompleted).length);
+
+  Future<void> _toggleCompleted(ChecklistItem item) async {
+    final newValue = !item.isCompleted;
+    setState(() => item.isCompleted = newValue);
+    try {
+      await SupabaseService.setChecklistItemCompleted(item.id, newValue);
+    } catch (e) {
+      if (mounted) {
+        setState(() => item.isCompleted = !newValue);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not update: $e'),
+            backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  void _startEditing() {
+    setState(() {
+      _phasesSnapshot = _phases.map((p) => p.copy()).toList();
+      _editing = true;
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _phases = _phasesSnapshot!;
+      _phasesSnapshot = null;
+      _editing = false;
+    });
+  }
+
+  Future<void> _saveEditing() async {
+    final snapshotById = <String, ChecklistItem>{};
+    for (final p in _phasesSnapshot!) {
+      for (final c in p.categories) {
+        for (final i in c.items) snapshotById[i.id] = i;
+      }
+    }
+
+    final currentIds = <String>{};
+    final futures = <Future>[];
+    var nextOrder = 1000;
+
+    for (final phase in _phases) {
+      for (final category in phase.categories) {
+        for (final item in category.items) {
+          if (item.id.startsWith('temp-')) {
+            futures.add(SupabaseService.addChecklistItem(
+              phase: phase.label,
+              phaseEmoji: phase.emoji,
+              category: category.title,
+              itemText: item.text,
+              displayOrder: nextOrder++,
+            ));
+          } else {
+            currentIds.add(item.id);
+            final original = snapshotById[item.id];
+            if (original != null && original.text != item.text) {
+              futures.add(
+                  SupabaseService.updateChecklistItemText(item.id, item.text));
+            }
+          }
+        }
+      }
+    }
+    for (final id in snapshotById.keys) {
+      if (!currentIds.contains(id)) {
+        futures.add(SupabaseService.deleteChecklistItem(id));
+      }
+    }
+
+    setState(() {
+      _saving = true;
+      _editing = false;
+      _phasesSnapshot = null;
+    });
+
+    try {
+      await Future.wait(futures);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Some changes failed to save: $e'),
+            backgroundColor: Colors.red));
+      }
+    }
+    await _load();
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _editItemDialog(ChecklistItem item) async {
+    final ctrl = TextEditingController(text: item.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Task'),
+        content: TextField(controller: ctrl, autofocus: true, maxLines: 3),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() => item.text = result);
+    }
+  }
+
+  Future<void> _addItemDialog(ChecklistCategory category) async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Task'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration:
+              const InputDecoration(hintText: 'e.g. Pack the hospital bag'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Add')),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() => category.items
+          .add(ChecklistItem(id: 'temp-${_tempIdCounter++}', text: result)));
+    }
+  }
+
+  void _deleteItem(ChecklistCategory category, ChecklistItem item) {
+    setState(() => category.items.remove(item));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final canEdit = !_loading && _linkedMum != null;
     return Scaffold(
-      appBar: AppBar(title: const Text('Support Checklist')),
+      appBar: AppBar(
+        title: const Text('Support Checklist'),
+        actions: [
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          else if (canEdit)
+            if (_editing) ...[
+              TextButton(
+                  onPressed: _cancelEditing, child: const Text('Cancel')),
+              TextButton(
+                  onPressed: _saveEditing,
+                  child: const Text('Save',
+                      style: TextStyle(fontWeight: FontWeight.w700))),
+            ] else
+              IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: _startEditing),
+        ],
+      ),
       body: _loading
           ? const TBLoading()
           : _linkedMum == null
@@ -234,40 +334,47 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
   }
 
   Widget _buildChecklist() {
-    final totalItems = _checklistPhases.fold(0, (sum, p) => sum + _phaseTotal(p));
-    final totalDone = _checklistPhases.fold(0, (sum, p) => sum + _phaseDone(p));
+    final totalItems = _phases.fold(0, (sum, p) => sum + _phaseTotal(p));
+    final totalDone = _phases.fold(0, (sum, p) => sum + _phaseDone(p));
     final overallProgress = totalItems == 0 ? 0.0 : totalDone / totalItems;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Your Pregnancy Support Plan',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineMedium
-                  ?.copyWith(fontSize: 20)),
-          const SizedBox(height: 4),
-          Text('$totalDone of $totalItems tasks completed',
-              style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: overallProgress,
-            backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.rose),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          const SizedBox(height: 20),
-          for (int i = 0; i < _checklistPhases.length; i++)
-            _phaseSection(_checklistPhases[i], initiallyExpanded: i == _currentPhaseIndex),
-        ],
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.rose,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Your Pregnancy Support Plan',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontSize: 20)),
+            const SizedBox(height: 4),
+            Text('$totalDone of $totalItems tasks completed',
+                style:
+                    const TextStyle(color: AppColors.textMid, fontSize: 13)),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: overallProgress,
+              backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.rose),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 20),
+            for (int i = 0; i < _phases.length; i++)
+              _phaseSection(_phases[i],
+                  initiallyExpanded: i == _currentPhaseIndex),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _phaseSection(_Phase phase, {required bool initiallyExpanded}) {
+  Widget _phaseSection(ChecklistPhase phase, {required bool initiallyExpanded}) {
     final done = _phaseDone(phase);
     final total = _phaseTotal(phase);
     return Padding(
@@ -321,7 +428,26 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                             letterSpacing: 0.5)),
                   ),
                 ),
-                for (final item in category.items) _checklistTile(item),
+                for (final item in category.items) _checklistTile(category, item),
+                if (_editing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10, top: 2),
+                    child: GestureDetector(
+                      onTap: () => _addItemDialog(category),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.add_circle_outline,
+                              color: AppColors.rose, size: 18),
+                          SizedBox(width: 8),
+                          Text('Add item',
+                              style: TextStyle(
+                                  color: AppColors.rose,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),
@@ -330,29 +456,26 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
     );
   }
 
-  Widget _checklistTile(String item) {
-    final done = _checked.contains(item);
+  Widget _checklistTile(ChecklistCategory category, ChecklistItem item) {
+    final done = item.isCompleted;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: GestureDetector(
-        onTap: () => setState(() {
-          if (done) {
-            _checked.remove(item);
-          } else {
-            _checked.add(item);
-          }
-        }),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => _toggleCompleted(item),
+            child: Icon(
               done ? Icons.check_circle : Icons.radio_button_unchecked,
               color: done ? AppColors.sage : AppColors.textLight,
               size: 20,
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(item,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: _editing ? () => _editItemDialog(item) : null,
+              child: Text(item.text,
                   style: TextStyle(
                       fontSize: 13,
                       height: 1.3,
@@ -360,8 +483,16 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                       decoration:
                           done ? TextDecoration.lineThrough : TextDecoration.none)),
             ),
-          ],
-        ),
+          ),
+          if (_editing)
+            GestureDetector(
+              onTap: () => _deleteItem(category, item),
+              child: const Padding(
+                padding: EdgeInsets.only(left: 8, top: 1),
+                child: Icon(Icons.close, color: Colors.red, size: 18),
+              ),
+            ),
+        ],
       ),
     );
   }
