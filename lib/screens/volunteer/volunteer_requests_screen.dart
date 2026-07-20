@@ -689,10 +689,17 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
     setState(() => _sendingLink = true);
     try {
+      // The mum accepted a specific date/time back when the call was
+      // requested (_scheduledDate/_scheduledTime) — surface it alongside
+      // the invite so it's not lost once this scrolls up the thread.
+      final scheduledLine = _scheduledDate != null && _scheduledTime != null
+          ? 'Scheduled for ${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime\n\n'
+          : '';
+      final messageText = '$scheduledLine$pasted';
       await SupabaseService.sendMeetingLink(
           widget.request['id'].toString(), pasted);
       await SupabaseService.sendRequestMessage(
-          widget.request['id'].toString(), pasted);
+          widget.request['id'].toString(), messageText);
       widget.request['meeting_link'] = pasted;
       _linkCtrl.clear();
       await _load();
@@ -742,6 +749,15 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_scheduledDate != null && _scheduledTime != null) ...[
+                  Text(
+                      'Call scheduled for ${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.teal,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12)),
+                  const SizedBox(height: 6),
+                ],
                 Text(
                     'Mum accepted! Paste the Zoom invite (link, meeting ID, passcode — however much you\'ve got) to share it with her.',
                     style: GoogleFonts.poppins(
