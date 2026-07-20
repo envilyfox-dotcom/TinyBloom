@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/checklist_data.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -20,6 +21,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   Map<String, dynamic>? _linkedMum;
   List<Map<String, dynamic>> _consultations = [];
   Map<String, String> _providerNames = {};
+  List<ChecklistPhase> _checklistPhases = [];
+  int _checklistPhaseIndex = 0;
   bool _loading = true;
   DateTime? _lastNavTime;
   // Local-only "seen" tracking — resets each session. There's no backend
@@ -62,6 +65,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
     List<Map<String, dynamic>> consultations = [];
     final providerNames = <String, String>{};
+    List<ChecklistPhase> checklistPhases = [];
     if (linkedMum != null) {
       consultations = await SupabaseService.getConsultationsForPatient(
           linkedMum['id'] as String);
@@ -83,7 +87,13 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
           if (name != null) providerNames[id] = name;
         } catch (_) {}
       }
+
+      try {
+        final rows = await SupabaseService.getOrCreateChecklistItems();
+        checklistPhases = phasesFromRows(rows);
+      } catch (_) {}
     }
+    final checklistPhaseIndex = await getCurrentChecklistPhaseIndex();
 
     if (mounted) {
       setState(() {
@@ -91,6 +101,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         _linkedMum = linkedMum;
         _consultations = consultations;
         _providerNames = providerNames;
+        _checklistPhases = checklistPhases;
+        _checklistPhaseIndex = checklistPhaseIndex.clamp(
+            0, checklistPhases.isEmpty ? 0 : checklistPhases.length - 1);
         _loading = false;
       });
     }
@@ -258,6 +271,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           const SizedBox(height: 20),
                           _buildQuickActions(),
                           const SizedBox(height: 20),
+                          _buildChecklistSection(context),
+                          const SizedBox(height: 20),
                           _buildActiveAlerts(),
                           const SizedBox(height: 20),
                           _buildExploreSection(context),
@@ -384,7 +399,11 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         iconBg: AppColors.rose.withValues(alpha: 0.15),
         label: 'Health logs',
         onTap: () {
-          if (_canNav()) context.push('/logs');
+          // go(), not push() — /logs is a bottom-nav tab inside the same
+          // ShellRoute; pushing it leaves the dashboard underneath instead
+          // of replacing it, so the tab highlight never updates and the
+          // dashboard never reloads when you come back to it.
+          if (_canNav()) context.go('/logs');
         },
       ),
       (
@@ -449,6 +468,96 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // "Current trimester" here is whatever the user last picked on the full
+  // Checklist screen (getCurrentChecklistPhaseIndex), not derived from the
+  // mum's real week — same source of truth both screens read from.
+  Widget _buildChecklistSection(BuildContext context) {
+    if (_checklistPhases.isEmpty) return const SizedBox.shrink();
+
+    final totalItems =
+        _checklistPhases.fold(0, (sum, p) => sum + phaseTotal(p));
+    final totalDone =
+        _checklistPhases.fold(0, (sum, p) => sum + phaseDone(p));
+    final progress = totalItems == 0 ? 0.0 : totalDone / totalItems;
+    final currentPhase = _checklistPhases[_checklistPhaseIndex];
+    final previewItems = currentPhase.allItems.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TBSectionTitle(
+          title: 'Support Checklist',
+          action: 'View More',
+          onAction: () {
+            if (_canNav()) context.go('/next-of-kin/checklist');
+          },
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () {
+            if (_canNav()) context.go('/next-of-kin/checklist');
+          },
+          child: TBCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$totalDone of $totalItems tasks completed',
+                    style: const TextStyle(
+                        color: AppColors.textMid, fontSize: 13)),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(AppColors.rose),
+                  minHeight: 8,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 16),
+                Text('${currentPhase.emoji} ${currentPhase.label}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 8),
+                for (final item in previewItems)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          item.isCompleted
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          color: item.isCompleted
+                              ? AppColors.sage
+                              : AppColors.textLight,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(item.text,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: item.isCompleted
+                                      ? AppColors.textLight
+                                      : AppColors.textMid,
+                                  decoration: item.isCompleted
+                                      ? TextDecoration.lineThrough
+                                      : TextDecoration.none)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

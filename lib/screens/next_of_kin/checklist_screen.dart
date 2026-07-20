@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/checklist_data.dart';
 import '../../widgets/common_widgets.dart';
 
 // ── Support Checklist (Next of Kin) ───────────────────────────────────
@@ -11,80 +12,10 @@ import '../../widgets/common_widgets.dart';
 // saves immediately; adding/editing/deleting items is staged locally while
 // in edit mode and only pushed to Supabase when Save is tapped (Cancel
 // discards the staged changes without touching the database).
-class ChecklistItem {
-  final String id; // real Supabase uuid, or 'temp-N' for an unsaved new item
-  String text;
-  bool isCompleted;
-  ChecklistItem({required this.id, required this.text, this.isCompleted = false});
-  ChecklistItem copy() =>
-      ChecklistItem(id: id, text: text, isCompleted: isCompleted);
-}
-
-class ChecklistCategory {
-  final String title;
-  final List<ChecklistItem> items;
-  ChecklistCategory({required this.title, required this.items});
-  ChecklistCategory copy() => ChecklistCategory(
-      title: title, items: items.map((i) => i.copy()).toList());
-}
-
-class ChecklistPhase {
-  final String label;
-  final String emoji;
-  final List<ChecklistCategory> categories;
-  ChecklistPhase(
-      {required this.label, required this.emoji, required this.categories});
-  ChecklistPhase copy() => ChecklistPhase(
-      label: label,
-      emoji: emoji,
-      categories: categories.map((c) => c.copy()).toList());
-}
-
-// Groups the flat checklist_items rows into phases/categories, preserving
-// first-seen order (rows come pre-sorted by display_order, so this lines
-// up with the intended phase/category sequence without needing it stored
-// separately).
-List<ChecklistPhase> _phasesFromRows(List<Map<String, dynamic>> rows) {
-  final phaseOrder = <String>[];
-  final phaseEmojis = <String, String>{};
-  final categoryOrderByPhase = <String, List<String>>{};
-  final itemsByPhaseCategory = <String, Map<String, List<ChecklistItem>>>{};
-
-  for (final row in rows) {
-    final phase = row['phase'] as String;
-    final category = row['category'] as String;
-    if (!phaseOrder.contains(phase)) {
-      phaseOrder.add(phase);
-      phaseEmojis[phase] = row['phase_emoji'] as String? ?? '';
-      categoryOrderByPhase[phase] = [];
-      itemsByPhaseCategory[phase] = {};
-    }
-    if (!categoryOrderByPhase[phase]!.contains(category)) {
-      categoryOrderByPhase[phase]!.add(category);
-      itemsByPhaseCategory[phase]![category] = [];
-    }
-    itemsByPhaseCategory[phase]![category]!.add(ChecklistItem(
-      id: row['id'] as String,
-      text: row['item_text'] as String,
-      isCompleted: row['is_completed'] as bool? ?? false,
-    ));
-  }
-
-  return [
-    for (final phase in phaseOrder)
-      ChecklistPhase(
-        label: phase,
-        emoji: phaseEmojis[phase] ?? '',
-        categories: [
-          for (final category in categoryOrderByPhase[phase]!)
-            ChecklistCategory(
-                title: category,
-                items: itemsByPhaseCategory[phase]![category]!),
-        ],
-      ),
-  ];
-}
-
+//
+// "Current trimester" is a user-set toggle here (not auto-detected from
+// the mum's week) — the dashboard preview reads the same stored selection
+// via getCurrentChecklistPhaseIndex() in utils/checklist_data.dart.
 class NextOfKinChecklistScreen extends StatefulWidget {
   const NextOfKinChecklistScreen({super.key});
   @override
@@ -96,6 +27,7 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
   Map<String, dynamic>? _linkedMum;
   bool _loading = true;
   List<ChecklistPhase> _phases = [];
+  int _selectedPhaseIndex = 0;
 
   bool _editing = false;
   bool _saving = false;
@@ -119,29 +51,21 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
         rows = await SupabaseService.getOrCreateChecklistItems();
       } catch (_) {}
     }
+    final phaseIndex = await getCurrentChecklistPhaseIndex();
     if (mounted) {
       setState(() {
         _linkedMum = mum;
-        _phases = _phasesFromRows(rows);
+        _phases = phasesFromRows(rows);
+        _selectedPhaseIndex = phaseIndex.clamp(0, _phases.isEmpty ? 0 : _phases.length - 1);
         _loading = false;
       });
     }
   }
 
-  // 0-2 for trimesters 1-3; postpartum (index 3) has no real-data signal
-  // to auto-detect yet (no "has given birth" flag), so it's just browsable.
-  int get _currentPhaseIndex {
-    final week = (_linkedMum?['current_week'] as int?) ?? 0;
-    if (week <= 12) return 0;
-    if (week <= 27) return 1;
-    return 2;
+  Future<void> _selectPhase(int index) async {
+    setState(() => _selectedPhaseIndex = index);
+    await setCurrentChecklistPhaseIndex(index);
   }
-
-  int _phaseTotal(ChecklistPhase phase) =>
-      phase.categories.fold(0, (sum, c) => sum + c.items.length);
-
-  int _phaseDone(ChecklistPhase phase) => phase.categories
-      .fold(0, (sum, c) => sum + c.items.where((i) => i.isCompleted).length);
 
   Future<void> _toggleCompleted(ChecklistItem item) async {
     final newValue = !item.isCompleted;
@@ -334,8 +258,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
   }
 
   Widget _buildChecklist() {
-    final totalItems = _phases.fold(0, (sum, p) => sum + _phaseTotal(p));
-    final totalDone = _phases.fold(0, (sum, p) => sum + _phaseDone(p));
+    final totalItems = _phases.fold(0, (sum, p) => sum + phaseTotal(p));
+    final totalDone = _phases.fold(0, (sum, p) => sum + phaseDone(p));
     final overallProgress = totalItems == 0 ? 0.0 : totalDone / totalItems;
 
     return RefreshIndicator(
@@ -365,18 +289,57 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
               borderRadius: BorderRadius.circular(4),
             ),
             const SizedBox(height: 20),
+            const Text('CURRENT TRIMESTER',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.roseDeep,
+                    letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            _phaseToggle(),
+            const SizedBox(height: 20),
             for (int i = 0; i < _phases.length; i++)
               _phaseSection(_phases[i],
-                  initiallyExpanded: i == _currentPhaseIndex),
+                  initiallyExpanded: i == _selectedPhaseIndex),
           ],
         ),
       ),
     );
   }
 
+  Widget _phaseToggle() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (int i = 0; i < _phases.length; i++)
+          FilterChip(
+            label: Text(_phases[i].label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: _selectedPhaseIndex == i
+                        ? AppColors.roseDeep
+                        : AppColors.textMid,
+                    fontWeight: _selectedPhaseIndex == i
+                        ? FontWeight.w700
+                        : FontWeight.normal)),
+            selected: _selectedPhaseIndex == i,
+            onSelected: (_) => _selectPhase(i),
+            selectedColor: AppColors.blush,
+            checkmarkColor: AppColors.roseDeep,
+            backgroundColor: AppColors.white,
+            side: BorderSide(
+                color: _selectedPhaseIndex == i
+                    ? AppColors.rose
+                    : AppColors.textLight.withValues(alpha: 0.3)),
+          ),
+      ],
+    );
+  }
+
   Widget _phaseSection(ChecklistPhase phase, {required bool initiallyExpanded}) {
-    final done = _phaseDone(phase);
-    final total = _phaseTotal(phase);
+    final done = phaseDone(phase);
+    final total = phaseTotal(phase);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TBCard(
