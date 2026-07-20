@@ -30,8 +30,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   List<Map<String, dynamic>> _upcomingSessions = [];
   List<Map<String, dynamic>> _myServices = [];
   List<Map<String, dynamic>> _pendingRequests = [];
-  int _completedSessionsCount = 0;
-  int _mumsHelpedCount = 0;
+  int _totalServicesCount = 0;
+  int _totalConsultationsCount = 0;
+  int _totalOngoingRequestsCount = 0;
   bool _loading = true;
 
   @override
@@ -46,6 +47,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     List<Map<String, dynamic>> sessions = [];
     List<Map<String, dynamic>> myServices = [];
     List<Map<String, dynamic>> requests = [];
+    int totalServicesCount = 0;
+    int totalConsultationsCount = 0;
+    int totalOngoingRequestsCount = 0;
 
     try {
       profile = await SupabaseService.getProfile();
@@ -69,17 +73,15 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .neq('status', 'closed')
           .order('scheduled_date');
       final now = DateTime.now();
-      final rows = List<Map<String, dynamic>>.from(data)
-          .where((r) {
-            final date =
-                DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
-            if (date == null) return false;
-            final timeStr = r['scheduled_time'] as String?;
-            final at = timeStr != null ? slotDateTime(date, timeStr) : null;
-            return (at ?? date).isAfter(now);
-          })
-          .take(5)
-          .toList();
+      final upcoming = List<Map<String, dynamic>>.from(data).where((r) {
+        final date = DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
+        if (date == null) return false;
+        final timeStr = r['scheduled_time'] as String?;
+        final at = timeStr != null ? slotDateTime(date, timeStr) : null;
+        return (at ?? date).isAfter(now);
+      }).toList();
+      totalConsultationsCount = upcoming.length;
+      final rows = upcoming.take(5).toList();
 
       final patientIds = rows
           .map((r) => r['patient_id'] as String?)
@@ -115,6 +117,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         if (aDate == null || bDate == null) return 0;
         return aDate.compareTo(bDate);
       });
+      totalServicesCount = rows.length;
       myServices = rows.take(5).toList();
     } catch (_) {}
 
@@ -131,12 +134,13 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .select()
           .neq('status', 'closed')
           .not('volunteer_id', 'is', null)
-          .order('created_at', ascending: false)
-          .limit(5);
-      final rows = List<Map<String, dynamic>>.from(data);
-      await SupabaseService.autoCloseStaleRequests(rows);
-      await SupabaseService.expireStaleCallRequests(rows);
-      rows.removeWhere((r) => r['status'] == 'closed');
+          .order('created_at', ascending: false);
+      final allRows = List<Map<String, dynamic>>.from(data);
+      await SupabaseService.autoCloseStaleRequests(allRows);
+      await SupabaseService.expireStaleCallRequests(allRows);
+      allRows.removeWhere((r) => r['status'] == 'closed');
+      totalOngoingRequestsCount = allRows.length;
+      final rows = allRows.take(5).toList();
 
       final patientIds = rows
           .map((r) => r['patient_id'] as String?)
@@ -159,23 +163,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .toList();
     } catch (_) {}
 
-    int completedCount = 0;
-    int mumsHelpedCount = 0;
-    try {
-      final data = await SupabaseService.client
-          .from('consultations')
-          .select('patient_id')
-          .eq('specialist_id', SupabaseService.currentUser!.id)
-          .eq('status', 'completed');
-      final rows = List<Map<String, dynamic>>.from(data);
-      completedCount = rows.length;
-      mumsHelpedCount = rows
-          .map((r) => r['patient_id'] as String?)
-          .whereType<String>()
-          .toSet()
-          .length;
-    } catch (_) {}
-
     if (mounted) {
       setState(() {
         _profile = profile;
@@ -183,8 +170,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         _upcomingSessions = sessions;
         _myServices = myServices;
         _pendingRequests = requests;
-        _completedSessionsCount = completedCount;
-        _mumsHelpedCount = mumsHelpedCount;
+        _totalServicesCount = totalServicesCount;
+        _totalConsultationsCount = totalConsultationsCount;
+        _totalOngoingRequestsCount = totalOngoingRequestsCount;
         _loading = false;
       });
     }
@@ -217,11 +205,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                       const SizedBox(height: 20),
                       _buildStatsRow(),
                       const SizedBox(height: 24),
-                      _buildQuickActions(context),
+                      _buildMyServices(context),
                       const SizedBox(height: 24),
                       _buildUpcomingSessions(context),
-                      const SizedBox(height: 24),
-                      _buildMyServices(context),
                       const SizedBox(height: 24),
                       _buildPendingRequests(context),
                     ],
@@ -319,15 +305,15 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   Widget _buildStatsRow() {
     return Row(
       children: [
-        _statCard('Sessions\nCompleted', '$_completedSessionsCount',
-            Icons.check_circle_outline,
-            onTap: () => context
-                .push('/volunteer/sessions', extra: {'completedOnly': true})),
+        _statCard('Total\nServices', '$_totalServicesCount',
+            Icons.medical_services_outlined,
+            onTap: () => context.push('/volunteer/services')),
         const SizedBox(width: 12),
-        _statCard('Mums\nHelped', '$_mumsHelpedCount', Icons.favorite_outline,
-            onTap: () => context.push('/volunteer/mums-helped')),
+        _statCard('Total\nConsultations', '$_totalConsultationsCount',
+            Icons.calendar_today_outlined,
+            onTap: () => context.push('/volunteer/sessions')),
         const SizedBox(width: 12),
-        _statCard('Ongoing\nRequests', '${_pendingRequests.length}',
+        _statCard('Total Ongoing\nRequests', '$_totalOngoingRequestsCount',
             Icons.inbox_outlined,
             onTap: () => context.push('/volunteer/requests')),
       ],
@@ -364,64 +350,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
               Text(label,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(fontSize: 10, color: _roseDark)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Quick Actions',
-            style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark)),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _actionButton(context, 'My Consultations',
-                Icons.calendar_today_outlined, '/volunteer/sessions'),
-            const SizedBox(width: 12),
-            _actionButton(context, 'Requests', Icons.inbox_outlined,
-                '/volunteer/requests'),
-            const SizedBox(width: 12),
-            _actionButton(context, 'Forum', Icons.forum_outlined, '/forum'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _actionButton(
-      BuildContext context, String label, IconData icon, String route) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => context.push(route),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: _pink.withValues(alpha: 0.12),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2))
-            ],
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: _pink, size: 24),
-              const SizedBox(height: 6),
-              Text(label,
-                  style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: AppColors.textDark,
-                      fontWeight: FontWeight.w500)),
             ],
           ),
         ),
@@ -523,7 +451,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Your Upcoming Sessions',
+            Text('Upcoming Services',
                 style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -546,8 +474,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
 
   Widget _myServiceCard(BuildContext context, Map<String, dynamic> service) {
     final serviceId = formatServiceId(service['service_number']);
-    final rawTitle = service['title'] as String? ?? 'Session';
-    final title = serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle';
+    final title = service['title'] as String? ?? 'Session';
     final availability = service['availability'] as String? ?? '';
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -593,6 +520,10 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                           color: AppColors.textDark)),
+                  if (serviceId.isNotEmpty)
+                    Text('Service ID: $serviceId',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: _roseDark)),
                   if (availability.isNotEmpty)
                     Text(formatAvailabilityDisplay(availability),
                         style: GoogleFonts.poppins(
@@ -640,6 +571,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     final mumName =
         (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
     final title = request['question'] as String? ?? '';
+    final requestId = formatRequestId(request['request_number']);
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -668,6 +600,12 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                     color: AppColors.textDark,
                     fontSize: 13,
                     fontWeight: FontWeight.w500)),
+            if (requestId.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('Request ID: $requestId',
+                  style: GoogleFonts.poppins(
+                      color: AppColors.textLight, fontSize: 11)),
+            ],
             const SizedBox(height: 6),
             Row(
               children: [

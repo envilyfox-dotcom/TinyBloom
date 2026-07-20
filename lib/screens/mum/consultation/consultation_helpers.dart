@@ -728,8 +728,7 @@ Widget _helpsChip(String label, Color accent, {bool tappable = false}) {
 void _showServiceDetailsSheet(
     BuildContext context, Map<String, dynamic> service, Color accent) {
   final serviceId = formatServiceId(service['service_number']);
-  final rawTitle = service['title'] as String? ?? 'Service';
-  final title = serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle';
+  final title = service['title'] as String? ?? 'Service';
   final description = service['description'] as String? ?? '';
   final category = service['category'] as String? ?? '';
   final consultationMethod = service['consultation_method'] as String? ?? '';
@@ -775,6 +774,10 @@ void _showServiceDetailsSheet(
                     fontWeight: FontWeight.w800,
                     fontSize: 18,
                     color: AppColors.textDark)),
+            if (serviceId.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _providerInfoLine(Icons.tag, 'Service ID: $serviceId'),
+            ],
             if (category.isNotEmpty) ...[
               const SizedBox(height: 6),
               _providerInfoLine(Icons.label_outline, category),

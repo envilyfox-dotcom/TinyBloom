@@ -1178,11 +1178,18 @@ class SupabaseService {
   static Future<Map<String, dynamic>?> getMyVolunteerProfile() async {
     final user = currentUser;
     if (user == null) return null;
+    return getVolunteerProfileByUserId(user.id);
+  }
+
+  // Get any volunteer's profile by user id — used for the read-only
+  // profile view opened from a volunteer session notification.
+  static Future<Map<String, dynamic>?> getVolunteerProfileByUserId(
+      String userId) async {
     try {
       final res = await client
           .from('volunteer_profiles')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .maybeSingle();
       return res;
     } catch (_) {

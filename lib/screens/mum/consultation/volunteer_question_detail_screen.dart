@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/service_id.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 import '../forum/forum_shared.dart';
@@ -308,7 +309,9 @@ class _VolunteerQuestionDetailScreenState
     final text = msg['message'] as String? ?? '';
     final messageLink = _urlPattern.firstMatch(text)?.group(0);
 
-    final avatar = CircleAvatar(
+    final volunteerId = widget.request['volunteer_id']?.toString();
+
+    Widget avatar = CircleAvatar(
       radius: 14,
       backgroundColor:
           mine ? AppColors.rose.withValues(alpha: 0.15) : AppColors.tealLight,
@@ -323,6 +326,13 @@ class _VolunteerQuestionDetailScreenState
                   fontSize: 11))
           : null,
     );
+
+    if (!mine && volunteerId != null) {
+      avatar = GestureDetector(
+        onTap: () => context.push('/volunteer/profile-view', extra: volunteerId),
+        child: avatar,
+      );
+    }
 
     final textBlock = Expanded(
       child: Column(
@@ -381,6 +391,7 @@ class _VolunteerQuestionDetailScreenState
   Widget build(BuildContext context) {
     final status = widget.request['status'] as String? ?? 'pending';
     final isCompleted = _isClosed;
+    final requestId = formatRequestId(widget.request['request_number']);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -450,6 +461,12 @@ class _VolunteerQuestionDetailScreenState
                       ],
                     ],
                   ),
+                  if (!_editing && requestId.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Request ID: $requestId',
+                        style: const TextStyle(
+                            color: AppColors.textLight, fontSize: 11)),
+                  ],
                   if (_editing) ...[
                     const SizedBox(height: 12),
                     Row(

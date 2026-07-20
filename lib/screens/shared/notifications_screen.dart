@@ -27,7 +27,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     'Consultation',
     'Milestone',
     'Education',
-    'Sessions',
+    'Services',
     'Reminder',
     'AI',
   ];
@@ -114,6 +114,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if ([
       'session',
       'sessions',
+      'service',
+      'services',
       'volunteersession',
       'volunteerservice',
       'volunteerservices',
@@ -819,9 +821,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           (volunteer?['profile_picture_url'] ?? '').toString().trim();
       final description = (item['description'] ?? '').toString().trim();
       final serviceId = formatServiceId(item['service_number']);
-      final rawTitle = (item['title'] ?? 'Volunteer Session').toString();
-      final sessionTitle =
-          serviceId.isEmpty ? rawTitle : '$serviceId - $rawTitle';
+      final sessionTitle = (item['title'] ?? 'Volunteer Session').toString();
       final availability = (item['availability'] ?? '').toString().trim();
       final availabilityDisplay =
           availability.isEmpty ? '' : formatAvailabilityDisplay(availability);
@@ -850,6 +850,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'consultation_method': item['consultation_method'],
         'category': item['category'],
         'session_title': sessionTitle,
+        'service_id': serviceId,
         'session_description': description,
         'volunteer_name': volunteerName,
         'volunteer_photo_url': volunteerPhotoUrl,
@@ -2294,17 +2295,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final consultationMethod =
         (item['consultation_method'] ?? '').toString().trim();
     final zoomLink = (item['zoom_link'] ?? '').toString().trim();
+    final serviceId = (item['service_id'] ?? '').toString().trim();
 
     final body = [
       'Hosted by: $volunteerName',
-      if (sessionTitle.isNotEmpty) 'Session: $sessionTitle',
+      if (sessionTitle.isNotEmpty) 'Service: $sessionTitle',
+      if (serviceId.isNotEmpty) 'Service ID: $serviceId',
       if (description.isNotEmpty) description,
       if (availabilityDisplay.isNotEmpty) 'Scheduled: $availabilityDisplay',
       if (consultationMethod.isNotEmpty) 'Mode: $consultationMethod',
     ].join('\n\n');
 
     await _showInfoSheet(
-      label: 'Volunteer Session',
+      label: 'Volunteer Service',
       title: volunteerName,
       body: body,
       icon: Icons.video_call_outlined,
@@ -2314,7 +2317,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           borderRadius: BorderRadius.circular(14),
           onTap: volunteerId == null
               ? null
-              : () => _showVolunteerProfileSheet(volunteerId, volunteerName),
+              : () {
+                  Navigator.of(context).pop();
+                  context.push('/volunteer/profile-view', extra: volunteerId);
+                },
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -2385,224 +2391,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     fontStyle: FontStyle.italic,
                   ),
                 ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showVolunteerProfileSheet(
-      String volunteerId, String fallbackName) async {
-    Map<String, dynamic>? volunteer;
-    try {
-      volunteer = await SupabaseService.client
-          .from('volunteer_profiles')
-          .select('*, profiles(full_name, profile_picture_url)')
-          .eq('user_id', volunteerId)
-          .maybeSingle();
-    } catch (e) {
-      debugPrint('Failed to load volunteer profile: $e');
-    }
-
-    if (!mounted) return;
-
-    final profile = volunteer?['profiles'] as Map<String, dynamic>?;
-    final name = (profile?['full_name'] ?? fallbackName).toString();
-    final photoUrl = profile?['profile_picture_url']?.toString();
-    final expertise = (volunteer?['expertise'] ?? '').toString().trim();
-    final affiliation = (volunteer?['affiliation'] ?? '').toString().trim();
-    final certification = (volunteer?['certification'] ?? '').toString().trim();
-    final years = volunteer?['years_experience'];
-    final helpsWith = (volunteer?['helps_with'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
-        const <String>[];
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(20),
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.82,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(26),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.textDark.withValues(alpha: 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          color: AppColors.sage.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(18),
-                          image: photoUrl != null && photoUrl.isNotEmpty
-                              ? DecorationImage(
-                                  image: CachedNetworkImageProvider(photoUrl,
-                                      maxWidth: 400),
-                                  fit: BoxFit.cover)
-                              : null,
-                        ),
-                        child: photoUrl != null && photoUrl.isNotEmpty
-                            ? null
-                            : Center(
-                                child: Text(
-                                  name.isNotEmpty ? name[0].toUpperCase() : 'V',
-                                  style: const TextStyle(
-                                      color: AppColors.sage,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                color: AppColors.textDark,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              expertise.isEmpty ? 'Volunteer' : expertise,
-                              style: const TextStyle(
-                                color: AppColors.textMid,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon:
-                            const Icon(Icons.close, color: AppColors.textLight),
-                      ),
-                    ],
-                  ),
-                  if (affiliation.isNotEmpty ||
-                      certification.isNotEmpty ||
-                      years != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (affiliation.isNotEmpty)
-                            _providerInfoRow(
-                                Icons.location_city_outlined, affiliation),
-                          if (certification.isNotEmpty) ...[
-                            if (affiliation.isNotEmpty)
-                              const SizedBox(height: 6),
-                            _providerInfoRow(
-                                Icons.school_outlined, certification),
-                          ],
-                          if (years != null) ...[
-                            if (affiliation.isNotEmpty ||
-                                certification.isNotEmpty)
-                              const SizedBox(height: 6),
-                            _providerInfoRow(
-                                Icons.work_outline, '$years Years Experience'),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                  if (helpsWith.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Helps With',
-                      style: TextStyle(
-                        color: AppColors.textMid,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: helpsWith
-                          .map((h) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: AppColors.sage.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(h,
-                                    style: const TextStyle(
-                                        color: AppColors.sage,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700)),
-                              ))
-                          .toList(),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.rose,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Close'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _providerInfoRow(IconData icon, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 14, color: AppColors.textMid),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(text,
-              style: const TextStyle(color: AppColors.textMid, fontSize: 12)),
         ),
       ],
     );
@@ -2712,7 +2500,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'ai':
         return 'AI Assistant Advice';
       case 'session':
-        return 'Volunteer Session';
+        return 'Volunteer Service';
       default:
         return 'Notification';
     }
@@ -2975,6 +2763,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (type == 'session') {
       final sessionTitle = (item['session_title'] ?? '').toString().trim();
+      final serviceId = (item['service_id'] ?? '').toString().trim();
       final availabilityDisplay =
           (item['availability_display'] ?? '').toString().trim();
       final consultationMethod =
@@ -2983,7 +2772,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       return [
         if (sessionTitle.isNotEmpty)
-          'Session: ${_shortenPreview(sessionTitle)}',
+          'Service: ${_shortenPreview(sessionTitle)}',
+        if (serviceId.isNotEmpty) 'Service ID: $serviceId',
         if (availabilityDisplay.isNotEmpty) 'Time: $availabilityDisplay',
         if (consultationMethod.isNotEmpty) 'Mode: $consultationMethod',
         if (category.isNotEmpty) 'Category: $category',
@@ -3211,12 +3001,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
                     ),
                   ),
-                  if (message.isNotEmpty) ...[
+                  if (message.isNotEmpty && type != 'session') ...[
                     const SizedBox(height: 4),
                     Text(
                       message,
-                      maxLines:
-                          type == 'consultation' || type == 'session' ? 3 : 2,
+                      maxLines: type == 'consultation' ? 3 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textMid,

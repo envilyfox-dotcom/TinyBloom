@@ -116,11 +116,11 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
   bool _matchesSearch(Map<String, dynamic> service) {
     if (_searchQuery.isEmpty) return true;
     final title = (service['title'] as String? ?? '').toLowerCase();
-    final description = (service['description'] as String? ?? '').toLowerCase();
     final category = (service['category'] as String? ?? '').toLowerCase();
+    final serviceId = formatServiceId(service['service_number']).toLowerCase();
     return title.contains(_searchQuery) ||
-        description.contains(_searchQuery) ||
-        category.contains(_searchQuery);
+        category.contains(_searchQuery) ||
+        serviceId.contains(_searchQuery);
   }
 
   List<Map<String, dynamic>> get _searchedServices =>
@@ -360,9 +360,6 @@ class _ServiceCard extends StatelessWidget {
     final availability = service['availability'] as String? ?? '';
     final consultationMethod = service['consultation_method'] as String? ?? '';
     final serviceId = formatServiceId(service['service_number']);
-    final displayTitle = serviceId.isEmpty
-        ? (service['title'] ?? '')
-        : '$serviceId - ${service['title'] ?? ''}';
 
     return Container(
       decoration: BoxDecoration(
@@ -378,7 +375,7 @@ class _ServiceCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(displayTitle,
+                child: Text(service['title'] ?? '',
                     style: GoogleFonts.poppins(
                         color: AppColors.textDark,
                         fontSize: 15,
@@ -400,6 +397,12 @@ class _ServiceCard extends StatelessWidget {
               ),
             ],
           ),
+          if (serviceId.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('Service ID: $serviceId',
+                style: GoogleFonts.poppins(
+                    color: AppColors.textLight, fontSize: 11)),
+          ],
           if (category.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(

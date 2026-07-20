@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/service_id.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import '../mum/forum/forum_shared.dart';
 
@@ -126,7 +127,10 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     final question = (r['question'] as String? ?? '').toLowerCase();
     final mumName =
         ((r['profiles'] as Map?)?['full_name'] as String? ?? '').toLowerCase();
-    return question.contains(_searchQuery) || mumName.contains(_searchQuery);
+    final requestId = formatRequestId(r['request_number']).toLowerCase();
+    return question.contains(_searchQuery) ||
+        mumName.contains(_searchQuery) ||
+        requestId.contains(_searchQuery);
   }
 
   List<Map<String, dynamic>> _filter(String category) => _requests
@@ -150,7 +154,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
             }
           },
         ),
-        title: Text('User Requests',
+        title: Text('Mum\'s Requests',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
@@ -283,6 +287,7 @@ class _RequestCard extends StatelessWidget {
     final badgeColor = isCompleted
         ? AppColors.sage
         : (isAvailable ? AppColors.infoBlue : AppColors.gold);
+    final requestId = formatRequestId(request['request_number']);
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -327,6 +332,12 @@ class _RequestCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (requestId.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('Request ID: $requestId',
+                  style: GoogleFonts.poppins(
+                      color: AppColors.textLight, fontSize: 11)),
+            ],
             const SizedBox(height: 8),
             Row(
               children: [
@@ -910,6 +921,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final mumProfile = widget.request['profiles'] as Map?;
     final mumName = mumProfile?['full_name'] as String? ?? 'A mum';
     final mumPhoto = mumProfile?['profile_picture_url'] as String?;
+    final requestId = formatRequestId(widget.request['request_number']);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -926,7 +938,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             }
           },
         ),
-        title: Text('User Request',
+        title: Text('Mum\'s Request',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
@@ -955,6 +967,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                 color: AppColors.textDark,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500)),
+                        if (requestId.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text('Request ID: $requestId',
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.textLight, fontSize: 11)),
+                        ],
                         const SizedBox(height: 8),
                         Row(children: [
                           Icon(Icons.circle,

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/service_id.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
 
@@ -104,7 +105,8 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
             }
           },
         ),
-        title: Text(widget.completedOnly ? 'Completed Sessions' : 'My Sessions',
+        title: Text(
+            widget.completedOnly ? 'Completed Consultations' : 'Consultations',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
@@ -223,7 +225,6 @@ class _VideoCallSessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final id = session['id']?.toString() ?? '';
     final mumName = session['_mumName'] as String? ?? 'A mum';
     final photoUrl = session['_mumPhoto'] as String?;
     final age = session['_mumAge'] as String?;
@@ -284,7 +285,8 @@ class _VideoCallSessionCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _infoLine('Appointment ID', appointmentIdLabel(id, 'volunteer')),
+                _infoLine(
+                    'Request ID', formatRequestId(session['request_number'])),
                 _infoLine('Name', mumName),
                 _infoLine('Age', age == null ? '—' : '$age yrs old'),
                 _infoLine(

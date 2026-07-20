@@ -28,7 +28,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     'Completed',
     'Cancelled',
   ];
+  static const _providerOptions = ['Specialist', 'Volunteer'];
   String _selectedFilter = 'All';
+  Set<String> _selectedProviders = _providerOptions.toSet();
 
   @override
   void initState() {
@@ -59,10 +61,20 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }
   }
 
+  // A volunteer question ('_kind' == 'question') came from the open Q&A
+  // board; everything else in the merged list is a specialist consultation
+  // booking (volunteer bookings were already filtered out in _load).
+  String _providerCategory(Map<String, dynamic> item) =>
+      item['_kind'] == 'question' ? 'Volunteer' : 'Specialist';
+
   List<Map<String, dynamic>> get _filteredConsultations {
-    if (_selectedFilter == 'All') return _consultations;
     final category = _selectedFilter.toLowerCase();
-    return _consultations.where((c) => _itemCategory(c) == category).toList();
+    return _consultations.where((c) {
+      final matchesStatus =
+          _selectedFilter == 'All' || _itemCategory(c) == category;
+      final matchesProvider = _selectedProviders.contains(_providerCategory(c));
+      return matchesStatus && matchesProvider;
+    }).toList();
   }
 
   Future<void> _load() async {
@@ -107,35 +119,127 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }
   }
 
-  Widget _buildFilterRow() {
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        itemCount: _filterOptions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (ctx, i) {
-          final option = _filterOptions[i];
-          final selected = _selectedFilter == option;
-          return ChoiceChip(
-            label: Text(option),
-            selected: selected,
-            onSelected: (_) => setState(() => _selectedFilter = option),
-            showCheckmark: false,
-            selectedColor: AppColors.teal,
-            backgroundColor: AppColors.tealLight,
-            side: BorderSide(
-                color: selected
-                    ? Colors.transparent
-                    : AppColors.textLight.withValues(alpha: 0.3)),
-            labelStyle: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppColors.textDark),
-          );
-        },
-      ),
+  bool get _hasActiveFilter =>
+      _selectedFilter != 'All' ||
+      _selectedProviders.length < _providerOptions.length;
+
+  Future<void> _showFilterSheet() async {
+    var draftFilter = _selectedFilter;
+    var draftProviders = Set<String>.from(_selectedProviders);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Filter Consultations',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 16)),
+                      const SizedBox(height: 16),
+                      const Text('Status',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _filterOptions.map((option) {
+                          final selected = draftFilter == option;
+                          return ChoiceChip(
+                            label: Text(option),
+                            selected: selected,
+                            onSelected: (_) =>
+                                setSheetState(() => draftFilter = option),
+                            showCheckmark: false,
+                            selectedColor: AppColors.teal,
+                            backgroundColor: AppColors.tealLight,
+                            side: BorderSide(
+                                color: selected
+                                    ? Colors.transparent
+                                    : AppColors.textLight
+                                        .withValues(alpha: 0.3)),
+                            labelStyle: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: selected
+                                    ? Colors.white
+                                    : AppColors.textDark),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('Provider',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13)),
+                      Text('Leave both unchecked to see everything.',
+                          style: TextStyle(
+                              color: AppColors.textMid, fontSize: 12)),
+                      ..._providerOptions.map((option) {
+                        return CheckboxListTile(
+                          value: draftProviders.contains(option),
+                          onChanged: (checked) {
+                            setSheetState(() {
+                              if (checked == true) {
+                                draftProviders.add(option);
+                              } else {
+                                draftProviders.remove(option);
+                              }
+                            });
+                          },
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: EdgeInsets.zero,
+                          activeColor: AppColors.teal,
+                          title: Text(option,
+                              style: const TextStyle(fontSize: 14)),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.teal,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _selectedFilter = draftFilter;
+                              _selectedProviders = draftProviders.isEmpty
+                                  ? _providerOptions.toSet()
+                                  : draftProviders;
+                            });
+                            Navigator.of(ctx).pop();
+                          },
+                          child: const Text('Apply'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -170,7 +274,28 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
           Column(
             children: [
               if (!_loading && _error == null && _consultations.isNotEmpty)
-                _buildFilterRow(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      onPressed: _showFilterSheet,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.teal,
+                        side: const BorderSide(color: AppColors.teal),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                      ),
+                      icon: Badge(
+                        isLabelVisible: _hasActiveFilter,
+                        backgroundColor: AppColors.teal,
+                        smallSize: 8,
+                        child: const Icon(Icons.filter_list, size: 18),
+                      ),
+                      label: const Text('Filter'),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: _loading
                     ? const TBLoading()
@@ -200,8 +325,11 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                                     subtitle:
                                         'No consultations match this filter.',
                                     buttonLabel: 'Clear Filter',
-                                    onButton: () =>
-                                        setState(() => _selectedFilter = 'All'))
+                                    onButton: () => setState(() {
+                                          _selectedFilter = 'All';
+                                          _selectedProviders =
+                                              _providerOptions.toSet();
+                                        }))
                                 : ListView.builder(
                                     padding: const EdgeInsets.all(16),
                                     itemCount: _filteredConsultations.length,
