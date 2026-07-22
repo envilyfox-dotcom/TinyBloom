@@ -63,7 +63,8 @@ class _ChatVolunteerScreenState extends State<ChatVolunteerScreen> {
               color: AppColors.rose,
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                padding: EdgeInsets.fromLTRB(
+                    20, 12, 20, 24 + MediaQuery.paddingOf(context).bottom),
                 children: [
                   const Text(
                     'Choose a community volunteer to connect with.',

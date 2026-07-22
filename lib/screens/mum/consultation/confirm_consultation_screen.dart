@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import 'consultation_helpers.dart';
 
 // ── Confirm Consultation ──────────────────────────────────────────
 class ConfirmConsultationScreen extends StatefulWidget {
@@ -104,7 +106,9 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
   Widget build(BuildContext context) {
     final profile = widget.provider['profiles'] as Map<String, dynamic>? ?? {};
     final name = profile['full_name'] as String? ?? 'Provider';
-    final role = widget.type == 'specialist'
+    final photoUrl = profile['profile_picture_url'] as String?;
+    final isSpecialist = widget.type == 'specialist';
+    final role = isSpecialist
         ? (widget.provider['specialization'] as String? ?? 'Specialist')
         : (widget.provider['expertise'] as String? ?? 'Volunteer');
 
@@ -162,15 +166,28 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: AppColors.blush,
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: const TextStyle(
-                                color: AppColors.roseDeep,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          GestureDetector(
+                            onTap: () => openProviderProfile(
+                                context, widget.provider, isSpecialist),
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: AppColors.blush,
+                              backgroundImage:
+                                  photoUrl != null && photoUrl.isNotEmpty
+                                      ? CachedNetworkImageProvider(photoUrl,
+                                          maxWidth: 200)
+                                      : null,
+                              child: photoUrl != null && photoUrl.isNotEmpty
+                                  ? null
+                                  : Text(
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        color: AppColors.roseDeep,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(width: 12),

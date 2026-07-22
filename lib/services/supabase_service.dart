@@ -73,15 +73,15 @@ class SupabaseService {
   // Profile picture — stored in the public 'avatars' bucket at
   // <user_id>/avatar.<ext>, one file per user (upsert overwrites any
   // previous picture, so there's nothing extra to clean up on re-upload).
-  static Future<String> uploadProfilePicture(Uint8List bytes, String fileExt) async {
+  static Future<String> uploadProfilePicture(
+      Uint8List bytes, String fileExt) async {
     final user = currentUser;
     if (user == null) throw Exception('Not signed in.');
 
     final ext = fileExt.toLowerCase();
     final path = '${user.id}/avatar.$ext';
     final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
-    await client.storage.from('avatars').uploadBinary(
-        path, bytes,
+    await client.storage.from('avatars').uploadBinary(path, bytes,
         fileOptions: FileOptions(upsert: true, contentType: contentType));
 
     // Cache-bust so the new photo shows immediately instead of a
@@ -92,15 +92,15 @@ class SupabaseService {
     return url;
   }
 
-  static Future<String> uploadArticleImage(Uint8List bytes, String fileExt) async {
+  static Future<String> uploadArticleImage(
+      Uint8List bytes, String fileExt) async {
     final user = currentUser;
     if (user == null) throw Exception('Not signed in.');
 
     final ext = fileExt.toLowerCase();
     final path = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$ext';
     final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
-    await client.storage.from('article-images').uploadBinary(
-        path, bytes,
+    await client.storage.from('article-images').uploadBinary(path, bytes,
         fileOptions: FileOptions(contentType: contentType));
 
     return client.storage.from('article-images').getPublicUrl(path);
@@ -467,16 +467,20 @@ class SupabaseService {
     final user = currentUser;
     final slug =
         '${title.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s-]"), '').trim().replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
-    final res = await client.from('articles').insert({
-      'title': title,
-      'slug': slug,
-      'content': content,
-      'category': category,
-      'trimester': trimester,
-      'primary_group_id': primaryGroupId,
-      'status': 'draft',
-      'created_by': user?.id,
-    }).select().single();
+    final res = await client
+        .from('articles')
+        .insert({
+          'title': title,
+          'slug': slug,
+          'content': content,
+          'category': category,
+          'trimester': trimester,
+          'primary_group_id': primaryGroupId,
+          'status': 'draft',
+          'created_by': user?.id,
+        })
+        .select()
+        .single();
     return res;
   }
 
@@ -757,15 +761,15 @@ class SupabaseService {
   // Only allowed while the question is still 'pending' — once a volunteer
   // has replied, editing it out from under their answer would be confusing,
   // and RLS blocks it server-side too (see the amend-question policy).
-  static Future<void> updateVolunteerQuestion(String id, String question) async {
+  static Future<void> updateVolunteerQuestion(
+      String id, String question) async {
     final res = await client
         .from('volunteer_requests')
         .update({'question': question})
         .eq('id', id)
         .select();
     if (res.isEmpty) {
-      throw Exception(
-          'Could not update — it may have already been answered.');
+      throw Exception('Could not update — it may have already been answered.');
     }
   }
 
@@ -800,7 +804,8 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  static Future<void> sendRequestMessage(String requestId, String message) async {
+  static Future<void> sendRequestMessage(
+      String requestId, String message) async {
     final user = currentUser;
     if (user == null) return;
     await client.from('volunteer_request_messages').insert({
@@ -981,7 +986,8 @@ class SupabaseService {
         .from('consultations')
         .update({
           'status': 'cancelled',
-          'cancellation_reason': reason?.trim().isEmpty == true ? null : reason?.trim(),
+          'cancellation_reason':
+              reason?.trim().isEmpty == true ? null : reason?.trim(),
         })
         .eq('id', id)
         .select();
@@ -991,8 +997,7 @@ class SupabaseService {
     }
   }
 
-  static Future<void> updateConsultationStatus(
-      String id, String status) async {
+  static Future<void> updateConsultationStatus(String id, String status) async {
     final res = await client
         .from('consultations')
         .update({'status': status})
@@ -1009,7 +1014,7 @@ class SupabaseService {
     try {
       final spec = await client
           .from('specialist_profiles')
-          .select('*, profiles(full_name, email)')
+          .select('*, profiles(full_name, email, profile_picture_url)')
           .eq('user_id', userId)
           .maybeSingle();
       if (spec != null) return {...spec, 'provider_type': 'specialist'};
@@ -1017,7 +1022,7 @@ class SupabaseService {
     try {
       final vol = await client
           .from('volunteer_profiles')
-          .select('*, profiles(full_name, email)')
+          .select('*, profiles(full_name, email, profile_picture_url)')
           .eq('user_id', userId)
           .maybeSingle();
       if (vol != null) return {...vol, 'provider_type': 'volunteer'};
@@ -1033,7 +1038,8 @@ class SupabaseService {
     try {
       final link = await client
           .from('next_of_kin_profiles')
-          .select('relationship, mum:linked_pregnant_user_id(id, full_name, email)')
+          .select(
+              'relationship, mum:linked_pregnant_user_id(id, full_name, email)')
           .eq('user_id', user.id)
           .maybeSingle()
           .timeout(const Duration(seconds: 6));
@@ -1076,7 +1082,8 @@ class SupabaseService {
 
   // Shared lookup for the user_code linking flow — throws a user-facing
   // message if the code doesn't exist or doesn't belong to a mum account.
-  static Future<Map<String, dynamic>> _findMumByUserCode(String userCode) async {
+  static Future<Map<String, dynamic>> _findMumByUserCode(
+      String userCode) async {
     final mum = await client
         .from('profiles')
         .select('id, full_name, role')
@@ -1121,7 +1128,7 @@ class SupabaseService {
   static Future<List<Map<String, dynamic>>> getSpecialists() async {
     final res = await client
         .from('specialist_profiles')
-        .select('*, profiles(full_name, email)')
+        .select('*, profiles(full_name, email, profile_picture_url)')
         .eq('is_verified', true);
     return List<Map<String, dynamic>>.from(res);
   }
@@ -1227,41 +1234,41 @@ class SupabaseService {
   }
 
   // Update specialist profile
-static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
-  final user = currentUser;
-  if (user == null) return;
+  static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
+    final user = currentUser;
+    if (user == null) return;
 
-  final existing = await client
-      .from('specialist_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-  if (existing != null) {
-    // .select() so we can tell a silent RLS-blocked update (0 rows
-    // affected, no error thrown) apart from a real success.
-    final res = await client
+    final existing = await client
         .from('specialist_profiles')
-        .update(data)
+        .select('*')
         .eq('user_id', user.id)
-        .select();
-    if (res.isEmpty) {
-      throw Exception(
-          'Could not update your profile — you may not have permission to.');
-    }
-  } else {
-    final res = await client.from('specialist_profiles').insert({
-      'user_id': user.id,
-      'specialization': '', // satisfies NOT NULL
-      'is_verified': false,
-      ...data,
-    }).select();
-    if (res.isEmpty) {
-      throw Exception(
-          'Could not create your profile — you may not have permission to.');
+        .maybeSingle();
+
+    if (existing != null) {
+      // .select() so we can tell a silent RLS-blocked update (0 rows
+      // affected, no error thrown) apart from a real success.
+      final res = await client
+          .from('specialist_profiles')
+          .update(data)
+          .eq('user_id', user.id)
+          .select();
+      if (res.isEmpty) {
+        throw Exception(
+            'Could not update your profile — you may not have permission to.');
+      }
+    } else {
+      final res = await client.from('specialist_profiles').insert({
+        'user_id': user.id,
+        'specialization': '', // satisfies NOT NULL
+        'is_verified': false,
+        ...data,
+      }).select();
+      if (res.isEmpty) {
+        throw Exception(
+            'Could not create your profile — you may not have permission to.');
+      }
     }
   }
-}
 
   // Site settings
   static Future<Map<String, String>> getSiteSettings() async {

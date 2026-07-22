@@ -329,7 +329,8 @@ class _VolunteerQuestionDetailScreenState
 
     if (!mine && volunteerId != null) {
       avatar = GestureDetector(
-        onTap: () => context.push('/volunteer/profile-view', extra: volunteerId),
+        onTap: () =>
+            context.push('/volunteer/profile-view', extra: volunteerId),
         child: avatar,
       );
     }
@@ -522,7 +523,8 @@ class _VolunteerQuestionDetailScreenState
                       ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            padding: EdgeInsets.fromLTRB(
+                20, 0, 20, 20 + MediaQuery.paddingOf(context).bottom),
             child: _isClosed
                 ? const Text('This chat has been closed.',
                     style: TextStyle(color: AppColors.textLight, fontSize: 12))

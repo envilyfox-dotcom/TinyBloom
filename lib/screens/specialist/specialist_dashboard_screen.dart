@@ -507,6 +507,39 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     );
   }
 
+  Widget _emptyConsultationCard() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TBCard(
+        onTap: () => context.go('/specialist/consultations'),
+        padding: const EdgeInsets.all(14),
+        child: const Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: AppColors.blush,
+              child: Icon(
+                Icons.medical_services_outlined,
+                color: AppColors.roseDeep,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No new consultation. Tap to view all to open the consultation page.',
+                style: TextStyle(
+                  color: AppColors.textMid,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAlertsSection() {
     final cards = <Widget>[
       for (final n in _notifications.take(3)) _notificationPreviewCard(n),
@@ -626,52 +659,54 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   // Today's Appointments
-                  if (_todayConsultations.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text("Today's Appointment:",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 16)),
-                        ),
-                        TextButton(
-                          onPressed: () =>
-                              context.go('/specialist/consultations'),
-                          child: const Text('View All >'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text("Today's Appointment:",
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 16)),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            context.go('/specialist/consultations'),
+                        child: const Text('View All >'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_todayConsultations.isEmpty)
+                    _emptyConsultationCard()
+                  else
                     ..._todayConsultations.map((c) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _consultationCard(c),
                         )),
-                    const SizedBox(height: 20),
-                  ],
+                  const SizedBox(height: 20),
 
                   // Upcoming Appointments
-                  if (_upcomingConsultations.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text('Upcoming Appointment:',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 16)),
-                        ),
-                        TextButton(
-                          onPressed: () =>
-                              context.go('/specialist/consultations'),
-                          child: const Text('View All >'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text('Upcoming Appointment:',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 16)),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            context.go('/specialist/consultations'),
+                        child: const Text('View All >'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_upcomingConsultations.isEmpty)
+                    _emptyConsultationCard()
+                  else
                     ..._upcomingConsultations.map((c) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _consultationCard(c, showDate: true),
                         )),
-                    const SizedBox(height: 20),
-                  ],
+                  const SizedBox(height: 20),
 
                   // Alerts & Notifications
                   _buildAlertsSection(),

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,18 @@ void backOrToHub(BuildContext context) {
   } else {
     context.go('/consultation');
   }
+}
+
+/// Opens the provider's read-only public profile (same screen the app uses
+/// from article authors, reviews, and chat threads), routing to the
+/// specialist or volunteer variant depending on [isSpecialist].
+void openProviderProfile(
+    BuildContext context, Map<String, dynamic> provider, bool isSpecialist) {
+  final id = provider['user_id']?.toString();
+  if (id == null || id.isEmpty) return;
+  context.push(
+      isSpecialist ? '/specialist/profile-view' : '/volunteer/profile-view',
+      extra: id);
 }
 
 Color statusColor(String status) {
@@ -105,10 +118,9 @@ int _appointmentIdNumber(dynamic id) {
 /// volunteer consultations, "SPC-482913" for specialist ones. Support can
 /// then tell at a glance which actor initiated the meeting from the id alone.
 String appointmentIdLabel(dynamic id, [String? consultationType]) {
-  final prefix =
-      (consultationType ?? 'specialist').toLowerCase() == 'volunteer'
-          ? 'VOL'
-          : 'SPC';
+  final prefix = (consultationType ?? 'specialist').toLowerCase() == 'volunteer'
+      ? 'VOL'
+      : 'SPC';
   return '$prefix-${_appointmentIdNumber(id)}';
 }
 
@@ -132,8 +144,7 @@ Widget appointmentIdValue(BuildContext context, dynamic id,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label,
-            style:
-                const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         const SizedBox(width: 6),
         const Icon(Icons.copy_rounded, size: 15, color: AppColors.textMid),
       ],
@@ -472,6 +483,7 @@ Widget providerCard(
           .where((e) => e.isNotEmpty)
           .toList() ??
       const <String>[];
+  final photoUrl = profile['profile_picture_url'] as String?;
   final accent = isSpecialist ? AppColors.teal : AppColors.sage;
   final emoji = isSpecialist ? '👩‍⚕️' : '🤝';
   final label = isSpecialist ? 'Specialist Consultant' : 'Volunteer Consultant';
@@ -486,15 +498,29 @@ Widget providerCard(
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Center(
-                  child: Text(emoji, style: const TextStyle(fontSize: 25)),
+              GestureDetector(
+                onTap: () =>
+                    openProviderProfile(context, provider, isSpecialist),
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                    image: photoUrl != null && photoUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: CachedNetworkImageProvider(photoUrl,
+                                maxWidth: 200),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: photoUrl != null && photoUrl.isNotEmpty
+                      ? null
+                      : Center(
+                          child:
+                              Text(emoji, style: const TextStyle(fontSize: 25)),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -167,12 +168,15 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     final profile = _provider?['profiles'] as Map<String, dynamic>? ?? {};
     final isSpecialist = _provider?['provider_type'] == 'specialist';
     final name = profile['full_name'] as String? ?? 'Provider';
+    final photoUrl = profile['profile_picture_url'] as String?;
+    final specialistId = c['specialist_id'] as String?;
     final displayName = isSpecialist ? 'Dr. $name' : name;
     final role = isSpecialist
         ? (_provider?['specialization'] as String? ?? 'Specialist')
         : (_provider?['expertise'] as String? ?? 'Volunteer');
     final dateStr = c['scheduled_date'] != null
-        ? DateFormat('d MMMM yyyy (EEE)').format(DateTime.parse(c['scheduled_date']))
+        ? DateFormat('d MMMM yyyy (EEE)')
+            .format(DateTime.parse(c['scheduled_date']))
         : '—';
     final timeStr = c['scheduled_time'] as String? ?? '—';
     final purpose = c['purpose'] as String? ?? '';
@@ -208,14 +212,31 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(children: [
-                            CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.blush,
-                                child: Text(
-                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                    style: const TextStyle(
-                                        color: AppColors.roseDeep,
-                                        fontWeight: FontWeight.w700))),
+                            GestureDetector(
+                                onTap: specialistId == null
+                                    ? null
+                                    : () => openProviderProfile(
+                                        context,
+                                        {'user_id': specialistId},
+                                        isSpecialist),
+                                child: CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: AppColors.blush,
+                                    backgroundImage: photoUrl != null &&
+                                            photoUrl.isNotEmpty
+                                        ? CachedNetworkImageProvider(photoUrl,
+                                            maxWidth: 200)
+                                        : null,
+                                    child: photoUrl != null &&
+                                            photoUrl.isNotEmpty
+                                        ? null
+                                        : Text(
+                                            name.isNotEmpty
+                                                ? name[0].toUpperCase()
+                                                : '?',
+                                            style: const TextStyle(
+                                                color: AppColors.roseDeep,
+                                                fontWeight: FontWeight.w700)))),
                             const SizedBox(width: 12),
                             Expanded(
                                 child: Column(
@@ -223,10 +244,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                               children: [
                                 Text(name,
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.w700, fontSize: 15)),
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15)),
                                 Text(role,
                                     style: const TextStyle(
-                                        color: AppColors.textMid, fontSize: 12)),
+                                        color: AppColors.textMid,
+                                        fontSize: 12)),
                               ],
                             )),
                           ]),
@@ -237,26 +260,42 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             appointmentIdValue(context, c['id'],
                                 c['consultation_type'] as String?)),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Date', Text(dateStr,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                        _detailRow(
+                            'Date',
+                            Text(dateStr,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Time', Text(timeStr,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                        _detailRow(
+                            'Time',
+                            Text(timeStr,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Platform', Text(c['platform'] as String? ?? 'Zoom Meeting',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                        _detailRow(
+                            'Platform',
+                            Text(c['platform'] as String? ?? 'Zoom Meeting',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         const Divider(height: 1, color: AppColors.blush),
-                        _detailRow('Status', Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: statusColor(status).withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(20)),
-                          child: Text(statusLabel(status),
-                              style: TextStyle(
-                                  color: statusColor(status),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12)),
-                        )),
+                        _detailRow(
+                            'Status',
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                  color: statusColor(status)
+                                      .withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(20)),
+                              child: Text(statusLabel(status),
+                                  style: TextStyle(
+                                      color: statusColor(status),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12)),
+                            )),
                         const Divider(height: 1, color: AppColors.blush),
                         Padding(
                           padding: const EdgeInsets.all(16),
@@ -268,7 +307,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13)),
                               const SizedBox(height: 6),
-                              Text(purpose.isEmpty ? 'No purpose specified.' : purpose,
+                              Text(
+                                  purpose.isEmpty
+                                      ? 'No purpose specified.'
+                                      : purpose,
                                   style: const TextStyle(
                                       color: AppColors.textMid, fontSize: 13)),
                             ],
@@ -322,7 +364,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2))
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
                             : const Text('Cancel Appointment'),
                       ),
                     ),
