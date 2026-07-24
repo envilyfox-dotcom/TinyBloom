@@ -59,12 +59,24 @@ class EducationScreen extends StatefulWidget {
   State<EducationScreen> createState() => _EducationScreenState();
 }
 
+// The tags an article carries — falls back to its single legacy `category`
+// for rows saved before the multi-tag picker existed.
+List<String> _articleTags(Map<String, dynamic> article) {
+  final tags = (article['tags'] as List?)?.whereType<String>().toList() ?? [];
+  if (tags.isNotEmpty) return tags;
+  final category = article['category'] as String?;
+  return [category ?? 'General'];
+}
+
 class _EducationScreenState extends State<EducationScreen> {
   List<Map<String, dynamic>> _articles = [];
   bool _loading = true;
   final ValueNotifier<String> _search = ValueNotifier('');
   Timer? _searchDebounce;
-  String _selectedCat = 'All';
+  // Empty means "All" — any tag selected matches an article carrying any of
+  // them (per product decision: filtering is OR across selected tags, not
+  // limited to a single category at a time).
+  final Set<String> _selectedTags = {};
 
   @override
   void initState() {
@@ -162,18 +174,11 @@ class _EducationScreenState extends State<EducationScreen> {
   }
 
   List<String> get _categories {
-    final cats = {
-      'All',
-      ..._articles.map((a) => a['category'] as String? ?? 'General')
-    }.toList();
-
-    cats.sort((a, b) {
-      if (a == 'All') return -1;
-      if (b == 'All') return 1;
-      return a.compareTo(b);
-    });
-
-    return cats;
+    final cats = <String>{};
+    for (final a in _articles) {
+      cats.addAll(_articleTags(a));
+    }
+    return cats.toList()..sort();
   }
 
   List<Map<String, dynamic>> get _filtered {
@@ -182,12 +187,15 @@ class _EducationScreenState extends State<EducationScreen> {
     return _articles.where((a) {
       final title = (a['title'] as String? ?? '').toLowerCase();
       final excerpt = (a['excerpt'] as String? ?? '').toLowerCase();
-      final category = a['category'] as String? ?? 'General';
 
-      final matchCat = _selectedCat == 'All' || category == _selectedCat;
+      // Any selected tag matching any of the article's tags is a match —
+      // selecting multiple filter chips widens the result set (OR), it
+      // doesn't narrow it (AND).
+      final matchTags = _selectedTags.isEmpty ||
+          _articleTags(a).any(_selectedTags.contains);
       final matchSearch = q.isEmpty || title.contains(q) || excerpt.contains(q);
 
-      return matchCat && matchSearch;
+      return matchTags && matchSearch;
     }).toList();
   }
 
@@ -289,18 +297,49 @@ class _EducationScreenState extends State<EducationScreen> {
                               height: 44,
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
-                                itemCount: _categories.length,
+                                itemCount: _categories.length + 1,
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(width: 8),
                                 itemBuilder: (context, index) {
-                                  final cat = _categories[index];
-                                  final selected = _selectedCat == cat;
+                                  if (index == 0) {
+                                    final selected = _selectedTags.isEmpty;
+                                    return ChoiceChip(
+                                      label: const Text('All'),
+                                      selected: selected,
+                                      onSelected: (_) =>
+                                          setState(_selectedTags.clear),
+                                      selectedColor: AppColors.tealLight,
+                                      backgroundColor: AppColors.white,
+                                      side: BorderSide(
+                                        color: selected
+                                            ? AppColors.teal
+                                            : AppColors.textLight
+                                                .withValues(alpha: 0.25),
+                                      ),
+                                      labelStyle: TextStyle(
+                                        color: selected
+                                            ? AppColors.teal
+                                            : AppColors.textMid,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                      checkmarkColor: AppColors.teal,
+                                    );
+                                  }
 
-                                  return ChoiceChip(
+                                  final cat = _categories[index - 1];
+                                  final selected = _selectedTags.contains(cat);
+
+                                  return FilterChip(
                                     label: Text(cat),
                                     selected: selected,
-                                    onSelected: (_) =>
-                                        setState(() => _selectedCat = cat),
+                                    onSelected: (_) => setState(() {
+                                      if (selected) {
+                                        _selectedTags.remove(cat);
+                                      } else {
+                                        _selectedTags.add(cat);
+                                      }
+                                    }),
                                     selectedColor: AppColors.tealLight,
                                     backgroundColor: AppColors.white,
                                     side: BorderSide(
@@ -326,9 +365,9 @@ class _EducationScreenState extends State<EducationScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    _selectedCat == 'All'
+                                    _selectedTags.isEmpty
                                         ? 'All Articles'
-                                        : _selectedCat,
+                                        : _selectedTags.join(', '),
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w800,
@@ -420,7 +459,7 @@ class _ArticleCardState extends State<_ArticleCard> {
   @override
   Widget build(BuildContext context) {
     final article = widget.article;
-    final category = article['category'] as String? ?? 'General';
+    final tags = _articleTags(article);
     final isLink = (article['url'] as String?)?.isNotEmpty == true;
     final author = article['author'] as Map<String, dynamic>?;
     final authorName = author?['full_name'] as String? ?? 'TinyBloom Team';
@@ -508,20 +547,22 @@ class _ArticleCardState extends State<_ArticleCard> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.tealLight,
-                  borderRadius: BorderRadius.circular(50),
+              for (final tag in tags)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.tealLight,
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: Text(
+                    tag,
+                    style: const TextStyle(
+                        color: AppColors.teal,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700),
+                  ),
                 ),
-                child: Text(
-                  category,
-                  style: const TextStyle(
-                      color: AppColors.teal,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                ),
-              ),
               if (isLink)
                 Container(
                   padding:

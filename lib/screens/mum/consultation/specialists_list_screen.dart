@@ -18,11 +18,29 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
   List<Map<String, dynamic>> _specialists = [];
   bool _loading = true;
   String? _error;
+  String? _selectedSpecialization;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  List<String> get _specializations {
+    final values = _specialists
+        .map((s) => (s['specialization'] as String? ?? '').trim())
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort();
+    return values;
+  }
+
+  List<Map<String, dynamic>> get _filteredSpecialists {
+    if (_selectedSpecialization == null) return _specialists;
+    return _specialists
+        .where((s) => s['specialization'] == _selectedSpecialization)
+        .toList();
   }
 
   Future<void> _load() async {
@@ -110,7 +128,52 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
                                     height: 1.35,
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                if (_specializations.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  DropdownButtonFormField<String>(
+                                    initialValue: _selectedSpecialization,
+                                    isDense: true,
+                                    style: const TextStyle(
+                                      color: AppColors.textDark,
+                                      fontSize: 13,
+                                    ),
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      filled: true,
+                                      fillColor:
+                                          AppColors.white.withValues(alpha: 0.55),
+                                      labelText: 'Filter by specialization',
+                                      labelStyle:
+                                          const TextStyle(fontSize: 12),
+                                      prefixIcon: const Icon(
+                                        Icons.filter_list,
+                                        color: AppColors.textMid,
+                                        size: 18,
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 10),
+                                    ),
+                                    hint: const Text('All specializations',
+                                        style: TextStyle(fontSize: 13)),
+                                    isExpanded: true,
+                                    items: [
+                                      const DropdownMenuItem<String>(
+                                        value: null,
+                                        child: Text('All specializations'),
+                                      ),
+                                      ..._specializations.map(
+                                        (s) => DropdownMenuItem<String>(
+                                          value: s,
+                                          child: Text(s),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (v) => setState(
+                                        () => _selectedSpecialization = v),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
                               ],
                             ),
                           ),
@@ -128,18 +191,21 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
                                         setState(() => _loading = true);
                                         _load();
                                       }))
-                              : _specialists.isEmpty
-                                  ? const SliverToBoxAdapter(
+                              : _filteredSpecialists.isEmpty
+                                  ? SliverToBoxAdapter(
                                       child: TBEmptyState(
                                           emoji: '👩‍⚕️',
-                                          title: 'No specialists available',
-                                          subtitle:
-                                              'Check back later for verified specialists.'))
+                                          title: _specialists.isEmpty
+                                              ? 'No specialists available'
+                                              : 'No specialists in this specialization',
+                                          subtitle: _specialists.isEmpty
+                                              ? 'Check back later for verified specialists.'
+                                              : 'Try selecting a different specialization.'))
                                   : SliverList.builder(
-                                      itemCount: _specialists.length,
+                                      itemCount: _filteredSpecialists.length,
                                       itemBuilder: (context, i) => providerCard(
                                           context,
-                                          _specialists[i],
+                                          _filteredSpecialists[i],
                                           'specialist'),
                                     ),
                         ),

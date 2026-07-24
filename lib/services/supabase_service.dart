@@ -443,15 +443,75 @@ class SupabaseService {
     return rows.first['review_groups'] as Map<String, dynamic>?;
   }
 
-  // Existing category tags, sourced from the same published articles shown
-  // on the Learn tab — so specialists pick from what's actually in use
-  // there instead of typing free text.
+  // The secondary group(s) mapped to a given primary group, used for the
+  // approval-2 reviewer pool — see Article_System_specialist.md §2
+  // ("Secondary group mapping").
+  static Future<List<Map<String, dynamic>>> getSecondaryGroupsFor(
+      int primaryGroupId) async {
+    final rows = await client
+        .from('group_secondary_map')
+        .select('secondary_group_id, review_groups!secondary_group_id(id, name)')
+        .eq('primary_group_id', primaryGroupId);
+    return List<Map<String, dynamic>>.from(rows)
+        .map((r) => r['review_groups'] as Map<String, dynamic>)
+        .toList();
+  }
+
+  // Member specialties of a review group, for the group-info dropdown — see
+  // Article_System_specialist.md §2 ("Member Specialties" column).
+  static Future<List<String>> getSpecialtiesForGroup(int groupId) async {
+    final rows = await client
+        .from('specialty_group_map')
+        .select('specialties(name)')
+        .eq('group_id', groupId);
+    return List<Map<String, dynamic>>.from(rows)
+        .map((r) => (r['specialties'] as Map<String, dynamic>?)?['name'] as String?)
+        .whereType<String>()
+        .toList()
+      ..sort();
+  }
+
+  // Trimester tags live in the same multi-select tag list as ordinary
+  // categories on the Create/Edit Article screens (per product decision —
+  // no separate "Relevant Trimester" section), but the legacy `category`/
+  // `trimester` columns are still derived from `tags` under the hood since
+  // baby_development_screen/features_screens still filter recommended
+  // articles by those columns directly.
+  static const trimesterTags = ['1st Trimester', '2nd Trimester', '3rd Trimester'];
+
+  static (String, int?) _deriveCategoryAndTrimester(List<String> tags) {
+    final category =
+        tags.firstWhere((t) => !trimesterTags.contains(t), orElse: () => 'General');
+    int? trimester;
+    for (var i = 0; i < trimesterTags.length; i++) {
+      if (tags.contains(trimesterTags[i])) {
+        trimester = i + 1;
+        break;
+      }
+    }
+    return (category, trimester);
+  }
+
+  // Existing tags, sourced from the same published articles shown on the
+  // Learn tab — so specialists pick from what's actually in use there
+  // instead of typing free text. Trimester tags are excluded since they're
+  // always offered separately in the picker regardless of past usage.
   static Future<List<String>> getArticleCategories() async {
     final articles = await getArticles();
     final cats = <String>{};
     for (final a in articles) {
-      final c = a['category'] as String?;
-      if (c != null && c.trim().isNotEmpty) cats.add(c.trim());
+      final tags = (a['tags'] as List?)?.whereType<String>().toList() ?? [];
+      if (tags.isEmpty) {
+        final c = a['category'] as String?;
+        if (c != null && c.trim().isNotEmpty) cats.add(c.trim());
+      } else {
+        for (final t in tags) {
+          final trimmed = t.trim();
+          if (trimmed.isNotEmpty && !trimesterTags.contains(trimmed)) {
+            cats.add(trimmed);
+          }
+        }
+      }
     }
     final list = cats.toList()..sort();
     return list;
@@ -461,12 +521,12 @@ class SupabaseService {
     required String title,
     required String content,
     required int primaryGroupId,
-    required String category,
-    int? trimester,
+    required List<String> tags,
   }) async {
     final user = currentUser;
     final slug =
         '${title.toLowerCase().replaceAll(RegExp(r"[^a-z0-9\s-]"), '').trim().replaceAll(RegExp(r'\s+'), '-')}-${DateTime.now().millisecondsSinceEpoch}';
+    final (category, trimester) = _deriveCategoryAndTrimester(tags);
     final res = await client
         .from('articles')
         .insert({
@@ -475,6 +535,7 @@ class SupabaseService {
           'content': content,
           'category': category,
           'trimester': trimester,
+          'tags': tags,
           'primary_group_id': primaryGroupId,
           'status': 'draft',
           'created_by': user?.id,
@@ -553,25 +614,21 @@ class SupabaseService {
     await client.from('articles').delete().eq('id', id);
   }
 
-  // Edits an article's own fields (title/content/category/trimester) —
-  // never primary_group_id, which stays whatever it was tagged at
-  // submission. Available to the author at any point before publish; if a
-  // review is already in progress, edit_article_content voids any approval
-  // already granted (it was given for the old text) and resets to
-  // pending_approval_1 for a fresh review of the edited text.
+  // Edits an article's own fields (title/content/tags) — never
+  // primary_group_id, which stays whatever it was tagged at submission.
+  // Available to the author at any point before publish. category/trimester
+  // are derived from tags server-side (see edit_article_content).
   static Future<void> updateArticleDraft(
     String id, {
     required String title,
     required String content,
-    required String category,
-    int? trimester,
+    required List<String> tags,
   }) async {
     await client.rpc('edit_article_content', params: {
       'p_content_id': id,
       'p_title': title,
       'p_content': content,
-      'p_category': category,
-      'p_trimester': trimester,
+      'p_tags': tags,
     });
   }
 

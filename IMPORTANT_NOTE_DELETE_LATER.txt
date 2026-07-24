@@ -1,0 +1,8 @@
+Flagged for your review — not implemented
+1. features_screens.dart duplicates: it still contains parallel implementations of 
+Education/Consultation/Specialists/Volunteers screens that also exist as standalone files. 
+Deciding which set the router actually uses and deleting the dead set is a refactor I've held per 
+your instruction.
+2. N+1 query in volunteers_list_screen.dart:36: one getVolunteerServices request per volunteer. The fix 
+would be a single batched .inFilter('user_id', ids) query in SupabaseService plus client-side grouping — 
+say the word and I'll implement it.

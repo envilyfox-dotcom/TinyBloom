@@ -39,14 +39,12 @@ class _SpecialistEditArticleScreenState
   bool _saving = false;
   bool _deleting = false;
   bool _uploadingImage = false;
-  int? _trimester;
-  String? _category;
+  late final Set<String> _selectedTags;
 
-  static const _trimesterOptions = [
-    {'value': 1, 'label': '1st Trimester'},
-    {'value': 2, 'label': '2nd Trimester'},
-    {'value': 3, 'label': '3rd Trimester'},
-  ];
+  // Trimester tags sit in the same multi-select tag list as ordinary
+  // categories — no separate "Relevant Trimester" section.
+  List<String> get _allTagOptions =>
+      [..._categories, ...SupabaseService.trimesterTags];
 
   // Submitting for review is only valid while the article hasn't cleared
   // the pipeline yet (mirrors resubmit_content's own status guard) — once
@@ -64,8 +62,24 @@ class _SpecialistEditArticleScreenState
         TextEditingController(text: widget.article['title'] as String? ?? '');
     _contentCtrl = TextEditingController(
         text: widget.article['content'] as String? ?? '');
-    _category = widget.article['category'] as String?;
-    _trimester = widget.article['trimester'] as int?;
+    final existingTags =
+        (widget.article['tags'] as List?)?.whereType<String>().toList() ?? [];
+    if (existingTags.isNotEmpty) {
+      _selectedTags = existingTags.toSet();
+    } else {
+      // Pre-tags articles: seed from the legacy single category/trimester
+      // values so editing an old draft doesn't start with an empty picker.
+      final legacyCategory = widget.article['category'] as String?;
+      final legacyTrimester = widget.article['trimester'] as int?;
+      _selectedTags = {
+        if (legacyCategory != null && legacyCategory.trim().isNotEmpty)
+          legacyCategory.trim(),
+        if (legacyTrimester != null &&
+            legacyTrimester >= 1 &&
+            legacyTrimester <= 3)
+          SupabaseService.trimesterTags[legacyTrimester - 1],
+      };
+    }
     _load();
   }
 
@@ -187,9 +201,9 @@ class _SpecialistEditArticleScreenState
 
   Future<void> _save({required bool submitForReview}) async {
     if (!_formKey.currentState!.validate()) return;
-    if (_category == null) {
+    if (_selectedTags.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please choose a category.')));
+          .showSnackBar(const SnackBar(content: Text('Please choose at least one tag.')));
       return;
     }
     setState(() => _saving = true);
@@ -198,8 +212,7 @@ class _SpecialistEditArticleScreenState
         widget.article['id'] as String,
         title: _titleCtrl.text.trim(),
         content: _contentCtrl.text.trim(),
-        category: _category!,
-        trimester: _trimester,
+        tags: _selectedTags.toList(),
       );
       if (submitForReview) {
         await SupabaseService.submitContentForReview(
@@ -499,7 +512,7 @@ class _SpecialistEditArticleScreenState
                         const SizedBox(height: 20),
                         const Align(
                           alignment: Alignment.centerLeft,
-                          child: Text('Category',
+                          child: Text('Tags',
                               style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
@@ -509,61 +522,18 @@ class _SpecialistEditArticleScreenState
                         const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                              'Pick from the categories already used on the Learn tab.',
+                              'Pick as many as apply — categories already used on the Learn tab, plus the relevant trimester(s).',
                               style: TextStyle(
                                   color: AppColors.textLight, fontSize: 12)),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_categories.isEmpty)
-                          const Text('No categories exist yet.',
-                              style: TextStyle(
-                                  color: AppColors.textLight, fontSize: 12))
-                        else
-                          Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: _categories.map((c) {
-                                final sel = _category == c;
-                                return ChoiceChip(
-                                  label: Text(c,
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: sel
-                                              ? AppColors.teal
-                                              : AppColors.textMid,
-                                          fontWeight: sel
-                                              ? FontWeight.w600
-                                              : FontWeight.normal)),
-                                  selected: sel,
-                                  onSelected: (_) =>
-                                      setState(() => _category = c),
-                                  selectedColor: AppColors.tealLight,
-                                  backgroundColor: AppColors.white,
-                                  side: BorderSide(
-                                      color: sel
-                                          ? AppColors.teal
-                                          : AppColors.textLight
-                                              .withValues(alpha: 0.3)),
-                                );
-                              }).toList()),
-                        const SizedBox(height: 20),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('Relevant Trimester (optional)',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  color: AppColors.textMid)),
                         ),
                         const SizedBox(height: 8),
                         Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: _trimesterOptions.map((t) {
-                              final value = t['value'] as int;
-                              final sel = _trimester == value;
+                            children: _allTagOptions.map((tag) {
+                              final sel = _selectedTags.contains(tag);
                               return FilterChip(
-                                label: Text(t['label'] as String,
+                                label: Text(tag,
                                     style: TextStyle(
                                         fontSize: 12,
                                         color: sel
@@ -573,8 +543,13 @@ class _SpecialistEditArticleScreenState
                                             ? FontWeight.w600
                                             : FontWeight.normal)),
                                 selected: sel,
-                                onSelected: (_) => setState(
-                                    () => _trimester = sel ? null : value),
+                                onSelected: (_) => setState(() {
+                                  if (sel) {
+                                    _selectedTags.remove(tag);
+                                  } else {
+                                    _selectedTags.add(tag);
+                                  }
+                                }),
                                 selectedColor: AppColors.tealLight,
                                 checkmarkColor: AppColors.teal,
                                 backgroundColor: AppColors.white,

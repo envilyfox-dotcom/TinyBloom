@@ -23,6 +23,15 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
+// The tags an article carries — falls back to its single legacy `category`
+// for rows saved before the multi-tag picker existed.
+List<String> _articleTags(Map<String, dynamic> article) {
+  final tags = (article['tags'] as List?)?.whereType<String>().toList() ?? [];
+  if (tags.isNotEmpty) return tags;
+  final category = article['category'] as String?;
+  return category != null ? [category] : [];
+}
+
 // A more saturated green than AppColors.sage for the "Approved by" badge —
 // sage reads too muted against the white card for this particular chip.
 const _approvedGreen = Color(0xFF2E9E5B);
@@ -306,21 +315,28 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (article['category'] != null)
+                              if (_articleTags(article).isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 10),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                        color: AppColors.tealLight,
-                                        borderRadius:
-                                            BorderRadius.circular(50)),
-                                    child: Text(article['category'],
-                                        style: const TextStyle(
-                                            color: AppColors.teal,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600)),
+                                  child: Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      for (final tag in _articleTags(article))
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                              color: AppColors.tealLight,
+                                              borderRadius:
+                                                  BorderRadius.circular(50)),
+                                          child: Text(tag,
+                                              style: const TextStyle(
+                                                  color: AppColors.teal,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600)),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               Text(article['title'] ?? '',

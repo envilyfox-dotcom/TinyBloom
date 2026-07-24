@@ -1032,17 +1032,20 @@ class _SpecialistReviewThreadScreenState
     const labels = {
       'title': 'Title',
       'content': 'Content',
-      'category': 'Category',
-      'trimester': 'Trimester',
+      'tags': 'Tags',
     };
     final changed = List<String>.from(e['changed_fields'] ?? []);
     final createdAt = DateTime.tryParse(e['created_at'] as String? ?? '');
     final changedLabel = changed.map((c) => labels[c] ?? c).join(', ');
 
+    // tags is stored as a Postgres array, so old/new come back as a List —
+    // join it for display instead of falling through to Dart's `[a, b]`.
+    String fmtVal(dynamic v) => v is List ? v.join(', ') : (v?.toString() ?? '');
+
     Widget diffRow(String fieldKey, String label) {
       if (!changed.contains(fieldKey)) return const SizedBox.shrink();
-      final oldVal = e['old_$fieldKey']?.toString() ?? '';
-      final newVal = e['new_$fieldKey']?.toString() ?? '';
+      final oldVal = fmtVal(e['old_$fieldKey']);
+      final newVal = fmtVal(e['new_$fieldKey']);
       return SizedBox(
         width: double.infinity,
         child: Padding(
@@ -1086,8 +1089,7 @@ class _SpecialistReviewThreadScreenState
         children: [
           diffRow('title', 'Title'),
           diffRow('content', 'Content'),
-          diffRow('category', 'Category'),
-          diffRow('trimester', 'Trimester'),
+          diffRow('tags', 'Tags'),
         ],
       ),
     );
