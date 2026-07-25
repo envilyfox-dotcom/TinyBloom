@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/specialist_group_cache.dart';
 import '../services/supabase_service.dart';
 
 /// Single shared instance so the router (refreshListenable) and the
@@ -116,6 +117,7 @@ class AuthProvider extends ChangeNotifier {
       await SupabaseService.signOut();
       _user = null;
       _profile = null;
+      SpecialistGroupCache.clear();
       notifyListeners();
       return null;
     } catch (e) {

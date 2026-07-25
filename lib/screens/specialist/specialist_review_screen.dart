@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../services/specialist_group_cache.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -37,6 +38,7 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
   Map<String, dynamic>? _myPrimaryGroup;
   List<Map<String, dynamic>> _mySecondaryGroups = [];
   Map<int, List<String>> _groupSpecialties = {};
+  bool _groupInfoLoading = true;
 
   @override
   void initState() {
@@ -70,10 +72,25 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
     }
   }
 
-  // Backs the "?" info button — a doctor's own primary/secondary group
-  // standing rarely changes mid-session, so this loads once alongside the
-  // queue rather than being tied to the tab/refresh cycle.
+  // Backs the "?" info button. A doctor's specialization is fixed at
+  // registration and can't be changed from the app, so their primary/
+  // secondary group standing never changes for the life of the session —
+  // cache it after the first fetch instead of re-hitting the network (and
+  // racing the info button) every time this screen remounts.
   Future<void> _loadGroupInfo() async {
+    final userId = SupabaseService.currentUser?.id;
+    if (userId != null && SpecialistGroupCache.isValidFor(userId)) {
+      setState(() {
+        _myName = SpecialistGroupCache.name;
+        _mySpecialization = SpecialistGroupCache.specialization;
+        _myPrimaryGroup = SpecialistGroupCache.primaryGroup;
+        _mySecondaryGroups = SpecialistGroupCache.secondaryGroups;
+        _groupSpecialties = SpecialistGroupCache.groupSpecialties;
+        _groupInfoLoading = false;
+      });
+      return;
+    }
+
     try {
       final profile = await SupabaseService.getProfile();
       final specialistProfile = await SupabaseService.getMySpecialistProfile();
@@ -92,21 +109,38 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
         specialtiesByGroup[id] = await SupabaseService.getSpecialtiesForGroup(id);
       }));
 
+      final name = profile?['full_name'] as String?;
+      final specialization = specialistProfile?['specialization'] as String?;
+
+      if (userId != null) {
+        SpecialistGroupCache.save(
+          userId: userId,
+          name: name,
+          specialization: specialization,
+          primaryGroup: primaryGroup,
+          secondaryGroups: secondaryGroups,
+          groupSpecialties: specialtiesByGroup,
+        );
+      }
+
       if (mounted) {
         setState(() {
-          _myName = profile?['full_name'] as String?;
-          _mySpecialization = specialistProfile?['specialization'] as String?;
+          _myName = name;
+          _mySpecialization = specialization;
           _myPrimaryGroup = primaryGroup;
           _mySecondaryGroups = secondaryGroups;
           _groupSpecialties = specialtiesByGroup;
+          _groupInfoLoading = false;
         });
       }
     } catch (_) {
       // Non-critical — the info button just won't have data to show.
+      if (mounted) setState(() => _groupInfoLoading = false);
     }
   }
 
   void _showGroupInfo() {
+    if (_groupInfoLoading) return;
     showDialog(
       context: context,
       builder: (ctx) => _GroupInfoDialog(
@@ -280,15 +314,20 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Review')),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'review_group_info',
-        mini: true,
-        backgroundColor: AppColors.rose,
-        foregroundColor: Colors.white,
-        onPressed: _showGroupInfo,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.question_mark_rounded, size: 18),
-      ),
+      // The body's TBLoading (below) stays up until group info is ready too,
+      // so this and the rest of the page always appear together in one
+      // shot — no separate spinner-in-a-button loading state of its own.
+      floatingActionButton: _groupInfoLoading
+          ? null
+          : FloatingActionButton(
+              heroTag: 'review_group_info',
+              mini: true,
+              backgroundColor: AppColors.rose,
+              foregroundColor: Colors.white,
+              onPressed: _showGroupInfo,
+              shape: const CircleBorder(),
+              child: const Icon(Icons.question_mark_rounded, size: 18),
+            ),
       body: SafeArea(
         child: Column(
           children: [
@@ -305,7 +344,7 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
               ),
             ),
             Expanded(
-              child: _loading
+              child: _loading || _groupInfoLoading
                   ? const TBLoading()
                   : _loadError != null
                       ? Center(
