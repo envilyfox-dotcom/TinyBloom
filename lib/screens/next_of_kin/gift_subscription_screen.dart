@@ -37,6 +37,8 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
     if (mounted) setState(() { _linkedMum = mum; _loading = false; });
   }
 
+  bool get _mumIsPremium => _linkedMum?['role'] == 'premium_user';
+
   Future<void> _proceedToPayment() async {
     final plan = _selectedPlan;
     final mum = _linkedMum;
@@ -116,19 +118,52 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
                                 ?.copyWith(fontSize: 20)),
                       ),
                       const SizedBox(height: 20),
-                      for (final entry in subscriptionPlans.entries) ...[
-                        _planTile(entry.key, entry.value['label']!, entry.value['price']!),
-                        const SizedBox(height: 12),
+                      if (_mumIsPremium) ...[
+                        _alreadyPremiumCard(),
+                      ] else ...[
+                        for (final entry in subscriptionPlans.entries) ...[
+                          _planTile(entry.key, entry.value['label']!, entry.value['price']!),
+                          const SizedBox(height: 12),
+                        ],
+                        const SizedBox(height: 8),
+                        TBButton(
+                          label: 'Proceed to Payment',
+                          loading: _gifting,
+                          onPressed: _selectedPlan == null ? null : _proceedToPayment,
+                        ),
                       ],
-                      const SizedBox(height: 8),
-                      TBButton(
-                        label: 'Proceed to Payment',
-                        loading: _gifting,
-                        onPressed: _selectedPlan == null ? null : _proceedToPayment,
-                      ),
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _alreadyPremiumCard() {
+    final plan = _linkedMum?['subscription_plan'] as String?;
+    final planLabel = subscriptionPlans[plan]?['label'] ?? 'Premium';
+    final name = _linkedMum?['full_name'] ?? 'She';
+    return TBCard(
+      color: AppColors.blush,
+      borderRadius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text('⭐', style: TextStyle(fontSize: 28)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Already Premium',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('$name is already on the $planLabel plan — no need to gift a subscription right now.',
+              style: const TextStyle(color: AppColors.textMid, fontSize: 13, height: 1.4)),
+        ],
+      ),
     );
   }
 

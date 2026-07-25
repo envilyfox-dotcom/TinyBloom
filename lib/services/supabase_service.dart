@@ -1096,7 +1096,7 @@ class SupabaseService {
       final link = await client
           .from('next_of_kin_profiles')
           .select(
-              'relationship, mum:linked_pregnant_user_id(id, full_name, email)')
+              'relationship, mum:linked_pregnant_user_id(id, full_name, email, role, subscription_plan)')
           .eq('user_id', user.id)
           .maybeSingle()
           .timeout(const Duration(seconds: 6));
@@ -1131,6 +1131,8 @@ class SupabaseService {
         'email': mum['email'],
         'relationship': link?['relationship'],
         'current_week': week,
+        'role': mum['role'],
+        'subscription_plan': mum['subscription_plan'],
       };
     } catch (_) {
       return null;
