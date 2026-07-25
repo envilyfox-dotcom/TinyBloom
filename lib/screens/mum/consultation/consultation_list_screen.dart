@@ -19,6 +19,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   late TabController _tabs;
   List<Map<String, dynamic>> _consultations = [];
   bool _loading = true;
+  // Next-of-kin can only view the linked mum's consultations — booking is
+  // her own action, so the "Book New" tab and any booking CTA are hidden.
+  bool _isNextOfKin = false;
 
   static const _filterOptions = [
     'All',
@@ -35,7 +38,8 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _isNextOfKin = context.read<AuthProvider>().isNextOfKin;
+    _tabs = TabController(length: _isNextOfKin ? 1 : 2, vsync: this);
     _load();
   }
 
@@ -259,13 +263,18 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
           },
         ),
         title: const Text('Consultations'),
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: AppColors.teal,
-          labelColor: AppColors.teal,
-          unselectedLabelColor: AppColors.textLight,
-          tabs: const [Tab(text: 'My Consultations'), Tab(text: 'Book New')],
-        ),
+        bottom: _isNextOfKin
+            ? null
+            : TabBar(
+                controller: _tabs,
+                indicatorColor: AppColors.teal,
+                labelColor: AppColors.teal,
+                unselectedLabelColor: AppColors.textLight,
+                tabs: const [
+                  Tab(text: 'My Consultations'),
+                  Tab(text: 'Book New')
+                ],
+              ),
       ),
       body: TabBarView(
         controller: _tabs,
@@ -313,11 +322,14 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                             ? TBEmptyState(
                                 emoji: '👩‍⚕️',
                                 title: 'No consultations yet',
-                                subtitle: isPremium
-                                    ? 'Book a consultation with a specialist or ask a volunteer a question.'
-                                    : 'Ask a community volunteer a question.',
-                                buttonLabel: 'Book Now',
-                                onButton: () => _tabs.animateTo(1))
+                                subtitle: _isNextOfKin
+                                    ? 'Consultations booked by the linked pregnant user will show up here.'
+                                    : isPremium
+                                        ? 'Book a consultation with a specialist or ask a volunteer a question.'
+                                        : 'Ask a community volunteer a question.',
+                                buttonLabel: _isNextOfKin ? null : 'Book Now',
+                                onButton:
+                                    _isNextOfKin ? null : () => _tabs.animateTo(1))
                             : _filteredConsultations.isEmpty
                                 ? TBEmptyState(
                                     emoji: '🔍',
@@ -427,8 +439,10 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
             ],
           ),
 
-          // Tab 2: Book new — everyone can reach volunteers; specialists are premium-only.
-          _buildBookTab(isPremium),
+          // Tab 2: Book new — everyone can reach volunteers; specialists are
+          // premium-only. Not shown to next-of-kin at all (see TabController
+          // length and AppBar.bottom above).
+          if (!_isNextOfKin) _buildBookTab(isPremium),
         ],
       ),
     );

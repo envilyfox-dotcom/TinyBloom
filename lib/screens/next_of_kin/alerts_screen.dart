@@ -7,17 +7,37 @@ import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 
 // ── Notifications Centre (Next of Kin) ────────────────────────────────
-// A small, dedicated alerts list for next-of-kin — deliberately not the
-// mum's NotificationsScreen (notifications_screen.dart), which is a large
-// system entirely scoped to the *logged-in user's own* consultations/
-// health logs/pregnancy logs. Reusing it as-is would show a next-of-kin's
-// own (empty) data, not their linked mum's. This shows the full,
-// un-truncated version of the same derived alerts the dashboard preview
-// shows. Dismissal is local only, same placeholder as the dashboard.
+// Restyled to match the mum's NotificationsScreen (header with urgent
+// badge, title, unread-style count, "Clear all", horizontal filter chips,
+// notification-card look) — but deliberately keeps the smaller data
+// source used before (the linked mum's milestones + consultations),
+// not the mum's full multi-table system (health logs, articles, AI
+// recommendations, etc.), which is scoped to the *logged-in user's own*
+// data and isn't applicable to a next-of-kin viewer. Dismissal is local/
+// session-only, same as before.
 class NextOfKinAlertsScreen extends StatefulWidget {
   const NextOfKinAlertsScreen({super.key});
   @override
   State<NextOfKinAlertsScreen> createState() => _NextOfKinAlertsScreenState();
+}
+
+class _AlertItem {
+  final String key;
+  final String type; // 'milestone' | 'consultation'
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  _AlertItem({
+    required this.key,
+    required this.type,
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 }
 
 class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
@@ -25,7 +45,10 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
   List<Map<String, dynamic>> _consultations = [];
   Map<String, String> _providerNames = {};
   bool _loading = true;
+  String _selectedFilter = 'All';
   final Set<String> _dismissedAlertKeys = {};
+
+  static const _filters = ['All', 'Milestone', 'Consultation'];
 
   @override
   void initState() {
@@ -105,139 +128,360 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
         .showSnackBar(SnackBar(content: Text('$feature — coming soon')));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notifications Centre')),
-      body: _loading
-          ? const TBLoading()
-          : RefreshIndicator(
-              onRefresh: _load,
-              color: AppColors.rose,
-              child: _linkedMum == null
-                  ? ListView(children: [
-                      TBEmptyState(
-                        emoji: '🔗',
-                        title: 'Not linked yet',
-                        subtitle:
-                            "Link to a pregnant user's account to see her alerts.",
-                        buttonLabel: 'Link to Pregnant User',
-                        onButton: () => context.push('/next-of-kin/link'),
-                      ),
-                    ])
-                  : _buildAlertsList(),
-            ),
-    );
-  }
-
-  Widget _buildAlertsList() {
+  List<_AlertItem> get _allAlerts {
     final week = _linkedMumWeek;
-
     final activeConsultations = _consultations.where((c) {
       final status = (c['status'] as String? ?? '').toLowerCase();
       return status == 'pending' || status == 'confirmed';
     }).toList();
 
-    final specs = <(
-      String key,
-      IconData icon,
-      Color iconBg,
-      Color iconColor,
-      String title,
-      String subtitle,
-      VoidCallback onTap
-    )>[
+    return [
       if (week > 0)
-        (
-          'milestone-$week',
-          Icons.auto_awesome,
-          AppColors.rose.withValues(alpha: 0.15),
-          AppColors.roseDeep,
-          'New Milestone',
-          'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
-          () => _comingSoon('Milestone journey'),
+        _AlertItem(
+          key: 'milestone-$week',
+          type: 'milestone',
+          icon: Icons.auto_awesome,
+          color: AppColors.rose,
+          title: 'New Milestone',
+          subtitle:
+              'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
+          onTap: () => _comingSoon('Milestone journey'),
         ),
       for (final c in activeConsultations)
-        (
-          'consultation-${c['id']}',
-          Icons.calendar_today_outlined,
-          AppColors.sage.withValues(alpha: 0.15),
-          AppColors.sage,
-          _appointmentDateLabel(c['scheduled_date'] as String?),
-          _appointmentSubtitle(c),
-          () => context.push('/consultation'),
+        _AlertItem(
+          key: 'consultation-${c['id']}',
+          type: 'consultation',
+          icon: Icons.calendar_month_outlined,
+          color: AppColors.sage,
+          title: _appointmentDateLabel(c['scheduled_date'] as String?),
+          subtitle: _appointmentSubtitle(c),
+          onTap: () => context.push('/consultation'),
         ),
     ];
+  }
 
-    final visible =
-        specs.where((s) => !_dismissedAlertKeys.contains(s.$1)).toList();
+  List<_AlertItem> get _visibleAlerts =>
+      _allAlerts.where((a) => !_dismissedAlertKeys.contains(a.key)).toList();
 
-    if (visible.isEmpty) {
-      return ListView(children: const [
-        TBEmptyState(
-            emoji: '🔔',
-            title: 'No active alerts',
-            subtitle: 'Milestones and upcoming appointments will show up here.'),
-      ]);
-    }
+  List<_AlertItem> get _filteredAlerts {
+    final visible = _visibleAlerts;
+    if (_selectedFilter == 'All') return visible;
+    return visible
+        .where((a) => a.type == _selectedFilter.toLowerCase())
+        .toList();
+  }
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        for (final s in visible)
-          _alertCard(
-            icon: s.$2,
-            iconBg: s.$3,
-            iconColor: s.$4,
-            title: s.$5,
-            subtitle: s.$6,
-            onTap: () {
-              setState(() => _dismissedAlertKeys.add(s.$1));
-              s.$7();
-            },
+  int get _urgentCount => _visibleAlerts
+      .where((a) => a.type == 'consultation' && a.title.contains('Today'))
+      .length;
+
+  void _dismiss(_AlertItem item) {
+    setState(() => _dismissedAlertKeys.add(item.key));
+  }
+
+  void _clearAll() {
+    setState(() {
+      _dismissedAlertKeys.addAll(_visibleAlerts.map((a) => a.key));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: _loading
+            ? const TBLoading()
+            : RefreshIndicator(
+                onRefresh: _load,
+                color: AppColors.rose,
+                child: _linkedMum == null
+                    ? ListView(children: [
+                        TBEmptyState(
+                          emoji: '🔗',
+                          title: 'Not linked yet',
+                          subtitle:
+                              "Link to a pregnant user's account to see her alerts.",
+                          buttonLabel: 'Link to Pregnant User',
+                          onButton: () => context.push('/next-of-kin/link'),
+                        ),
+                      ])
+                    : _buildContent(),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    final visible = _visibleAlerts;
+    final filtered = _filteredAlerts;
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/home');
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 18,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_urgentCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$_urgentCount Today',
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Center(
+                  child: Text(
+                    'Notifications Centre',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Center(
+                  child: Text(
+                    visible.isEmpty
+                        ? 'You are all caught up 🌸'
+                        : '${visible.length} active alert${visible.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      color: AppColors.textMid,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (visible.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _clearAll,
+                      icon: const Icon(Icons.done_all, size: 16),
+                      label: const Text('Clear all'),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                _buildFilters(),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          sliver: filtered.isEmpty
+              ? SliverToBoxAdapter(child: _emptyState())
+              : SliverList.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, i) => _alertCard(filtered[i]),
+                ),
+        ),
       ],
     );
   }
 
-  Widget _alertCard({
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TBCard(
-        onTap: onTap,
+  Widget _buildFilters() {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _filters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final filter = _filters[index];
+          final selected = filter == _selectedFilter;
+
+          return GestureDetector(
+            onTap: () => setState(() => _selectedFilter = filter),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.rose : AppColors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.rose
+                      : AppColors.textLight.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Text(
+                filter,
+                style: TextStyle(
+                  color: selected ? Colors.white : AppColors.textMid,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Column(
+        children: [
+          Icon(
+            Icons.notifications_none_outlined,
+            size: 42,
+            color: AppColors.textLight,
+          ),
+          SizedBox(height: 10),
+          Text(
+            'No active alerts',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Milestones and upcoming appointments will show up here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textLight,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _sectionTitle(String type) =>
+      type == 'milestone' ? 'Pregnancy Milestone' : 'Consultation Update';
+
+  Widget _alertCard(_AlertItem item) {
+    return GestureDetector(
+      onTap: () {
+        _dismiss(item);
+        item.onTap();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: item.color.withValues(alpha: 0.38)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textDark.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
-                  color: iconBg, borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: iconColor, size: 20),
+                color: item.color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(item.icon, color: item.color, size: 24),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14)),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: AppColors.textLight, fontSize: 12)),
+                  Text(
+                    _sectionTitle(item.type),
+                    style: TextStyle(
+                      color: item.color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.subtitle,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textMid,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                color: AppColors.textLight, size: 18),
+            const SizedBox(width: 8),
+            Column(
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    color: AppColors.rose,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textLight,
+                  size: 20,
+                ),
+              ],
+            ),
           ],
         ),
       ),

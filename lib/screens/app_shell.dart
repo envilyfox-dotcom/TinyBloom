@@ -32,9 +32,9 @@ class AppShell extends StatelessWidget {
   static const _tabsVolunteer = [
     '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/profile'];
 
-  // Next-of-kin tabs — Home | Logs | Articles | Checklist | Profile
+  // Next-of-kin tabs — Home | Logs | Articles | Forum | Checklist | Profile
   static const _tabsNextOfKin = [
-    '/home', '/logs', '/education',
+    '/home', '/logs', '/education', '/forum',
     '/next-of-kin/checklist', '/profile'];
 
   @override
@@ -70,6 +70,11 @@ class AppShell extends StatelessWidget {
               icon: Icon(Icons.menu_book_outlined),
               activeIcon: Icon(Icons.menu_book),
               label: 'Articles',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.forum_outlined),
+              activeIcon: Icon(Icons.forum),
+              label: 'Forum',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.checklist_outlined),

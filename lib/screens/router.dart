@@ -113,14 +113,16 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/volunteer/profile')) idx = 4;
         } else if (isNextOfKin) {
-          // Home(0) | Logs(1) | Articles(2) | Checklist(3) | Profile(4)
+          // Home(0) | Logs(1) | Articles(2) | Forum(3) | Checklist(4) | Profile(5)
           if (location.startsWith('/logs')) {
             idx = 1;
           } else if (location.startsWith('/education'))
             idx = 2;
-          else if (location.startsWith('/next-of-kin/checklist'))
+          else if (location.startsWith('/forum'))
             idx = 3;
-          else if (location.startsWith('/profile')) idx = 4;
+          else if (location.startsWith('/next-of-kin/checklist'))
+            idx = 4;
+          else if (location.startsWith('/profile')) idx = 5;
         } else if (isMum) {
           if (location.startsWith('/logs')) {
             idx = 1;
