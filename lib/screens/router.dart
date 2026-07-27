@@ -45,6 +45,7 @@ import 'mum/consultation/post_volunteer_question_screen.dart';
 import 'mum/consultation/volunteer_question_detail_screen.dart';
 import 'app_shell.dart';
 import 'mum/onboarding/mum_onboarding_screen.dart';
+import 'specialist/specialist_onboarding_screen.dart';
 import 'specialist/specialist_dashboard_screen.dart';
 import 'specialist/specialist_profile_screen.dart';
 import 'specialist/specialist_edit_profile_screen.dart';
@@ -90,7 +91,12 @@ final router = GoRouter(
         path: '/forgot-password',
         builder: (_, __) => const ForgotPasswordScreen()),
     GoRoute(
-        path: '/onboarding', builder: (_, __) => const MumOnboardingScreen()),
+        path: '/onboarding',
+        builder: (context, __) {
+          final auth = context.read<AuthProvider>();
+          if (auth.isSpecialist) return const SpecialistOnboardingScreen();
+          return const MumOnboardingScreen();
+        }),
 
     // ── Shell (bottom nav) ────────────────────────────────────────
     ShellRoute(

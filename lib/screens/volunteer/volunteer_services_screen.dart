@@ -545,11 +545,8 @@ class ServiceFormScreen extends StatefulWidget {
 class _ServiceFormScreenState extends State<ServiceFormScreen> {
   late TextEditingController _titleCtrl;
   late TextEditingController _descCtrl;
-<<<<<<< Updated upstream
   late TextEditingController _catCtrl;
-=======
   late TextEditingController _zoomCtrl;
->>>>>>> Stashed changes
   DateTime? _availDate;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -561,11 +558,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     _titleCtrl = TextEditingController(text: widget.service?['title'] ?? '');
     _descCtrl =
         TextEditingController(text: widget.service?['description'] ?? '');
-<<<<<<< Updated upstream
     _catCtrl = TextEditingController(text: widget.service?['category'] ?? '');
-=======
     _zoomCtrl = TextEditingController(text: widget.service?['zoom_link'] ?? '');
->>>>>>> Stashed changes
 
     final avail = widget.service?['availability'] as String?;
     if (avail != null && avail.contains(' | ')) {
@@ -601,11 +595,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-<<<<<<< Updated upstream
     _catCtrl.dispose();
-=======
     _zoomCtrl.dispose();
->>>>>>> Stashed changes
     super.dispose();
   }
 
@@ -781,32 +772,20 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
           'availability': availability,
-<<<<<<< Updated upstream
           'category': _catCtrl.text.trim(),
           'zoom_link': zoomLink,
-          'status': 'available',
-        });
-      } else if (widget.mode == ServiceMode.edit) {
-        // zoom_link is left untouched — the meeting created at publish
-        // time is still the same real, joinable link.
-=======
-          'zoom_link': _zoomCtrl.text.trim(),
           'status': 'available',
         });
       } else if (widget.mode == ServiceMode.edit) {
         final oldAvailability =
             (widget.service!['availability'] ?? '').toString();
         final timingChanged = availability != oldAvailability;
->>>>>>> Stashed changes
         await SupabaseService.client.from('volunteer_services').update({
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
           'availability': availability,
-<<<<<<< Updated upstream
           'category': _catCtrl.text.trim(),
-=======
           'zoom_link': _zoomCtrl.text.trim(),
->>>>>>> Stashed changes
         }).eq('id', widget.service!['id']);
 
         // Broadcast (user_id: null) so every mum's Notifications Centre
@@ -967,14 +946,9 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-<<<<<<< Updated upstream
               _field('Category', _catCtrl, readOnly: isReadOnly),
               const SizedBox(height: 12),
               _zoomLinkSection(),
-=======
-              _field('Zoom Link (for mums to join)', _zoomCtrl,
-                  readOnly: isReadOnly),
->>>>>>> Stashed changes
               const SizedBox(height: 20),
               if (isView)
                 // Completed services are read-only — a single Close button,

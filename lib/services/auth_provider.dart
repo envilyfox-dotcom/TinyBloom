@@ -90,6 +90,10 @@ class AuthProvider extends ChangeNotifier {
       if (isMum) {
         final pp = await SupabaseService.getPregnancyProfile();
         _needsOnboarding = pp == null;
+      } else if (isSpecialist) {
+        final sp = await SupabaseService.getMySpecialistProfile();
+        final hours = sp?['available_hours'] as String?;
+        _needsOnboarding = hours == null || hours.trim().isEmpty;
       } else {
         _needsOnboarding = false;
       }
