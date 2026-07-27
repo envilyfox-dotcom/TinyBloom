@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -27,16 +28,22 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
   List<Map<String, dynamic>> _requests = [];
   String _searchQuery = '';
   bool _loading = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
     _load();
+    // Picks up new/claimed/closed requests without the volunteer having to
+    // manually pull-to-refresh.
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _tabs.dispose();
     _searchCtrl.dispose();
     super.dispose();
@@ -391,6 +398,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   bool _closing = false;
   bool _requestingCall = false;
   bool _sendingLink = false;
+  Timer? _refreshTimer;
 
   String? get _myId => SupabaseService.currentUser?.id;
   String? get _volunteerId => widget.request['volunteer_id'] as String?;
@@ -417,10 +425,15 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   void initState() {
     super.initState();
     _load();
+    // Polls for new messages/status changes from the mum's side (e.g. she
+    // accepts a call or replies) without the volunteer needing to send a
+    // message or manually refresh to see it.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) => _load());
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _ctrl.dispose();
     _scrollCtrl.dispose();
     _linkCtrl.dispose();
@@ -428,6 +441,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> _load() async {
+    final previousMessageCount = _messages.length;
     try {
       // Re-fetch the request itself (not just messages) so a stale copy
       // passed in via navigation can't show outdated claim/status info —
@@ -468,7 +482,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           _messages = msgs;
           _loading = false;
         });
-        _scrollToEnd();
+        // Only snap to the bottom on the first load or when a genuinely new
+        // message arrived — a background poll shouldn't yank the volunteer
+        // back down while they're scrolled up reading earlier messages.
+        if (previousMessageCount == 0 || msgs.length > previousMessageCount) {
+          _scrollToEnd();
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);

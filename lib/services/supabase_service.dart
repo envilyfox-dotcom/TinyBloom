@@ -1479,8 +1479,30 @@ class SupabaseService {
     });
   }
 
+  // Same 0-row-means-silent-failure risk as deleteForumPost below, and RLS
+  // is scoped the same way (author_id = auth.uid()).
+  static Future<void> updateForumPost(String id, String content) async {
+    final updated = await client
+        .from('forum_posts')
+        .update({'content': content})
+        .eq('id', id)
+        .select('id');
+    if (updated.isEmpty) {
+      throw Exception(
+          'Post could not be updated — you may need to sign in again.');
+    }
+  }
+
+  // Deletes only succeed via RLS when auth.uid() matches author_id. Without
+  // .select(), a 0-row delete (e.g. a stale session) returns success with
+  // nothing removed, so the caller can't tell it silently no-op'd.
   static Future<void> deleteForumPost(String id) async {
-    await client.from('forum_posts').delete().eq('id', id);
+    final deleted =
+        await client.from('forum_posts').delete().eq('id', id).select('id');
+    if (deleted.isEmpty) {
+      throw Exception(
+          'Post could not be deleted — you may need to sign in again.');
+    }
   }
 
   static Future<void> likeForumPost(String postId) async {

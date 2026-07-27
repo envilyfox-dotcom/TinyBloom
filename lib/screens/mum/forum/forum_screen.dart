@@ -86,9 +86,9 @@ class _ForumScreenState extends State<ForumScreen> {
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
+      builder: (sheetContext) => Padding(
         padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
             left: 20,
             right: 20,
             top: 20),
@@ -96,7 +96,8 @@ class _ForumScreenState extends State<ForumScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New Post', style: Theme.of(context).textTheme.titleLarge),
+            Text('New Post',
+                style: Theme.of(sheetContext).textTheme.titleLarge),
             const SizedBox(height: 16),
             TextFormField(
               controller: ctrl,
@@ -110,10 +111,77 @@ class _ForumScreenState extends State<ForumScreen> {
               label: 'Post',
               onPressed: () async {
                 if (ctrl.text.trim().isEmpty) return;
-                await SupabaseService.createForumPost(ctrl.text.trim());
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  _load();
+                try {
+                  await SupabaseService.createForumPost(ctrl.text.trim());
+                  if (sheetContext.mounted) {
+                    Navigator.pop(sheetContext);
+                    _load();
+                  }
+                } catch (e) {
+                  if (sheetContext.mounted) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                      SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditPost(Map<String, dynamic> post) {
+    final id = post['id'] as String;
+    final ctrl = TextEditingController(text: post['content'] as String? ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Edit Post',
+                style: Theme.of(sheetContext).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: ctrl,
+              maxLines: 5,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  hintText: 'Share something with the community...'),
+            ),
+            const SizedBox(height: 16),
+            TBButton(
+              label: 'Save',
+              onPressed: () async {
+                if (ctrl.text.trim().isEmpty) return;
+                try {
+                  await SupabaseService.updateForumPost(id, ctrl.text.trim());
+                  if (sheetContext.mounted) {
+                    Navigator.pop(sheetContext);
+                    _load();
+                  }
+                } catch (e) {
+                  if (sheetContext.mounted) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                      SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: Colors.red),
+                    );
+                  }
                 }
               },
             ),
@@ -127,7 +195,7 @@ class _ForumScreenState extends State<ForumScreen> {
   Future<void> _delete(String id) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Post'),
         content: const Text('Are you sure you want to delete this post?'),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -135,13 +203,13 @@ class _ForumScreenState extends State<ForumScreen> {
           Row(children: [
             Expanded(
                 child: OutlinedButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Keep Post'),
             )),
             const SizedBox(width: 12),
             Expanded(
                 child: ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textDark,
                 foregroundColor: Colors.white,
@@ -153,8 +221,16 @@ class _ForumScreenState extends State<ForumScreen> {
       ),
     );
     if (confirm == true) {
-      await SupabaseService.deleteForumPost(id);
-      _load();
+      try {
+        await SupabaseService.deleteForumPost(id);
+        _load();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
     }
   }
 
@@ -214,56 +290,89 @@ class _ForumScreenState extends State<ForumScreen> {
     final isLiked = _likedIds.contains(id);
     final isMine = post['author_id'] == myId;
 
+    // A single shared handler so the avatar/name block and the content text
+    // below both open the post without duplicating the push logic.
+    Future<void> openDetail() async {
+      await context.push('/forum/post', extra: post);
+      _load();
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TBCard(
-        onTap: () async {
-          await context.push('/forum/post', extra: post);
-          _load();
-        },
+        // No onTap on the card itself — the edit/delete icons below sit in
+        // the same Row as the "open detail" GestureDetector as siblings, not
+        // descendants, of it. Nesting them (as before) let a single tap fire
+        // both the icon's handler and the card's navigation at once, racing
+        // a dialog pop against a route push and crashing the Navigator.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                  child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                          color: AppColors.roseDeep,
-                          fontWeight: FontWeight.w700))),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14)),
-                  if (roleLabel.isNotEmpty)
-                    Text(roleLabel,
-                        style: const TextStyle(
-                            color: AppColors.textLight,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600)),
-                  Text(createdAt != null ? timeAgo(createdAt) : '',
-                      style: const TextStyle(
-                          color: AppColors.textLight, fontSize: 11)),
-                ],
-              )),
-              if (isMine)
-                GestureDetector(
-                  onTap: () => _delete(id),
-                  child: const Icon(Icons.delete_outline,
-                      color: Colors.red, size: 20),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: openDetail,
+                    child: Row(children: [
+                      CircleAvatar(
+                          radius: 18,
+                          backgroundColor:
+                              AppColors.rose.withValues(alpha: 0.15),
+                          child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: const TextStyle(
+                                  color: AppColors.roseDeep,
+                                  fontWeight: FontWeight.w700))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 14)),
+                          if (roleLabel.isNotEmpty)
+                            Text(roleLabel,
+                                style: const TextStyle(
+                                    color: AppColors.textLight,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600)),
+                          Text(createdAt != null ? timeAgo(createdAt) : '',
+                              style: const TextStyle(
+                                  color: AppColors.textLight, fontSize: 11)),
+                        ],
+                      )),
+                    ]),
+                  ),
                 ),
-            ]),
+                if (isMine) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _showEditPost(post),
+                    child: const Icon(Icons.edit_outlined,
+                        color: AppColors.textLight, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  GestureDetector(
+                    onTap: () => _delete(id),
+                    child: const Icon(Icons.delete_outline,
+                        color: Colors.red, size: 20),
+                  ),
+                ],
+              ],
+            ),
             const SizedBox(height: 10),
-            Text(content,
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: AppColors.textDark, fontSize: 14, height: 1.4)),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: openDetail,
+              child: Text(content,
+                  maxLines: 5,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppColors.textDark, fontSize: 14, height: 1.4)),
+            ),
             const SizedBox(height: 10),
             Row(children: [
               GestureDetector(

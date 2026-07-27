@@ -363,6 +363,25 @@ class PremiumBadge extends StatelessWidget {
   }
 }
 
+class FreeBadge extends StatelessWidget {
+  const FreeBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.teal.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(50),
+        border: Border.all(color: AppColors.teal.withValues(alpha: 0.4)),
+      ),
+      child: const Text('Free',
+        style: TextStyle(
+          color: AppColors.teal, fontSize: 12, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
 // ── Premium Gate ──────────────────────────────────────────────────
 class PremiumGate extends StatefulWidget {
   final String feature;

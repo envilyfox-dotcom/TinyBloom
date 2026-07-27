@@ -233,6 +233,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       if (isPremium) ...[
                         const SizedBox(height: 6),
                         const PremiumBadge(),
+                      ] else if (isMum) ...[
+                        const SizedBox(height: 6),
+                        const FreeBadge(),
                       ],
                     ],
                   ),

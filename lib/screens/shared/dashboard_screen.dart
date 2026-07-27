@@ -8,6 +8,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/quick_chat_volunteer.dart';
+import '../mum/consultation/consultation_helpers.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -452,6 +453,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
   }
 
+  // Only the most recent health_log/pregnancy_log is considered "current" —
+  // once a mum logs a newer entry, an older danger symptom counts as over,
+  // even if it's never individually dismissed.
   Future<List<Map<String, dynamic>>> _loadDashboardHealthLogEmergencyAlerts(
       String userId) async {
     final alerts = <Map<String, dynamic>>[];
@@ -462,7 +466,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             'id,user_id,blood_pressure_systolic,blood_pressure_diastolic,symptoms,notes,kick_count,logged_at,created_at')
         .eq('user_id', userId)
         .order('logged_at', ascending: false)
-        .limit(10);
+        .limit(1);
 
     for (final item in List<Map<String, dynamic>>.from(healthLogs)) {
       alerts.addAll(_dashboardEmergencyRowsFromHealthLog(item));
@@ -475,7 +479,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               'id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
           .eq('user_id', userId)
           .order('created_at', ascending: false)
-          .limit(10);
+          .limit(1);
 
       for (final item in List<Map<String, dynamic>>.from(pregnancyLogs)) {
         alerts.addAll(_dashboardEmergencyRowsFromPregnancyLog(item));
@@ -485,7 +489,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'Failed to scan pregnancy_logs for dashboard emergency alerts: $e');
     }
 
-    return alerts;
+    // Even the most recent log's alert stops surfacing once it's a week old
+    // — it's still the "current" log, but no longer worth flagging as urgent.
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return alerts.where((alert) {
+      final createdAt = DateTime.tryParse(alert['created_at'].toString());
+      return createdAt == null || createdAt.isAfter(cutoff);
+    }).toList();
   }
 
   String _titleCase(String value) {
@@ -510,6 +520,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (date.isNotEmpty) return date;
     if (time.isNotEmpty) return time;
     return 'Time not confirmed yet';
+  }
+
+  bool _volunteerServiceHasEnded(String availability) {
+    if (!availability.contains(' | ')) return false;
+    final parts = availability.split(' | ');
+    final date = DateTime.tryParse(parts[0]);
+    if (date == null) return false;
+
+    final timing = parts.length > 1 ? parts[1] : '';
+    final match =
+        RegExp(r'-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*$').firstMatch(timing);
+    if (match == null) return false;
+
+    try {
+      final parsedTime =
+          DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
+      final endsAt = DateTime(
+          date.year, date.month, date.day, parsedTime.hour, parsedTime.minute);
+      return DateTime.now().isAfter(endsAt);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _isUpcomingConsultationStatus(String status) {
+    final clean = status.trim().toLowerCase();
+    return ![
+      'cancelled',
+      'canceled',
+      'completed',
+      'done',
+      'rejected',
+      'declined',
+      'no_show',
+      'noshow',
+    ].contains(clean);
+  }
+
+  DateTime? _dashboardConsultationScheduledAt(Map<String, dynamic> item) {
+    final rawScheduledAt = item['scheduled_at']?.toString();
+    if (rawScheduledAt != null && rawScheduledAt.isNotEmpty) {
+      final parsed = DateTime.tryParse(rawScheduledAt);
+      if (parsed != null) return parsed.toLocal();
+    }
+
+    final rawDate = item['scheduled_date']?.toString();
+    final parsedDate = rawDate != null ? DateTime.tryParse(rawDate) : null;
+    if (parsedDate == null) return null;
+
+    final timeStr = item['scheduled_time']?.toString();
+    return (timeStr != null ? slotDateTime(parsedDate, timeStr) : null) ??
+        parsedDate;
   }
 
   Future<Map<String, String?>> _loadProviderDisplay(
@@ -599,9 +661,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .limit(8);
 
     final rows = <Map<String, dynamic>>[];
+    final now = DateTime.now();
 
     for (final item in List<Map<String, dynamic>>.from(data)) {
       final status = (item['status'] ?? 'booked').toString();
+
+      // Drop consultations that are over — cancelled/completed/etc, or past
+      // their scheduled slot by more than 2 hours — so Active Alerts shows
+      // current/upcoming bookings, not an ever-growing history.
+      if (!_isUpcomingConsultationStatus(status)) continue;
+      final scheduledAt = _dashboardConsultationScheduledAt(item);
+      if (scheduledAt != null &&
+          scheduledAt.isBefore(now.subtract(const Duration(hours: 2)))) {
+        continue;
+      }
+
       final consultationType =
           (item['consultation_type'] ?? 'consultation').toString();
       final purpose = (item['purpose'] ?? '').toString().trim();
@@ -659,6 +733,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return rows;
   }
 
+  // Once a volunteer accepts a video call from an "Ask a Volunteer" thread
+  // (see acceptVideoCall/sendMeetingLink), the volunteer's own dashboard
+  // already reminds them via "Upcoming Consultations" — this is the mum-side
+  // equivalent so she also sees a reminder here, not just inside the thread
+  // itself. A same-day call whose slot has already passed isn't "upcoming"
+  // either, even though its date still matches today — mirrors the exact
+  // filter volunteer_dashboard_screen.dart uses on its side.
+  Future<List<Map<String, dynamic>>> _loadDashboardVolunteerCallReminders(
+      String userId) async {
+    final data = await SupabaseService.client
+        .from('volunteer_requests')
+        .select()
+        .eq('patient_id', userId)
+        .eq('call_status', 'accepted')
+        .neq('status', 'closed')
+        .order('scheduled_date');
+
+    final now = DateTime.now();
+    final upcoming = List<Map<String, dynamic>>.from(data).where((item) {
+      final date = DateTime.tryParse(item['scheduled_date']?.toString() ?? '');
+      if (date == null) return false;
+      final timeStr = item['scheduled_time'] as String?;
+      final at = timeStr != null ? slotDateTime(date, timeStr) : null;
+      return (at ?? date).isAfter(now);
+    }).toList();
+
+    final rows = <Map<String, dynamic>>[];
+
+    for (final item in upcoming) {
+      final scheduled = _formatDashboardConsultationDate(item);
+      final provider = await _loadProviderDisplay(
+        item['volunteer_id']?.toString(),
+        fallbackName: 'Volunteer',
+      );
+      final providerName = provider['name'] ?? 'Volunteer';
+      final providerPhotoUrl = provider['photo_url'];
+
+      rows.add({
+        'id': 'volunteer-call-${item['id']}',
+        'user_id': item['patient_id'],
+        'title': providerName,
+        'message': _joinPreviewParts(
+            ['Volunteer', 'Confirmed', 'Video call', scheduled]),
+        'type': 'consultation',
+        'is_read': false,
+        'created_at': item['call_requested_at'] ?? item['created_at'],
+        'source_table': 'volunteer_call_reminder',
+        'status': 'confirmed',
+        'consultation_type': 'video call',
+        'scheduled_display': scheduled,
+        'scheduled_date': item['scheduled_date'],
+        'scheduled_time': item['scheduled_time'],
+        'platform': item['meeting_link'] != null ? 'Zoom' : '',
+        'meeting_link': item['meeting_link'],
+        'provider_name': providerName,
+        'provider_photo_url': providerPhotoUrl,
+        'provider_role': 'Volunteer',
+        'raw_request': item,
+      });
+    }
+
+    return rows;
+  }
+
   Future<List<Map<String, dynamic>>>
       _loadDashboardVolunteerSessionNotifications(
           Map<String, dynamic>? profile) async {
@@ -699,6 +837,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final rows = <Map<String, dynamic>>[];
 
     for (final item in List<Map<String, dynamic>>.from(data)) {
+      // volunteer_services.status only flips to 'done' when the volunteer
+      // opens their own Services screen — if they never do, a mum would
+      // otherwise keep seeing an already-ended service as "available"
+      // indefinitely. This double-checks the actual availability window
+      // regardless of the stored status.
+      if (_volunteerServiceHasEnded(
+          (item['availability'] ?? '').toString().trim())) {
+        continue;
+      }
+
       final volunteer = item['volunteer'];
       String volunteerName = 'Volunteer';
       String? volunteerPhotoUrl;
@@ -832,6 +980,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       try {
+        merged.addAll(await _loadDashboardVolunteerCallReminders(userId));
+      } catch (e) {
+        debugPrint('Failed to load dashboard volunteer call reminders: $e');
+      }
+
+      try {
         merged
             .addAll(await _loadDashboardVolunteerSessionNotifications(profile));
       } catch (e) {
@@ -885,9 +1039,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .order('created_at', ascending: false)
           .limit(4);
 
+      final articleCutoff = DateTime.now().subtract(const Duration(days: 7));
       merged.addAll(List<Map<String, dynamic>>.from(articleData).where((item) {
         final premiumOnly = item['is_premium_only'] == true;
-        return isPremiumUser || !premiumOnly;
+        if (!isPremiumUser && premiumOnly) return false;
+
+        // Only surface as a notification for a week — the article itself
+        // stays in the Learn tab library regardless.
+        final published = DateTime.tryParse(
+            (item['published_at'] ?? item['created_at'] ?? '').toString());
+        return published == null || published.isAfter(articleCutoff);
       }).map((item) {
         final excerpt = (item['excerpt'] ?? '').toString().trim();
         final content = (item['content'] ?? '').toString().trim();
@@ -955,19 +1116,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       merged.addAll(_dashboardEmergencyNotifications());
     }
 
-    merged.add({
-      'id':
-          'daily-health-reminder-${DateFormat('yyyy-MM-dd').format(DateTime.now())}',
-      'user_id': userId,
-      'title': 'Daily Health Reminder',
-      'message':
-          'Remember to log your mood, symptoms and pregnancy notes today.',
-      'type': 'reminder',
-      'is_read': true,
-      'created_at': DateTime.now().toIso8601String(),
-      'source_table': 'generated_reminder',
-    });
-
     final readReceiptKeys = userId == null
         ? <String>{}
         : await _loadNotificationReadReceiptKeys(userId);
@@ -991,17 +1139,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
 
     visible.sort((a, b) {
+      // Emergency alerts always float to the top; everything else is
+      // strictly newest-first.
       final aEmergency =
           _normaliseNotificationType(a['type']) == 'emergency' ? 0 : 1;
       final bEmergency =
           _normaliseNotificationType(b['type']) == 'emergency' ? 0 : 1;
       final emergencyCompare = aEmergency.compareTo(bEmergency);
       if (emergencyCompare != 0) return emergencyCompare;
-
-      final aRead = a['is_read'] == true ? 1 : 0;
-      final bRead = b['is_read'] == true ? 1 : 0;
-      final unreadCompare = aRead.compareTo(bRead);
-      if (unreadCompare != 0) return unreadCompare;
 
       return _notificationCreatedAt(b).compareTo(_notificationCreatedAt(a));
     });
@@ -1264,9 +1409,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         notification['source_table']?.toString() ?? 'notifications';
     final type = _normaliseNotificationType(notification['type']);
 
+    // Volunteer call reminders stay visible until the call itself passes —
+    // the loader's own "upcoming" filter drops it then — instead of
+    // disappearing the first time it's tapped. It's a standing reminder to
+    // join on the day, not a one-off alert meant to be dismissed.
+    final isPersistentReminder = sourceTable == 'volunteer_call_reminder';
+
     // Remove the card from the dashboard immediately after the user opens it.
     // This keeps Active Alerts & Notifications clear once the item is read.
-    if (id != null) {
+    if (id != null && !isPersistentReminder) {
       setState(() {
         _notifications = _notifications.where((n) {
           return !(n['id']?.toString() == id &&
@@ -1300,6 +1451,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     if (!mounted) return;
+
+    if (sourceTable == 'volunteer_call_reminder') {
+      final rawRequest = notification['raw_request'];
+      if (rawRequest is Map<String, dynamic>) {
+        await context.push('/ask-volunteer/detail', extra: rawRequest);
+      } else {
+        await _openNotificationsCentre();
+      }
+      return;
+    }
 
     final hasConsultationId = _extractConsultationId(notification) != null;
 
@@ -1486,7 +1647,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           slivers: [
             // App bar
             SliverAppBar(
-              expandedHeight: isPremium ? 172 : 160,
+              expandedHeight: (isPremium || isMum) ? 172 : 160,
               floating: false,
               pinned: true,
               backgroundColor: AppColors.blush,
@@ -1566,6 +1727,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       if (isPremium) ...[
                         const SizedBox(height: 6),
                         const PremiumBadge(),
+                      ] else if (isMum) ...[
+                        const SizedBox(height: 6),
+                        const FreeBadge(),
                       ],
                     ],
                   ),

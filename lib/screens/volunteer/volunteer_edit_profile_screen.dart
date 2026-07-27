@@ -330,9 +330,11 @@ class _VolunteerEditProfileScreenState
                         _field('Phone number', _phoneCtrl,
                             keyboardType: TextInputType.phone),
                         const SizedBox(height: 12),
-                        _field('Area of Expertise', _expertiseCtrl),
+                        _field('Area of Expertise', _expertiseCtrl,
+                            locked: true),
                         const SizedBox(height: 12),
-                        _field('Certification/License', _certificationCtrl),
+                        _field('Certification/License', _certificationCtrl,
+                            locked: true),
                         const SizedBox(height: 24),
                         _sectionTitle(
                           'Change Password',
@@ -492,21 +494,38 @@ class _VolunteerEditProfileScreenState
     TextEditingController ctrl, {
     int maxLines = 1,
     TextInputType keyboardType = TextInputType.text,
+    bool locked = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
+        Row(
+          children: [
+            Text(label,
+                style:
+                    GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
+            if (locked) ...[
+              const SizedBox(width: 4),
+              const Icon(Icons.lock_outline,
+                  size: 12, color: AppColors.textLight),
+            ],
+          ],
+        ),
         const SizedBox(height: 4),
         TextField(
           controller: ctrl,
+          readOnly: locked,
+          enabled: !locked,
           maxLines: maxLines,
           keyboardType: keyboardType,
-          style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+          style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: locked ? AppColors.textLight : AppColors.textDark),
           decoration: InputDecoration(
             filled: true,
-            fillColor: AppColors.white,
+            fillColor: locked
+                ? AppColors.textLight.withValues(alpha: 0.08)
+                : AppColors.white,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(
@@ -515,6 +534,10 @@ class _VolunteerEditProfileScreenState
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(
                     color: AppColors.textLight.withValues(alpha: 0.3))),
+            disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                    color: AppColors.textLight.withValues(alpha: 0.2))),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide:
@@ -523,6 +546,12 @@ class _VolunteerEditProfileScreenState
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
         ),
+        if (locked) ...[
+          const SizedBox(height: 4),
+          Text('Verified — contact support to update this.',
+              style: GoogleFonts.poppins(
+                  color: AppColors.textLight, fontSize: 11)),
+        ],
       ],
     );
   }

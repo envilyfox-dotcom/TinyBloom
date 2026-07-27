@@ -412,26 +412,6 @@ class _LogCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onEdit != null || onDelete != null)
-                PopupMenuButton<String>(
-                  icon:
-                      const Icon(Icons.more_horiz, color: AppColors.textLight),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  onSelected: (value) {
-                    if (value == 'view') onView();
-                    if (value == 'edit') onEdit?.call();
-                    if (value == 'delete') onDelete?.call();
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'view', child: Text('View')),
-                    if (onEdit != null)
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    if (onDelete != null)
-                      const PopupMenuItem(
-                          value: 'delete', child: Text('Delete')),
-                  ],
-                ),
             ],
           ),
           const SizedBox(height: 12),

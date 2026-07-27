@@ -8,6 +8,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../utils/service_id.dart';
+import '../mum/consultation/consultation_helpers.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -20,17 +21,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _loading = true;
   String _selectedFilter = 'All';
   List<Map<String, dynamic>> _notifications = [];
+  Map<String, dynamic>? _profile;
 
-  final filters = const [
-    'All',
-    'Emergency',
-    'Consultation',
-    'Milestone',
-    'Education',
-    'Services',
-    'Reminder',
-    'AI',
-  ];
+  List<String> get filters => [
+        'All',
+        'Emergency',
+        'Consultation',
+        'Milestone',
+        'Education',
+        'Services',
+        if (_isPremiumProfile(_profile)) 'AI',
+      ];
 
   @override
   void initState() {
@@ -292,10 +293,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       String userId) async {
     final data = await SupabaseService.client
         .from('notifications')
-        .select('id,user_id,title,message,type,is_read,created_at')
+        .select(
+            'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url')
         .or('user_id.eq.$userId,user_id.is.null')
         .order('created_at', ascending: false);
 
+    // volunteer_name (spread in via ...item below) is what _showSessionDetails
+    // reads for the "Hosted by" heading on volunteer-service broadcast rows
+    // (see volunteer_services_screen) — otherwise it falls back to "A volunteer".
     return List<Map<String, dynamic>>.from(data).map((item) {
       return {
         ...item,
@@ -493,9 +498,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     final rows = <Map<String, dynamic>>[];
 
+    final now = DateTime.now();
+
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
       final item = Map<String, dynamic>.from(rawItem);
       final status = (item['status'] ?? 'booked').toString();
+
+      // Drop consultations that are over — cancelled/completed/etc, or past
+      // their scheduled slot by more than 2 hours — so the Consultation
+      // filter shows current/upcoming bookings, not an ever-growing history.
+      if (!_isUpcomingConsultationStatus(status)) continue;
+      final scheduledAt = _consultationReminderDateTime(item);
+      if (scheduledAt != null &&
+          scheduledAt.isBefore(now.subtract(const Duration(hours: 2)))) {
+        continue;
+      }
+
       final consultationType =
           (item['consultation_type'] ?? 'consultation').toString();
       final purpose = (item['purpose'] ?? '').toString().trim();
@@ -551,6 +569,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'provider_name': providerName.isEmpty ? 'Specialist' : providerName,
         'provider_role': providerRole.isEmpty ? 'Specialist' : providerRole,
         'provider_photo_url': providerPhotoUrl,
+      });
+    }
+
+    return rows;
+  }
+
+  // Once a volunteer accepts a video call from an "Ask a Volunteer" thread
+  // (see SupabaseService.acceptVideoCall/sendMeetingLink), it's filed under
+  // the same Consultation category as specialist consultations rather than
+  // Reminder — Reminder is premium-only, but volunteer calls are a free-tier
+  // feature, so gating this behind Reminder would hide it from the mums who
+  // actually use it.
+  Future<List<Map<String, dynamic>>> _loadVolunteerCallReminderRows(
+      String userId) async {
+    final data = await SupabaseService.client
+        .from('volunteer_requests')
+        .select()
+        .eq('patient_id', userId)
+        .eq('call_status', 'accepted')
+        .neq('status', 'closed')
+        .order('scheduled_date');
+
+    final now = DateTime.now();
+    final rows = <Map<String, dynamic>>[];
+
+    for (final rawItem in List<Map<String, dynamic>>.from(data)) {
+      final item = Map<String, dynamic>.from(rawItem);
+      // volunteer_requests.scheduled_time is stored as "6:00 PM" (12-hour),
+      // not the consultations table's format — _consultationReminderDateTime
+      // can't parse that and silently falls back to midnight, so use
+      // slotDateTime (same helper the volunteer's own dashboard uses for
+      // this exact table) instead.
+      final rawDate = item['scheduled_date']?.toString();
+      final parsedDate = rawDate != null ? DateTime.tryParse(rawDate) : null;
+      final timeStr = item['scheduled_time']?.toString();
+      final scheduledAt = parsedDate == null
+          ? null
+          : (timeStr != null ? slotDateTime(parsedDate, timeStr) : null) ??
+              parsedDate;
+      // Same 2-hour grace window as _upcomingConsultationReminderRows, in
+      // case the mum still needs the meeting link just after it starts.
+      if (scheduledAt != null &&
+          scheduledAt.isBefore(now.subtract(const Duration(hours: 2)))) {
+        continue;
+      }
+
+      final scheduled = _formatConsultationDate(item);
+      final volunteerProfile =
+          await _safeLinkedProfile(item['volunteer_id']?.toString());
+      final providerName =
+          (volunteerProfile?['full_name'] ?? '').toString().trim();
+      final providerPhotoUrl =
+          (volunteerProfile?['profile_picture_url'] ?? '').toString().trim();
+
+      final message = _compactJoin([scheduled, 'Video call']);
+
+      rows.add({
+        'id': 'volunteer-call-${item['id']}',
+        'user_id': item['patient_id'],
+        'title': providerName.isEmpty ? 'Volunteer' : providerName,
+        'message': message.isEmpty
+            ? 'Your volunteer call is scheduled for $scheduled.'
+            : message,
+        'type': 'consultation',
+        'is_read': true,
+        'created_at': item['call_requested_at'] ?? item['created_at'],
+        'source_table': 'volunteer_call_reminder',
+        'status': 'confirmed',
+        'consultation_type': 'video call',
+        'consultation_label': 'Confirmed Video Call',
+        'scheduled_display': scheduled,
+        'scheduled_date': item['scheduled_date'],
+        'scheduled_time': item['scheduled_time'],
+        'platform': item['meeting_link'] != null ? 'Zoom' : '',
+        'meeting_link': item['meeting_link'],
+        'provider_name': providerName.isEmpty ? 'Volunteer' : providerName,
+        'provider_role': 'Volunteer',
+        'provider_photo_url': providerPhotoUrl,
+        'raw_request': item,
       });
     }
 
@@ -618,98 +715,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     ].contains(clean);
   }
 
-  String _consultationReminderWindow(DateTime scheduledAt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final scheduledDay = DateTime(
-      scheduledAt.year,
-      scheduledAt.month,
-      scheduledAt.day,
-    );
-    final dayDiff = scheduledDay.difference(today).inDays;
-    final time = DateFormat('h:mm a').format(scheduledAt);
-
-    if (dayDiff == 0) return 'Today at $time';
-    if (dayDiff == 1) return 'Tomorrow at $time';
-    if (dayDiff > 1 && dayDiff <= 7) {
-      return '${DateFormat('EEE, d MMM').format(scheduledAt)} at $time';
-    }
-
-    return DateFormat('d MMM yyyy, h:mm a').format(scheduledAt);
-  }
-
-  List<Map<String, dynamic>> _upcomingConsultationReminderRows(
-    List<Map<String, dynamic>> consultationRows,
-  ) {
-    final now = DateTime.now();
-    final upcoming = consultationRows.where((item) {
-      final status = (item['status'] ?? '').toString();
-      if (!_isUpcomingConsultationStatus(status)) return false;
-
-      final scheduledAt = _consultationReminderDateTime(item);
-      if (scheduledAt == null) return true;
-
-      // Keep consultations from the last 2 hours visible because users may still
-      // need the meeting link or appointment notes just after the start time.
-      return scheduledAt.isAfter(now.subtract(const Duration(hours: 2)));
-    }).toList();
-
-    upcoming.sort((a, b) {
-      final aDate = _consultationReminderDateTime(a) ?? _createdAt(a);
-      final bDate = _consultationReminderDateTime(b) ?? _createdAt(b);
-      return aDate.compareTo(bDate);
-    });
-
-    return upcoming.take(5).map((item) {
-      final consultationId = item['consultation_id'] ?? item['id'];
-      final providerName =
-          (item['provider_name'] ?? item['title'] ?? 'Specialist')
-              .toString()
-              .trim();
-      final scheduledAt = _consultationReminderDateTime(item);
-      final scheduled = scheduledAt == null
-          ? (item['scheduled_display'] ?? 'Time not confirmed yet').toString()
-          : _consultationReminderWindow(scheduledAt);
-      final purpose = (item['purpose'] ?? '').toString().trim();
-      final platform = (item['platform'] ?? '').toString().trim();
-      final status = (item['status'] ?? '').toString().trim();
-      final consultationType =
-          (item['consultation_type'] ?? 'consultation').toString().trim();
-
-      final message = _compactJoin([
-        scheduled,
-        if (purpose.isNotEmpty) purpose,
-        if (platform.isNotEmpty) platform,
-        if (status.isNotEmpty) _titleCase(status),
-      ]);
-
-      return {
-        ...item,
-        'id': 'consultation-reminder-$consultationId',
-        'reminder_source_id': consultationId,
-        'title': providerName.isEmpty
-            ? 'Upcoming Consultation'
-            : 'Upcoming consultation with $providerName',
-        'message':
-            message.isEmpty ? 'You have an upcoming consultation.' : message,
-        'full_content': _compactJoin([
-          'Upcoming ${consultationType.replaceAll('_', ' ')} with ${providerName.isEmpty ? 'your provider' : providerName}.',
-          'Scheduled: $scheduled',
-          if (purpose.isNotEmpty) 'Purpose: $purpose',
-          if (platform.isNotEmpty) 'Platform: $platform',
-          if (status.isNotEmpty) 'Status: ${_titleCase(status)}',
-        ]),
-        'type': 'reminder',
-        'is_read': false,
-        'created_at': scheduledAt?.toIso8601String() ??
-            item['scheduled_at'] ??
-            item['created_at'],
-        'source_table': 'consultation_reminders',
-        'reminder_kind': 'consultation',
-      };
-    }).toList();
-  }
-
   Future<List<Map<String, dynamic>>> _loadRowsFromAiRecommendationsTable(
       Map<String, dynamic>? profile) async {
     final isPremiumUser = _isPremiumProfile(profile);
@@ -768,9 +773,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('created_at', ascending: false)
         .limit(12);
 
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+
     return List<Map<String, dynamic>>.from(data).where((item) {
       final premiumOnly = item['is_premium_only'] == true;
-      return isPremiumUser || !premiumOnly;
+      if (!isPremiumUser && premiumOnly) return false;
+
+      // Only surface as a notification for a week — the article itself
+      // stays in the Learn tab library regardless, this just stops it
+      // cluttering the feed indefinitely.
+      final published = DateTime.tryParse(
+          (item['published_at'] ?? item['created_at'] ?? '').toString());
+      return published == null || published.isAfter(cutoff);
     }).map((item) {
       final excerpt = (item['excerpt'] ?? '').toString().trim();
       final content = (item['content'] ?? '').toString().trim();
@@ -797,6 +811,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
   }
 
+  // volunteer_services.status only flips to 'done' when the volunteer opens
+  // their own Services screen (see VolunteerServicesScreen._autoMarkExpired)
+  // — if they never do, a mum would otherwise keep seeing an already-ended
+  // service as "available" indefinitely. This double-checks the actual
+  // availability window regardless of the stored status.
+  bool _volunteerServiceHasEnded(String availability) {
+    if (!availability.contains(' | ')) return false;
+    final parts = availability.split(' | ');
+    final date = DateTime.tryParse(parts[0]);
+    if (date == null) return false;
+
+    final timing = parts.length > 1 ? parts[1] : '';
+    final match =
+        RegExp(r'-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*$').firstMatch(timing);
+    if (match == null) return false;
+
+    try {
+      final parsedTime =
+          DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
+      final endsAt = DateTime(
+          date.year, date.month, date.day, parsedTime.hour, parsedTime.minute);
+      return DateTime.now().isAfter(endsAt);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadRowsFromVolunteerServicesTable(
       Map<String, dynamic>? profile) async {
     if (!_isMumProfile(profile)) return [];
@@ -809,7 +850,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('created_at', ascending: false)
         .limit(20);
 
-    return List<Map<String, dynamic>>.from(data).map((item) {
+    return List<Map<String, dynamic>>.from(data)
+        .where((item) =>
+            !_volunteerServiceHasEnded(
+                (item['availability'] ?? '').toString().trim()))
+        .map((item) {
       final volunteer = item['volunteer'] is Map<String, dynamic>
           ? item['volunteer'] as Map<String, dynamic>
           : null;
@@ -1206,6 +1251,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     ];
   }
 
+  // Only the most recent health_log/pregnancy_log is considered "current" —
+  // once a mum logs a newer entry, an older danger symptom counts as over,
+  // even if it's never individually dismissed.
   Future<List<Map<String, dynamic>>> _loadRowsFromHealthLogEmergencyAlerts(
       String userId) async {
     final alerts = <Map<String, dynamic>>[];
@@ -1216,7 +1264,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             'id,user_id,blood_pressure_systolic,blood_pressure_diastolic,symptoms,notes,kick_count,logged_at,created_at')
         .eq('user_id', userId)
         .order('logged_at', ascending: false)
-        .limit(10);
+        .limit(1);
 
     for (final item in List<Map<String, dynamic>>.from(healthLogs)) {
       alerts.addAll(_emergencyRowsFromHealthLog(item));
@@ -1229,7 +1277,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               'id,user_id,mood,symptoms,milestones,notes,log_date,created_at')
           .eq('user_id', userId)
           .order('created_at', ascending: false)
-          .limit(10);
+          .limit(1);
 
       for (final item in List<Map<String, dynamic>>.from(pregnancyLogs)) {
         alerts.addAll(_emergencyRowsFromPregnancyLog(item));
@@ -1238,64 +1286,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       debugPrint('Failed to scan pregnancy_logs for emergency alerts: $e');
     }
 
-    return alerts;
-  }
-
-  List<Map<String, dynamic>> _generalReminderRows() {
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final now = DateTime.now().toIso8601String();
-    final userId = SupabaseService.currentUser?.id;
-
-    return [
-      {
-        'id': 'daily-health-reminder-$today',
-        'user_id': userId,
-        'title': 'Daily Health Reminder',
-        'message': 'Log your mood, symptoms and pregnancy notes today.',
-        'type': 'reminder',
-        'is_read': true,
-        'created_at': now,
-        'source_table': 'generated_reminder',
-        'full_content':
-            'Daily check-in: record your mood, symptoms, medication, discomfort, questions for your doctor, and any changes you noticed today. This makes it easier to explain your condition during appointments.',
-      },
-      {
-        'id': 'hydration-reminder-$today',
-        'user_id': userId,
-        'title': 'Hydration Reminder',
-        'message': 'Drink water regularly and watch for signs of dehydration.',
-        'type': 'reminder',
-        'is_read': true,
-        'created_at': now,
-        'source_table': 'generated_reminder',
-        'full_content':
-            'General reminder: keep water nearby, drink regularly throughout the day, and take note if you feel dizzy, very thirsty, or unusually tired. Contact a healthcare professional if symptoms are severe or persistent.',
-      },
-      {
-        'id': 'movement-reminder-$today',
-        'user_id': userId,
-        'title': 'Baby Movement Reminder',
-        'message': 'Pay attention to your baby’s usual movement pattern.',
-        'type': 'reminder',
-        'is_read': true,
-        'created_at': now,
-        'source_table': 'generated_reminder',
-        'full_content':
-            'General reminder: notice your baby’s normal movement pattern. If movements are reduced, absent, or feel very different from usual, contact your doctor, clinic, or maternity unit for advice.',
-      },
-      {
-        'id': 'appointment-reminder-$today',
-        'user_id': userId,
-        'title': 'Appointment Preparation',
-        'message': 'Prepare questions and notes for your next consultation.',
-        'type': 'reminder',
-        'is_read': true,
-        'created_at': now,
-        'source_table': 'generated_reminder',
-        'full_content':
-            'Before your next consultation, prepare your symptoms, questions, medication list, pregnancy records, and any concerns you want to discuss. This helps you make better use of the appointment time.',
-      },
-    ];
+    // Even the most recent log's alert stops surfacing once it's a week old
+    // — it's still the "current" log, but no longer worth flagging as urgent.
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return alerts.where((alert) {
+      final createdAt = DateTime.tryParse(alert['created_at'].toString());
+      return createdAt == null || createdAt.isAfter(cutoff);
+    }).toList();
   }
 
   Future<void> _loadNotifications() async {
@@ -1329,11 +1326,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (userId != null) {
       try {
-        final consultationRows = await _loadRowsFromConsultationsTable(userId);
-        merged.addAll(consultationRows);
-        merged.addAll(_upcomingConsultationReminderRows(consultationRows));
+        // _loadRowsFromConsultationsTable already only returns upcoming
+        // consultations (cancelled/completed/past ones are filtered out
+        // there), so this card already doubles as the "you have one coming
+        // up" indicator — a separate reminder-type row would just duplicate it.
+        merged.addAll(await _loadRowsFromConsultationsTable(userId));
       } catch (e) {
         debugPrint('Failed to load rows from consultations table: $e');
+      }
+
+      try {
+        merged.addAll(await _loadVolunteerCallReminderRows(userId));
+      } catch (e) {
+        debugPrint('Failed to load volunteer call reminder rows: $e');
       }
     }
 
@@ -1371,8 +1376,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       merged.addAll(_fallbackEmergencyRows());
     }
 
-    merged.addAll(_generalReminderRows());
-
     final readReceiptKeys = userId == null
         ? <String>{}
         : await _loadNotificationReadReceiptKeys(userId);
@@ -1397,23 +1400,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     mergedWithReadState.sort((a, b) {
       // Emergency alerts always float to the very top, ahead of every other
       // category, so a mum never has to scroll past routine updates to see
-      // an urgent one.
+      // an urgent one. Everything else is strictly newest-first.
       final aEmergency = _normaliseType(a['type']) == 'emergency' ? 0 : 1;
       final bEmergency = _normaliseType(b['type']) == 'emergency' ? 0 : 1;
       final emergencyCompare = aEmergency.compareTo(bEmergency);
       if (emergencyCompare != 0) return emergencyCompare;
 
-      final aRead = a['is_read'] == true ? 1 : 0;
-      final bRead = b['is_read'] == true ? 1 : 0;
-      final unreadCompare = aRead.compareTo(bRead);
-      if (unreadCompare != 0) return unreadCompare;
       return _createdAt(b).compareTo(_createdAt(a));
     });
 
     if (!mounted) return;
     setState(() {
+      _profile = profile;
       _notifications = mergedWithReadState;
       _loading = false;
+      if (_selectedFilter == 'AI' && !_isPremiumProfile(profile)) {
+        _selectedFilter = 'All';
+      }
     });
   }
 
@@ -1423,6 +1426,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final sourceTable = item['source_table']?.toString() ?? 'notifications';
 
     if (id == null) return;
+
+    // Volunteer call reminders stay visible (here and on the dashboard, which
+    // shares the same read-receipt table) until the call itself passes —
+    // the loader's own "upcoming" filter drops it then — rather than being
+    // dismissed the first time it's opened.
+    if (sourceTable == 'volunteer_call_reminder') return;
 
     setState(() {
       _notifications = _notifications.map((n) {
@@ -2403,6 +2412,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (!mounted) return;
 
+    // Volunteer call reminders open the actual "Ask a Volunteer" thread
+    // (where the Join Call button lives) instead of the generic read-only
+    // consultation info sheet — there's no equivalent detail screen for a
+    // volunteer thread, so the sheet would otherwise be a dead end.
+    if (item['source_table'] == 'volunteer_call_reminder') {
+      final rawRequest = item['raw_request'];
+      if (rawRequest is Map<String, dynamic>) {
+        await context.push('/ask-volunteer/detail', extra: rawRequest);
+      } else {
+        await _showConsultationDetails(item);
+      }
+      return;
+    }
+
     switch (type) {
       case 'emergency':
         await _showEmergencyDetails(item);
@@ -2718,13 +2741,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   String _displayTitleForNotification(Map<String, dynamic> item) {
     final type = _normaliseType(item['type']);
+    final sourceTable = item['source_table']?.toString() ?? '';
 
     if (type == 'consultation') {
       final providerName = (item['provider_name'] ?? '').toString().trim();
       if (providerName.isNotEmpty) return providerName;
     }
 
-    if (type == 'session') {
+    // Only the "browse available services" listing card (sourced from a live
+    // volunteer_services join) leads with the volunteer's name — a plain
+    // notifications-table broadcast (e.g. "Service updated") keeps its own
+    // title so it doesn't read as just the volunteer's name with no context.
+    if (type == 'session' && sourceTable == 'volunteer_services') {
       final volunteerName = (item['volunteer_name'] ?? '').toString().trim();
       if (volunteerName.isNotEmpty) return volunteerName;
     }
@@ -3001,7 +3029,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
                     ),
                   ),
-                  if (message.isNotEmpty && type != 'session') ...[
+                  if (message.isNotEmpty &&
+                      !(type == 'session' &&
+                          sourceTable == 'volunteer_services')) ...[
                     const SizedBox(height: 4),
                     Text(
                       message,
