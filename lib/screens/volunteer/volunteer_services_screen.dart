@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -22,16 +24,22 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
   List<Map<String, dynamic>> _services = [];
   String _searchQuery = '';
   bool _loading = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
     _load();
+    // Picks up services added/edited elsewhere (e.g. from another device)
+    // without the volunteer having to manually pull-to-refresh.
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _tabs.dispose();
     _searchCtrl.dispose();
     super.dispose();
@@ -137,6 +145,30 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
           .from('volunteer_services')
           .delete()
           .eq('id', service['id']);
+      // Broadcast (user_id: null) so every mum's Notifications Centre picks
+      // it up under the Services filter — this listing has no per-mum
+      // relationship to notify individually (see volunteer_services schema).
+      try {
+        final volunteerProfile = await SupabaseService.getProfile();
+        final volunteerName =
+            (volunteerProfile?['full_name'] as String?)?.trim();
+        final volunteerPhotoUrl =
+            (volunteerProfile?['profile_picture_url'] as String?)?.trim();
+        await SupabaseService.client.from('notifications').insert({
+          'user_id': null,
+          'title': 'Service cancelled',
+          'message':
+              '"${service['title']}" is no longer available.',
+          'type': 'services',
+          'volunteer_name':
+              volunteerName?.isNotEmpty == true ? volunteerName : null,
+          'volunteer_photo_url': volunteerPhotoUrl?.isNotEmpty == true
+              ? volunteerPhotoUrl
+              : null,
+        });
+      } catch (_) {
+        // Best-effort — the delete itself already succeeded.
+      }
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -270,11 +302,15 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
   }
 
   void _onEdit(Map<String, dynamic> service) async {
+    // A completed service is locked — no editing, no meeting join — but its
+    // details stay fully viewable, same as a closed chat on the Requests page.
+    final isDone = (service['status'] as String? ?? 'available') == 'done';
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ServiceFormScreen(mode: ServiceMode.edit, service: service),
+        builder: (_) => ServiceFormScreen(
+            mode: isDone ? ServiceMode.view : ServiceMode.edit,
+            service: service),
       ),
     );
     _load();
@@ -467,7 +503,8 @@ class _ServiceCard extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: Text('Edit', style: GoogleFonts.poppins()),
+                  child: Text(isDone ? 'View' : 'Edit',
+                      style: GoogleFonts.poppins()),
                 ),
               ),
               const SizedBox(width: 12),
@@ -493,7 +530,7 @@ class _ServiceCard extends StatelessWidget {
 
 // ── Service Form (New / Edit / Delete) ───────────────────────────────────────
 
-enum ServiceMode { create, edit, delete }
+enum ServiceMode { create, edit, delete, view }
 
 class ServiceFormScreen extends StatefulWidget {
   final ServiceMode mode;
@@ -508,7 +545,11 @@ class ServiceFormScreen extends StatefulWidget {
 class _ServiceFormScreenState extends State<ServiceFormScreen> {
   late TextEditingController _titleCtrl;
   late TextEditingController _descCtrl;
+<<<<<<< Updated upstream
   late TextEditingController _catCtrl;
+=======
+  late TextEditingController _zoomCtrl;
+>>>>>>> Stashed changes
   DateTime? _availDate;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -520,7 +561,11 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     _titleCtrl = TextEditingController(text: widget.service?['title'] ?? '');
     _descCtrl =
         TextEditingController(text: widget.service?['description'] ?? '');
+<<<<<<< Updated upstream
     _catCtrl = TextEditingController(text: widget.service?['category'] ?? '');
+=======
+    _zoomCtrl = TextEditingController(text: widget.service?['zoom_link'] ?? '');
+>>>>>>> Stashed changes
 
     final avail = widget.service?['availability'] as String?;
     if (avail != null && avail.contains(' | ')) {
@@ -556,7 +601,11 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
+<<<<<<< Updated upstream
     _catCtrl.dispose();
+=======
+    _zoomCtrl.dispose();
+>>>>>>> Stashed changes
     super.dispose();
   }
 
@@ -576,34 +625,89 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     if (picked != null) setState(() => _availDate = picked);
   }
 
-  Future<void> _pickStartTime() async {
-    final picked = await showTimePicker(
+  // Scroll-wheel time picker (replaces the old keyboard-entry showTimePicker)
+  // shared by both Start Time and End Time.
+  Future<TimeOfDay?> _showScrollTimePicker(TimeOfDay initial) {
+    TimeOfDay selected = initial;
+    return showModalBottomSheet<TimeOfDay>(
       context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
-      initialEntryMode: TimePickerEntryMode.inputOnly,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.rose),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: 300,
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: child!,
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('Cancel',
+                      style: GoogleFonts.poppins(color: AppColors.textLight)),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, selected),
+                  child: Text('Done',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.rose, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.time,
+                use24hFormat: false,
+                initialDateTime:
+                    DateTime(2020, 1, 1, initial.hour, initial.minute),
+                onDateTimeChanged: (dt) =>
+                    selected = TimeOfDay(hour: dt.hour, minute: dt.minute),
+              ),
+            ),
+          ],
+        ),
       ),
     );
-    if (picked != null) setState(() => _startTime = picked);
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await _showScrollTimePicker(_startTime ?? TimeOfDay.now());
+    if (picked == null || !mounted) return;
+    setState(() {
+      _startTime = picked;
+      // A previously-picked end time that's no longer after the new start
+      // time is no longer valid — clear it so an invalid combination can't
+      // silently persist.
+      if (_endTime != null &&
+          (_endTime!.hour * 60 + _endTime!.minute) <=
+              (picked.hour * 60 + picked.minute)) {
+        _endTime = null;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'End time cleared — it was no longer after the new start time.')));
+      }
+    });
   }
 
   Future<void> _pickEndTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _endTime ?? _startTime ?? TimeOfDay.now(),
-      initialEntryMode: TimePickerEntryMode.inputOnly,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.rose),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) setState(() => _endTime = picked);
+    if (_startTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please select a start time first.')));
+      return;
+    }
+    final picked =
+        await _showScrollTimePicker(_endTime ?? _startTime ?? TimeOfDay.now());
+    if (picked == null || !mounted) return;
+    final startMinutes = _startTime!.hour * 60 + _startTime!.minute;
+    final pickedMinutes = picked.hour * 60 + picked.minute;
+    if (pickedMinutes <= startMinutes) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('End time must be after the start time.')));
+      return;
+    }
+    setState(() => _endTime = picked);
   }
 
   String get _formTitle {
@@ -614,6 +718,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         return 'Edit Services';
       case ServiceMode.delete:
         return 'Delete Services';
+      case ServiceMode.view:
+        return 'Service Details';
     }
   }
 
@@ -625,10 +731,16 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         return 'Save';
       case ServiceMode.delete:
         return 'Confirm Delete';
+      case ServiceMode.view:
+        return 'Close';
     }
   }
 
   Future<void> _handlePrimary() async {
+    if (widget.mode == ServiceMode.view) {
+      Navigator.pop(context);
+      return;
+    }
     if (widget.mode != ServiceMode.delete) {
       if (_titleCtrl.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -669,6 +781,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
           'availability': availability,
+<<<<<<< Updated upstream
           'category': _catCtrl.text.trim(),
           'zoom_link': zoomLink,
           'status': 'available',
@@ -676,12 +789,53 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
       } else if (widget.mode == ServiceMode.edit) {
         // zoom_link is left untouched — the meeting created at publish
         // time is still the same real, joinable link.
+=======
+          'zoom_link': _zoomCtrl.text.trim(),
+          'status': 'available',
+        });
+      } else if (widget.mode == ServiceMode.edit) {
+        final oldAvailability =
+            (widget.service!['availability'] ?? '').toString();
+        final timingChanged = availability != oldAvailability;
+>>>>>>> Stashed changes
         await SupabaseService.client.from('volunteer_services').update({
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
           'availability': availability,
+<<<<<<< Updated upstream
           'category': _catCtrl.text.trim(),
+=======
+          'zoom_link': _zoomCtrl.text.trim(),
+>>>>>>> Stashed changes
         }).eq('id', widget.service!['id']);
+
+        // Broadcast (user_id: null) so every mum's Notifications Centre
+        // picks it up under the Services filter on any saved edit — this
+        // listing has no per-mum relationship to notify individually (see
+        // volunteer_services schema).
+        try {
+          final volunteerProfile = await SupabaseService.getProfile();
+          final volunteerName =
+              (volunteerProfile?['full_name'] as String?)?.trim();
+          final volunteerPhotoUrl =
+              (volunteerProfile?['profile_picture_url'] as String?)?.trim();
+          await SupabaseService.client.from('notifications').insert({
+            'user_id': null,
+            'title':
+                timingChanged ? 'Service timing updated' : 'Service updated',
+            'message': timingChanged
+                ? '"${_titleCtrl.text.trim()}" now scheduled for ${formatAvailabilityDisplay(availability)}.'
+                : '"${_titleCtrl.text.trim()}" has been updated.',
+            'type': 'services',
+            'volunteer_name':
+                volunteerName?.isNotEmpty == true ? volunteerName : null,
+            'volunteer_photo_url': volunteerPhotoUrl?.isNotEmpty == true
+                ? volunteerPhotoUrl
+                : null,
+          });
+        } catch (_) {
+          // Best-effort — the update itself already succeeded.
+        }
       }
       // delete is handled by the parent via pop(true)
       if (mounted) {
@@ -700,8 +854,10 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isReadOnly = widget.mode == ServiceMode.delete;
+    final isReadOnly =
+        widget.mode == ServiceMode.delete || widget.mode == ServiceMode.view;
     final isDelete = widget.mode == ServiceMode.delete;
+    final isView = widget.mode == ServiceMode.view;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -811,57 +967,91 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+<<<<<<< Updated upstream
               _field('Category', _catCtrl, readOnly: isReadOnly),
               const SizedBox(height: 12),
               _zoomLinkSection(),
+=======
+              _field('Zoom Link (for mums to join)', _zoomCtrl,
+                  readOnly: isReadOnly),
+>>>>>>> Stashed changes
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        } else {
-                          context.go('/home');
-                        }
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textMid,
-                        side: BorderSide(
-                            color: AppColors.textLight.withValues(alpha: 0.4)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: Text('Cancel', style: GoogleFonts.poppins()),
+              if (isView)
+                // Completed services are read-only — a single Close button,
+                // no Cancel/Save pair, same pattern as a closed chat on the
+                // Requests page (info stays fully visible, nothing editable).
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      } else {
+                        context.go('/home');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.rose,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
+                    child: Text('Close',
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600, fontSize: 13)),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _handlePrimary,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isDelete ? Colors.red.shade400 : AppColors.rose,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else {
+                            context.go('/home');
+                          }
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textMid,
+                          side: BorderSide(
+                              color:
+                                  AppColors.textLight.withValues(alpha: 0.4)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text('Cancel', style: GoogleFonts.poppins()),
                       ),
-                      child: _saving
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : Text(_primaryLabel,
-                              style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _handlePrimary,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              isDelete ? Colors.red.shade400 : AppColors.rose,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : Text(_primaryLabel,
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
