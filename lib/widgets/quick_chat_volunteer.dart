@@ -190,6 +190,14 @@ String quickChatStatusText(Map<String, dynamic> q) {
   return _titleCase(status.replaceAll('_', ' '));
 }
 
+// True once a chat has ended — the volunteer closed it, or it auto-closed
+// after 48h of no activity. Used to hide finished chats from list views
+// that should only surface ones still worth checking back on.
+bool quickChatIsEnded(Map<String, dynamic> q) {
+  final status = (q['status'] ?? '').toString().trim().toLowerCase();
+  return status == 'closed' || status == 'completed' || status == 'resolved';
+}
+
 Color quickChatStatusColor(Map<String, dynamic> q) {
   final status = (q['status'] ?? '').toString().trim().toLowerCase();
   final reply = quickChatLatestReplyText(q);
@@ -538,7 +546,7 @@ class QuickChatVolunteerSection extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () => context.push('/consultation'),
+              onPressed: () => context.push('/consultation/volunteer-chats'),
               child: const Text('View All'),
             ),
           ],

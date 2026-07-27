@@ -43,6 +43,7 @@ import 'mum/consultation/consultation_booking_screen.dart';
 import 'mum/consultation/confirm_consultation_screen.dart';
 import 'mum/consultation/post_volunteer_question_screen.dart';
 import 'mum/consultation/volunteer_question_detail_screen.dart';
+import 'mum/consultation/volunteer_chat_list_screen.dart';
 import 'app_shell.dart';
 import 'mum/onboarding/mum_onboarding_screen.dart';
 import 'specialist/specialist_onboarding_screen.dart';
@@ -250,6 +251,9 @@ final router = GoRouter(
         path: '/consultation',
         builder: (_, state) => ConsultationListScreen(
             initialTypeFilters: state.extra as Set<String>?)),
+    GoRoute(
+        path: '/consultation/volunteer-chats',
+        builder: (_, __) => const VolunteerChatListScreen()),
     GoRoute(
         path: '/consultation/specialists',
         builder: (_, __) => const SpecialistsListScreen()),

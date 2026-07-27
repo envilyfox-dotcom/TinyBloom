@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/auth_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
@@ -39,6 +40,31 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         _provider = provider;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _joinMeeting() async {
+    final link = (widget.consultation['meeting_link'] as String? ?? '').trim();
+    if (link.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Zoom meeting link is not available yet.')),
+      );
+      return;
+    }
+
+    final uri = Uri.tryParse(link);
+    if (uri == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Invalid meeting link.')));
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the meeting link.')),
+      );
     }
   }
 
@@ -169,7 +195,22 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     // is her own action, so the Cancel button is hidden entirely for them.
     final isNextOfKin = context.watch<AuthProvider>().isNextOfKin;
     final c = widget.consultation;
-    final status = (c['status'] as String?) ?? 'pending';
+    // Once the slot is over, effectiveConsultationStatus already reports
+    // 'completed' — so gating on 'confirmed' here also takes care of
+    // hiding the Join button once the meeting time has passed.
+    final status = effectiveConsultationStatus(c);
+    final meetingLink = (c['meeting_link'] as String? ?? '').trim();
+    final showJoin =
+        !isNextOfKin && status == 'confirmed' && meetingLink.isNotEmpty;
+    final showCancel =
+        !isNextOfKin && (status == 'confirmed' || status == 'pending');
+    // Still 'pending' in the database, but the slot has passed — the
+    // specialist never responded in time, so it now reads as cancelled.
+    // Distinguished from a deliberate cancel so the mum gets the right
+    // explanation rather than a bare "Cancelled" with no reason.
+    final wasNeverAccepted =
+        (c['status'] as String? ?? '').toLowerCase() == 'pending' &&
+            status == 'cancelled';
     final profile = _provider?['profiles'] as Map<String, dynamic>? ?? {};
     final isSpecialist = _provider?['provider_type'] == 'specialist';
     final name = profile['full_name'] as String? ?? 'Provider';
@@ -347,10 +388,10 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                       ],
                     ),
                   ),
-                  if (status == 'expired') ...[
+                  if (wasNeverAccepted) ...[
                     const SizedBox(height: 12),
                     Text(
-                      '$displayName did not confirm your consultation request. Please book another specialist.',
+                      '$displayName did not respond to your consultation request in time, so it was cancelled. Please book another specialist.',
                       style: const TextStyle(
                           color: AppColors.gold,
                           fontSize: 13,
@@ -358,22 +399,41 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  if (!isNextOfKin &&
-                      (status == 'confirmed' || status == 'pending'))
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _cancelling ? null : _cancel,
-                        style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14)),
-                        child: _cancelling
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Cancel Appointment'),
-                      ),
+                  if (showJoin || showCancel)
+                    Row(
+                      children: [
+                        if (showJoin)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _joinMeeting,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.teal,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              icon: const Icon(Icons.video_call, size: 18),
+                              label: const Text('Join Zoom'),
+                            ),
+                          ),
+                        if (showJoin && showCancel) const SizedBox(width: 12),
+                        if (showCancel)
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _cancelling ? null : _cancel,
+                              style: OutlinedButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14)),
+                              child: _cancelling
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : const Text('Cancel Appointment'),
+                            ),
+                          ),
+                      ],
                     ),
                 ],
               ),

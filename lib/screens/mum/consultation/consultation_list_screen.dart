@@ -1,10 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/auth_provider.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
+import '../../../widgets/quick_chat_volunteer.dart';
 import 'consultation_helpers.dart';
 
 // ── Consultation List Screen ──────────────────────────────────────
@@ -26,6 +30,10 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   // Next-of-kin can only view the linked mum's consultations — booking is
   // her own action, so the "Book New" tab and any booking CTA are hidden.
   bool _isNextOfKin = false;
+  // Keyed by specialist_id, so the card can show "Dr. Jane Tan" instead of
+  // just "Specialist Consultation" — consultations rows don't embed the
+  // provider's name, so it's fetched once per unique id after loading.
+  Map<String, Map<String, dynamic>?> _providerProfiles = {};
 
   static const _filterOptions = [
     'All',
@@ -62,10 +70,21 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
 
   String? _error;
 
+  // See effectiveConsultationStatus in consultation_helpers.dart — a
+  // consultation is never written back to 'completed' server-side once its
+  // slot passes, so the meeting time itself is what this treats as the
+  // source of truth (shared with the detail screen for consistency).
+  String _effectiveStatus(Map<String, dynamic> item) {
+    if (item['_kind'] == 'question') {
+      return (item['status'] as String? ?? 'pending').toLowerCase();
+    }
+    return effectiveConsultationStatus(item);
+  }
+
   // Normalises a consultation row or volunteer question into one shared
   // status bucket so a single filter row can cover both sources.
   String _itemCategory(Map<String, dynamic> item) {
-    final status = (item['status'] as String? ?? 'pending').toLowerCase();
+    final status = _effectiveStatus(item);
     if (item['_kind'] == 'question') {
       return status == 'closed' ? 'completed' : 'ongoing';
     }
@@ -88,6 +107,13 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   String _providerCategory(Map<String, dynamic> item) =>
       item['_kind'] == 'question' ? 'Volunteer' : 'Specialist';
 
+  // Next-of-kin's two tabs split by status instead of using the Filter
+  // sheet (that stays mum-only): active items now, history once resolved.
+  bool _isHistoryItem(Map<String, dynamic> item) {
+    final category = _itemCategory(item);
+    return category == 'completed' || category == 'cancelled';
+  }
+
   List<Map<String, dynamic>> get _filteredConsultations {
     final category = _selectedFilter.toLowerCase();
     return _consultations.where((c) {
@@ -96,13 +122,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       final matchesProvider = _selectedProviders.contains(_providerCategory(c));
       return matchesStatus && matchesProvider;
     }).toList();
-  }
-
-  // Next-of-kin's two tabs split by status instead of using the Filter
-  // sheet (that stays mum-only): active items now, history once resolved.
-  bool _isHistoryItem(Map<String, dynamic> item) {
-    final category = _itemCategory(item);
-    return category == 'completed' || category == 'cancelled';
   }
 
   bool _matchesTypeFilter(Map<String, dynamic> item) {
@@ -129,6 +148,18 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       .where((c) => _isHistoryItem(c) && _matchesTypeFilter(c))
       .toList();
 
+  // Prefers a consultation's own scheduled_date/time as the sort key over
+  // when it was booked; falls back to created_at for volunteer questions
+  // and pending consultations that don't have a slot yet.
+  DateTime _sortKey(Map<String, dynamic> item) {
+    if (item['_kind'] != 'question') {
+      final scheduled = consultationScheduledDateTime(item);
+      if (scheduled != null) return scheduled;
+    }
+    return DateTime.tryParse(item['created_at']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   Future<void> _load() async {
     try {
       List<Map<String, dynamic>> c;
@@ -145,29 +176,44 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       }
       List<Map<String, dynamic>> questions = [];
       try {
-        questions = await SupabaseService.getMyVolunteerQuestions();
+        final raw = await SupabaseService.getMyVolunteerQuestions();
+        // A chat with no activity in 48h is done — flip it to closed here
+        // too, not just when someone happens to open its own thread screen.
+        await SupabaseService.autoCloseStaleRequests(raw);
+        questions = await enrichQuickChatQuestions(raw);
       } catch (_) {}
 
       // Volunteer bookings are a leftover from before the volunteer flow was
       // replaced by the open Q&A board — volunteer interactions now show up
       // as question cards instead, so drop the old booking rows here.
+      final specialistConsultations =
+          c.where((r) => r['consultation_type'] != 'volunteer').toList();
+
+      // Batch-fetch each specialist's profile once so the card can show
+      // "Dr. Jane Tan" instead of just the consultation type.
+      final specialistIds = specialistConsultations
+          .map((r) => r['specialist_id'] as String?)
+          .whereType<String>()
+          .toSet();
+      final providerProfiles = <String, Map<String, dynamic>?>{};
+      await Future.wait(specialistIds.map((id) async {
+        providerProfiles[id] = await SupabaseService.getProviderProfile(id);
+      }));
+
       final merged = <Map<String, dynamic>>[
-        ...c.where((r) => r['consultation_type'] != 'volunteer'),
+        ...specialistConsultations,
         ...questions.map((q) => {...q, '_kind': 'question'}),
       ];
-      // Fall back to epoch (not "equal") for unparseable dates so a bad/missing
-      // created_at can never bump an item out of proper chronological order.
-      merged.sort((a, b) {
-        final aDate = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        return bDate.compareTo(aDate);
-      });
+      // The most recently *scheduled* consultation goes on top — not just
+      // whichever was booked most recently. Falls back to created_at for
+      // volunteer questions (no scheduled_date/time of their own) and for
+      // pending consultations that haven't been given a slot yet.
+      merged.sort((a, b) => _sortKey(b).compareTo(_sortKey(a)));
 
       if (mounted) {
         setState(() {
           _consultations = merged;
+          _providerProfiles = providerProfiles;
           _loading = false;
           _error = null;
         });
@@ -182,127 +228,82 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }
   }
 
-  bool get _hasActiveFilter =>
-      _selectedFilter != 'All' ||
-      _selectedProviders.length < _providerOptions.length;
-
-  Future<void> _showFilterSheet() async {
-    var draftFilter = _selectedFilter;
-    var draftProviders = Set<String>.from(_selectedProviders);
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return SafeArea(
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(20),
-                constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(ctx).size.height * 0.8),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Filter Consultations',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 16)),
-                      const SizedBox(height: 16),
-                      const Text('Status',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _filterOptions.map((option) {
-                          final selected = draftFilter == option;
-                          return ChoiceChip(
-                            label: Text(option),
-                            selected: selected,
-                            onSelected: (_) =>
-                                setSheetState(() => draftFilter = option),
-                            showCheckmark: false,
-                            selectedColor: AppColors.teal,
-                            backgroundColor: AppColors.tealLight,
-                            side: BorderSide(
-                                color: selected
-                                    ? Colors.transparent
-                                    : AppColors.textLight
-                                        .withValues(alpha: 0.3)),
-                            labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: selected
-                                    ? Colors.white
-                                    : AppColors.textDark),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text('Provider',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13)),
-                      Text('Leave both unchecked to see everything.',
-                          style: TextStyle(
-                              color: AppColors.textMid, fontSize: 12)),
-                      ..._providerOptions.map((option) {
-                        return CheckboxListTile(
-                          value: draftProviders.contains(option),
-                          onChanged: (checked) {
-                            setSheetState(() {
-                              if (checked == true) {
-                                draftProviders.add(option);
-                              } else {
-                                draftProviders.remove(option);
-                              }
-                            });
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          contentPadding: EdgeInsets.zero,
-                          activeColor: AppColors.teal,
-                          title: Text(option,
-                              style: const TextStyle(fontSize: 14)),
-                        );
-                      }),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.teal,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _selectedFilter = draftFilter;
-                              _selectedProviders = draftProviders.isEmpty
-                                  ? _providerOptions.toSet()
-                                  : draftProviders;
-                            });
-                            Navigator.of(ctx).pop();
-                          },
-                          child: const Text('Apply'),
-                        ),
-                      ),
-                    ],
+  // Status + Provider filters, always visible as chip rows instead of
+  // hidden behind a "Filter" button and modal sheet. Same ChoiceChip style
+  // (checkmark on the selected pill, tinted fill, bordered outline) as the
+  // specialist's own consultations filter row, in the mum-side teal accent.
+  Widget _filterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _filterOptions.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final option = _filterOptions[index];
+                final selected = _selectedFilter == option;
+                return ChoiceChip(
+                  label: Text(option),
+                  selected: selected,
+                  onSelected: (_) => setState(() => _selectedFilter = option),
+                  selectedColor: AppColors.tealLight,
+                  backgroundColor: AppColors.white,
+                  side: BorderSide(
+                    color: selected
+                        ? AppColors.teal
+                        : AppColors.textLight.withValues(alpha: 0.25),
                   ),
+                  labelStyle: TextStyle(
+                    color: selected ? AppColors.teal : AppColors.textMid,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                  checkmarkColor: AppColors.teal,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _providerOptions.map((option) {
+              final selected = _selectedProviders.contains(option);
+              return ChoiceChip(
+                label: Text(option),
+                selected: selected,
+                onSelected: (checked) => setState(() {
+                  if (checked) {
+                    _selectedProviders.add(option);
+                  } else if (_selectedProviders.length > 1) {
+                    // Always keep at least one provider selected so the
+                    // list can never silently filter down to nothing.
+                    _selectedProviders.remove(option);
+                  }
+                }),
+                selectedColor: AppColors.tealLight,
+                backgroundColor: AppColors.white,
+                side: BorderSide(
+                  color: selected
+                      ? AppColors.teal
+                      : AppColors.textLight.withValues(alpha: 0.25),
                 ),
-              ),
-            );
-          },
-        );
-      },
+                labelStyle: TextStyle(
+                  color: selected ? AppColors.teal : AppColors.textMid,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+                checkmarkColor: AppColors.teal,
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -356,29 +357,10 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                 // Tab 1: My consultations
                 Column(
                   children: [
-                    if (!_loading && _error == null && _consultations.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: OutlinedButton.icon(
-                            onPressed: _showFilterSheet,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.teal,
-                              side: const BorderSide(color: AppColors.teal),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20)),
-                            ),
-                            icon: Badge(
-                              isLabelVisible: _hasActiveFilter,
-                              backgroundColor: AppColors.teal,
-                              smallSize: 8,
-                              child: const Icon(Icons.filter_list, size: 18),
-                            ),
-                            label: const Text('Filter'),
-                          ),
-                        ),
-                      ),
+                    if (!_loading &&
+                        _error == null &&
+                        _consultations.isNotEmpty)
+                      _filterBar(),
                     Expanded(
                       child: _loading
                           ? const TBLoading()
@@ -414,7 +396,8 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                                                     _providerOptions.toSet();
                                               }))
                                       : ListView.builder(
-                                          padding: const EdgeInsets.all(16),
+                                          padding: const EdgeInsets.fromLTRB(
+                                              16, 4, 16, 16),
                                           itemCount:
                                               _filteredConsultations.length,
                                           itemBuilder: (ctx, i) => Padding(
@@ -541,100 +524,214 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     );
   }
 
+  // Consultation rows don't embed the specialist's name — resolved from the
+  // batch lookup done in _load() so the card can show "Dr. Jane Tan".
+  String? _providerName(Map<String, dynamic> c) {
+    final id = c['specialist_id'] as String?;
+    if (id == null) return null;
+    final provider = _providerProfiles[id];
+    final profile = provider?['profiles'];
+    final name =
+        profile is Map ? (profile['full_name']?.toString().trim() ?? '') : '';
+    if (name.isEmpty) return null;
+    return provider?['provider_type'] == 'specialist' ? 'Dr. $name' : name;
+  }
+
+  String? _providerPhotoUrl(Map<String, dynamic> c) {
+    final id = c['specialist_id'] as String?;
+    if (id == null) return null;
+    final profile = _providerProfiles[id]?['profiles'];
+    final url = profile is Map
+        ? (profile['profile_picture_url']?.toString() ?? '')
+        : '';
+    return url.trim().isEmpty ? null : url.trim();
+  }
+
+  Future<void> _joinMeeting(String link) async {
+    final uri = Uri.tryParse(link);
+    if (uri == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Invalid meeting link.')));
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the meeting link.')),
+      );
+    }
+  }
+
+  String _scheduleText(Map<String, dynamic> c) {
+    final dateRaw = c['scheduled_date']?.toString();
+    if (dateRaw == null || dateRaw.isEmpty) return '';
+    final date = DateTime.tryParse(dateRaw);
+    final dateText =
+        date != null ? DateFormat('d MMM yyyy').format(date) : dateRaw;
+    final time = (c['scheduled_time'] as String? ?? '').trim();
+    return time.isEmpty ? dateText : '$dateText, $time';
+  }
+
   Widget _itemCard(Map<String, dynamic> item) {
-    if (item['_kind'] == 'question') return _questionCard(context, item);
+    if (item['_kind'] == 'question') {
+      return QuickChatPreviewCard(question: item, onReload: _load);
+    }
 
     final c = item;
-    final status = c['status'] ?? 'pending';
+    final status = _effectiveStatus(c);
+    final providerName = _providerName(c);
+    final photoUrl = _providerPhotoUrl(c);
+    final schedule = _scheduleText(c);
+    final purpose = (c['purpose'] as String? ?? '').trim();
+    final platform = (c['platform'] as String? ?? 'Zoom Meeting').trim();
+    final meetingLink = (c['meeting_link'] as String? ?? '').trim();
+    final canJoin =
+        status.toLowerCase() == 'confirmed' && meetingLink.isNotEmpty;
+
     return TBCard(
       onTap: () async {
         await context.push('/consultation/detail', extra: c);
         _load();
       },
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-                color: statusColor(status).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10)),
-            child: Center(child: statusIconWidget(status)),
+              color: statusColor(status).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+              image: photoUrl != null
+                  ? DecorationImage(
+                      image:
+                          CachedNetworkImageProvider(photoUrl, maxWidth: 200),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: photoUrl != null
+                ? null
+                : Center(child: statusIconWidget(status)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(consultationTypeLabel(c['consultation_type'] as String?),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14)),
-                Text(status.toUpperCase(),
-                    style: TextStyle(
-                        color: statusColor(status),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
+                Row(
                   children: [
-                    Icon(Icons.video_call, color: AppColors.teal, size: 15),
-                    SizedBox(width: 4),
-                    Text('Zoom Meeting',
+                    Expanded(
+                      child: Text(
+                        consultationTypeLabel(
+                            c['consultation_type'] as String?),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: statusColor(status).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        statusLabel(status),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            color: AppColors.teal,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600)),
+                            color: statusColor(status),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800),
+                      ),
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right,
-              color: AppColors.textLight, size: 18),
-        ],
-      ),
-    );
-  }
-
-  Widget _questionCard(BuildContext context, Map<String, dynamic> q) {
-    final status = q['status'] as String? ?? 'pending';
-    final isCompleted = status == 'closed';
-    return TBCard(
-      onTap: () async {
-        await context.push('/ask-volunteer/detail', extra: q);
-        _load();
-      },
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-                color: (isCompleted ? AppColors.sage : AppColors.gold)
-                    .withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10)),
-            child:
-                const Center(child: Text('🤝', style: TextStyle(fontSize: 20))),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(q['question'] as String? ?? '',
+                if (providerName != null) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    providerName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14)),
-                Text(isCompleted ? 'COMPLETED' : 'ONGOING',
-                    style: TextStyle(
-                        color: isCompleted ? AppColors.sage : AppColors.gold,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                        color: AppColors.textDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+                if (schedule.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today,
+                          size: 12, color: AppColors.teal),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          schedule,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppColors.textMid, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (purpose.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    purpose,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textLight, fontSize: 11),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                if (canJoin)
+                  SizedBox(
+                    height: 30,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _joinMeeting(meetingLink),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.teal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                      ),
+                      icon: const Icon(Icons.video_call, size: 15),
+                      label: const Text(
+                        'Join Zoom Meeting',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.video_call,
+                          color: AppColors.teal, size: 14),
+                      const SizedBox(width: 4),
+                      Text(platform,
+                          style: const TextStyle(
+                              color: AppColors.teal,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           const Icon(Icons.chevron_right, color: AppColors.textLight, size: 18),
         ],
       ),

@@ -241,45 +241,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Future<bool> _saveNotificationReadReceipts(
-    List<Map<String, dynamic>> items,
-  ) async {
-    final userId = SupabaseService.currentUser?.id;
-    if (userId == null || items.isEmpty) return false;
-
-    final now = DateTime.now().toIso8601String();
-    final rows = items
-        .map((item) {
-          final sourceId = item['id']?.toString();
-          final sourceTable =
-              item['source_table']?.toString() ?? 'notifications';
-
-          if (sourceId == null || sourceId.isEmpty) return null;
-
-          return {
-            'user_id': userId,
-            'source_table': sourceTable,
-            'source_id': sourceId,
-            'read_at': now,
-          };
-        })
-        .whereType<Map<String, dynamic>>()
-        .toList();
-
-    if (rows.isEmpty) return false;
-
-    try {
-      await SupabaseService.client.from('notification_read_receipts').upsert(
-            rows,
-            onConflict: 'user_id,source_table,source_id',
-          );
-      return true;
-    } catch (e) {
-      debugPrint('Failed to save notification read receipts: $e');
-      return false;
-    }
-  }
-
   Future<Map<String, dynamic>?> _safeProfile() async {
     try {
       return await SupabaseService.getProfile();
@@ -1467,54 +1428,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Future<void> _markAllAsRead() async {
-    final userId = SupabaseService.currentUser?.id;
-    if (userId == null) return;
-
-    // Save receipts for every unread item, including notifications-table rows.
-    // This clears active alerts, generated alerts, AI/education cards, and
-    // global notifications that have user_id = NULL.
-    final itemsToReceipt = _notifications.where((n) {
-      return n['id'] != null && n['is_read'] != true;
-    }).toList();
-
-    setState(() {
-      _notifications = _notifications.map((n) {
-        return {...n, 'is_read': true};
-      }).toList();
-    });
-
-    try {
-      // Only user-owned notification rows are updated. Global notification rows
-      // are cleared per user through notification_read_receipts above.
-      await SupabaseService.client
-          .from('notifications')
-          .update({'is_read': true})
-          .eq('user_id', userId)
-          .eq('is_read', false);
-    } catch (e) {
-      debugPrint('Failed to mark all notifications as read: $e');
-    }
-
-    final receiptsSaved = await _saveNotificationReadReceipts(itemsToReceipt);
-
-    if (!mounted) return;
-
-    if (itemsToReceipt.isNotEmpty && !receiptsSaved) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Marked normal notifications as read, but read receipts did not save. Check the notification_read_receipts table and RLS policies.',
-          ),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All notifications marked as read.')),
-      );
-    }
-  }
-
   List<Map<String, dynamic>> get _filteredNotifications {
     if (_selectedFilter == 'All') return _notifications;
 
@@ -2630,16 +2543,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            if (_notifications.any((n) => n['is_read'] != true))
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: _markAllAsRead,
-                                  icon: const Icon(Icons.done_all, size: 16),
-                                  label: const Text('Mark all as read'),
-                                ),
-                              ),
-                            const SizedBox(height: 6),
                             _buildFilters(),
                             const SizedBox(height: 20),
                           ],

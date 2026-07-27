@@ -1526,6 +1526,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<Map<String, dynamic>> myQuestions = [];
     try {
       final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
+      // A chat with no activity in 48h is done — flip it to closed here
+      // too, not just when someone happens to open its own thread screen.
+      await SupabaseService.autoCloseStaleRequests(rawQuestions);
       myQuestions = await enrichQuickChatQuestions(
         List<Map<String, dynamic>>.from(rawQuestions),
       );

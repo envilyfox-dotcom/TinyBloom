@@ -115,6 +115,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     List<Map<String, dynamic>> myQuestions = [];
     try {
       final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
+      // A chat with no activity in 48h is done — flip it to closed here
+      // too, not just when someone happens to open its own thread screen.
+      await SupabaseService.autoCloseStaleRequests(rawQuestions);
       myQuestions = await enrichQuickChatQuestions(
         List<Map<String, dynamic>>.from(rawQuestions),
       );
@@ -296,8 +299,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           if (!_canNav()) return;
                           // Deep-links into Consultations with the
                           // Volunteer Chats filter already selected.
-                          await context
-                              .push('/consultation', extra: {'Volunteer Chats'});
+                          await context.push('/consultation',
+                              extra: {'Volunteer Chats'});
                           if (mounted) _load();
                         },
                       ),
@@ -486,8 +489,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
     final totalItems =
         _checklistPhases.fold(0, (sum, p) => sum + phaseTotal(p));
-    final totalDone =
-        _checklistPhases.fold(0, (sum, p) => sum + phaseDone(p));
+    final totalDone = _checklistPhases.fold(0, (sum, p) => sum + phaseDone(p));
     final progress = totalItems == 0 ? 0.0 : totalDone / totalItems;
     final currentPhase = _checklistPhases[_checklistPhaseIndex];
     final previewItems = currentPhase.allItems.take(3).toList();
@@ -574,7 +576,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   // row (Health logs / Gift premium / Chat volunteer) — "Join consult" was
   // dropped since it duplicated the Consultations card below.
   Widget _buildExploreSection(BuildContext context) {
-    final items = <({String emoji, String title, String desc, VoidCallback onTap})>[
+    final items =
+        <({String emoji, String title, String desc, VoidCallback onTap})>[
       (
         emoji: '📋',
         title: 'Health Logs',
@@ -864,7 +867,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                  color: fields.iconBg, borderRadius: BorderRadius.circular(12)),
+                  color: fields.iconBg,
+                  borderRadius: BorderRadius.circular(12)),
               child: Icon(fields.icon, color: fields.iconColor, size: 20),
             ),
             const SizedBox(width: 12),
