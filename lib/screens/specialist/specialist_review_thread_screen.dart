@@ -48,6 +48,7 @@ class _SpecialistReviewThreadScreenState
   bool _loading = true;
   String? _loadError;
   bool _acting = false;
+  bool _deleting = false;
   int? _myGroupId;
   final _commentCtrl = TextEditingController();
   final _commentFocusNode = FocusNode();
@@ -310,6 +311,50 @@ class _SpecialistReviewThreadScreenState
     } else if (result == true) {
       await _load();
     }
+  }
+
+  Future<void> _deleteArticle() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove Article'),
+        content: const Text(
+            'Are you sure you want to remove this published article? This cannot be undone.'),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(children: [
+            Expanded(
+                child: OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep'),
+            )),
+            const SizedBox(width: 12),
+            Expanded(
+                child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Remove'),
+            )),
+          ]),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    setState(() => _deleting = true);
+    try {
+      await SupabaseService.deleteArticleDraft(widget.contentId);
+      if (mounted) context.pop('deleted');
+      return;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+    if (mounted) setState(() => _deleting = false);
   }
 
   int get _unresolvedIssueCount =>
@@ -1306,7 +1351,23 @@ class _SpecialistReviewThreadScreenState
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Review Thread')),
+      appBar: AppBar(
+        title: const Text('Review Thread'),
+        actions: [
+          if (_isAuthor && status == 'published')
+            IconButton(
+              icon: _deleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.red),
+                    )
+                  : const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: _deleting ? null : _deleteArticle,
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         color: AppColors.rose,
         onRefresh: _load,
