@@ -400,6 +400,15 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   bool get _canReply => !_lockedOut && !_isClosed && (_isOpen || _isMine);
   String get _callStatus => widget.request['call_status'] as String? ?? 'none';
   String? get _meetingLink => widget.request['meeting_link'] as String?;
+  // The mum accepting now creates the Zoom meeting immediately (see
+  // SupabaseService.acceptVideoCall), but it's only actually shared with
+  // her once this side explicitly sends it into the thread.
+  bool get _linkSharedInThread {
+    final link = _meetingLink;
+    if (link == null || link.isEmpty) return false;
+    return _messages.any((m) => (m['message'] as String? ?? '').contains(link));
+  }
+
   DateTime? get _scheduledDate =>
       DateTime.tryParse(widget.request['scheduled_date']?.toString() ?? '');
   String? get _scheduledTime => widget.request['scheduled_time'] as String?;
@@ -736,6 +745,31 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
+  // The Zoom meeting already exists (created the moment the mum accepted —
+  // see SupabaseService.acceptVideoCall) and is already saved to
+  // meeting_link, so this just announces it in the thread rather than
+  // asking the volunteer to build and paste one themselves.
+  Future<void> _sendGeneratedLink() async {
+    final link = _meetingLink;
+    if (link == null || link.isEmpty) return;
+    setState(() => _sendingLink = true);
+    try {
+      final scheduledLine = _scheduledDate != null && _scheduledTime != null
+          ? 'Scheduled for ${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime\n\n'
+          : '';
+      await SupabaseService.sendRequestMessage(
+          widget.request['id'].toString(), '$scheduledLine$link');
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _sendingLink = false);
+    }
+  }
+
   Widget _videoCallControl() {
     switch (_callStatus) {
       case 'requested':
@@ -761,6 +795,73 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           ),
         );
       case 'accepted':
+        // Normal path: accepting already created a real Zoom meeting (see
+        // SupabaseService.acceptVideoCall) — just announce it in the thread.
+        if (_meetingLink != null &&
+            _meetingLink!.trim().isNotEmpty &&
+            !_linkSharedInThread) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.teal.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_scheduledDate != null && _scheduledTime != null) ...[
+                  Text(
+                      'Call scheduled for ${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.teal,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12)),
+                  const SizedBox(height: 6),
+                ],
+                Text(
+                    'Mum accepted! A Zoom meeting has been created for this call — send it to her.',
+                    style: GoogleFonts.poppins(
+                        color: AppColors.textDark, fontSize: 12)),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(_meetingLink!,
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: AppColors.textMid)),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _sendingLink ? null : _sendGeneratedLink,
+                    icon: _sendingLink
+                        ? const SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.send, size: 16),
+                    label: Text(_sendingLink ? 'Sending...' : 'Send to Mum',
+                        style: GoogleFonts.poppins(fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        // Fallback for a call accepted before this Zoom integration existed
+        // (or where creation somehow failed): no meeting_link at all, so
+        // fall back to pasting one in by hand.
         if (_meetingLink == null || _meetingLink!.trim().isEmpty) {
           return Container(
             width: double.infinity,
@@ -826,7 +927,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             ),
           );
         }
-        // Once a link's been sent, the "Join Call" button attached to
+        // Link's already been shared — the "Join Call" button attached to
         // that message in the thread (see _messageTile) is enough — no
         // need for a second, persistent one down here too.
         return const SizedBox.shrink();

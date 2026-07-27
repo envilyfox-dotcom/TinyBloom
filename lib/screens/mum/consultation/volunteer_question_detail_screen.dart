@@ -50,6 +50,15 @@ class _VolunteerQuestionDetailScreenState
   // A volunteer has claimed this thread once volunteer_id is set — only
   // then is there anyone on the other end for a follow-up to reach.
   bool get _hasVolunteer => widget.request['volunteer_id'] != null;
+  // The Zoom meeting is created the instant the mum accepts, but the
+  // volunteer still explicitly shares it into the thread — this is true
+  // once that share message has actually gone out, not just once the
+  // link exists.
+  bool get _linkSharedInThread {
+    final link = _meetingLink;
+    if (link == null || link.isEmpty) return false;
+    return _messages.any((m) => (m['message'] as String? ?? '').contains(link));
+  }
 
   @override
   void initState() {
@@ -146,8 +155,12 @@ class _VolunteerQuestionDetailScreenState
   Future<void> _acceptVideoCall() async {
     setState(() => _respondingToCall = true);
     try {
-      await SupabaseService.acceptVideoCall(widget.request['id'].toString());
+      // Also creates a real Zoom meeting behind the scenes — the volunteer
+      // just has to send it, not build one themselves.
+      final link =
+          await SupabaseService.acceptVideoCall(widget.request['id'].toString());
       widget.request['call_status'] = 'accepted';
+      widget.request['meeting_link'] = link;
       // Posted as a real chat message (not just the "waiting" banner,
       // which disappears once the volunteer sends the link) so the
       // agreed date/time stays visible in the thread for both sides.
@@ -247,7 +260,7 @@ class _VolunteerQuestionDetailScreenState
           ),
         );
       case 'accepted':
-        if (_meetingLink == null || _meetingLink!.trim().isEmpty) {
+        if (!_linkSharedInThread) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(

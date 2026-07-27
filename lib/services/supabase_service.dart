@@ -998,29 +998,34 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  // Accepting just flips the status — the volunteer still needs to send
-  // an actual Zoom link afterward via sendMeetingLink. A partial unique
-  // index (volunteer_id, scheduled_date, scheduled_time) where accepted
-  // and not closed stops this from succeeding if the volunteer already
-  // has another accepted call at that exact slot — same 23505-catching
-  // pattern as the legacy consultation booking uniqueness constraint.
-  static Future<void> acceptVideoCall(String requestId) async {
-    try {
-      await client
-          .from('volunteer_requests')
-          .update({'call_status': 'accepted'}).eq('id', requestId);
-    } on PostgrestException catch (e) {
-      if (e.code == '23505') {
-        throw Exception(
-            'Your volunteer already has another call accepted at that time. Ask them to propose a different slot.');
-      }
-      rethrow;
+  // Accepting creates a real Zoom meeting (via the create-zoom-meeting-
+  // volunteer-call edge function, same Server-to-Server OAuth approach as
+  // SupabaseService.approveConsultation) and stores its join_url, instead
+  // of just flipping call_status and leaving the volunteer to paste one in
+  // later. Returns the new meeting link so the caller can update local
+  // state immediately. A partial unique index (volunteer_id, scheduled_date,
+  // scheduled_time) where accepted and not closed still blocks this if the
+  // volunteer already has another accepted call at that exact slot — the
+  // edge function surfaces that as a friendly error message.
+  static Future<String> acceptVideoCall(String requestId) async {
+    final response = await client.functions.invoke(
+      'create-zoom-meeting-volunteer-call',
+      body: {'request_id': requestId},
+    );
+    final data = response.data;
+    final link = data is Map ? data['meeting_link']?.toString() : null;
+    if (link == null || link.isEmpty) {
+      final error = data is Map
+          ? (data['error']?.toString() ?? 'Could not create the Zoom meeting.')
+          : 'Could not create the Zoom meeting.';
+      throw Exception(error);
     }
+    return link;
   }
 
-  // The assigned volunteer pastes in a Zoom meeting link they created
-  // themselves (there's no Zoom API integration — this is just a plain
-  // text field), which both sides then use to join the call.
+  // Fallback path for a call that's 'accepted' but somehow still has no
+  // meeting_link (e.g. rows accepted before this Zoom integration existed) —
+  // lets the volunteer paste one in by hand, same as before.
   static Future<void> sendMeetingLink(String requestId, String link) async {
     await client
         .from('volunteer_requests')
