@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/checklist_data.dart';
+import '../../utils/next_of_kin_alert_read_state.dart';
+import '../../utils/next_of_kin_alerts_data.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -20,6 +22,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _linkedMum;
   List<Map<String, dynamic>> _consultations = [];
+  List<Map<String, dynamic>> _pregnancyLogs = [];
+  List<Map<String, dynamic>> _dailyReminderSends = [];
+  Set<String> _readAlertKeys = {};
   Map<String, String> _providerNames = {};
   List<ChecklistPhase> _checklistPhases = [];
   int _checklistPhaseIndex = 0;
@@ -64,11 +69,22 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     } catch (_) {}
 
     List<Map<String, dynamic>> consultations = [];
+    List<Map<String, dynamic>> pregnancyLogs = [];
+    List<Map<String, dynamic>> dailyReminderSends = [];
     final providerNames = <String, String>{};
     List<ChecklistPhase> checklistPhases = [];
     if (linkedMum != null) {
       consultations = await SupabaseService.getConsultationsForPatient(
           linkedMum['id'] as String);
+
+      try {
+        pregnancyLogs =
+            await SupabaseService.getLogsForPatient(linkedMum['id'] as String);
+      } catch (_) {}
+
+      try {
+        dailyReminderSends = await SupabaseService.getMyDailyReminders();
+      } catch (_) {}
 
       final activeSpecialistIds = consultations
           .where((c) {
@@ -94,12 +110,16 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       } catch (_) {}
     }
     final checklistPhaseIndex = await getCurrentChecklistPhaseIndex();
+    final readAlertKeys = await getReadAlertKeys();
 
     if (mounted) {
       setState(() {
         _profile = profile;
         _linkedMum = linkedMum;
         _consultations = consultations;
+        _pregnancyLogs = pregnancyLogs;
+        _readAlertKeys = readAlertKeys;
+        _dailyReminderSends = dailyReminderSends;
         _providerNames = providerNames;
         _checklistPhases = checklistPhases;
         _checklistPhaseIndex = checklistPhaseIndex.clamp(
@@ -120,6 +140,22 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       (_profile?['full_name'] as String? ?? 'there').split(' ').first;
 
   String? get _photoUrl => _profile?['profile_picture_url'] as String?;
+
+  // Notification-bell badge count. Uses the same alert-source builder and
+  // persisted read-state store as the full Notifications Centre
+  // (alerts_screen.dart), so the two screens always agree on what's
+  // unread — an alert only stops counting here once it's actually been
+  // seen there.
+  int get _notificationBellCount {
+    if (_linkedMum == null) return 0;
+    final sources = buildNextOfKinAlertSources(
+      linkedMumWeek: _linkedMumWeek,
+      consultations: _consultations,
+      pregnancyLogs: _pregnancyLogs,
+      dailyReminderSends: _dailyReminderSends,
+    );
+    return sources.where((s) => !_readAlertKeys.contains(s.key)).length;
+  }
 
   int get _linkedMumWeek => (_linkedMum?['current_week'] as int?) ?? 0;
   String get _linkedMumName => (_linkedMum?['full_name'] as String?) ?? 'them';
@@ -232,6 +268,17 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           ],
                         ),
                       ),
+                      TBNotificationBell(
+                        count: _notificationBellCount,
+                        onTap: () async {
+                          if (!_canNav()) return;
+                          // Reload on return so the badge reflects the
+                          // read-state changes the visit just made.
+                          await context.push('/next-of-kin/alerts');
+                          if (mounted) _load();
+                        },
+                      ),
+                      const SizedBox(width: 10),
                       GestureDetector(
                         onTap: () => context.push('/profile'),
                         child: CircleAvatar(
@@ -268,8 +315,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildTrimesterCard(context),
-                          const SizedBox(height: 20),
-                          _buildQuickActions(),
                           const SizedBox(height: 20),
                           _buildChecklistSection(context),
                           const SizedBox(height: 20),
@@ -392,85 +437,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
-  Widget _buildQuickActions() {
-    final actions = [
-      (
-        emoji: '📋',
-        iconBg: AppColors.rose.withValues(alpha: 0.15),
-        label: 'Health logs',
-        onTap: () {
-          // go(), not push() — /logs is a bottom-nav tab inside the same
-          // ShellRoute; pushing it leaves the dashboard underneath instead
-          // of replacing it, so the tab highlight never updates and the
-          // dashboard never reloads when you come back to it.
-          if (_canNav()) context.go('/logs');
-        },
-      ),
-      (
-        emoji: '🎥',
-        iconBg: AppColors.sage.withValues(alpha: 0.15),
-        label: 'Join consult',
-        onTap: () {
-          if (_canNav()) context.push('/consultation');
-        },
-      ),
-      (
-        emoji: '🎁',
-        iconBg: AppColors.gold.withValues(alpha: 0.15),
-        label: 'Gift premium',
-        onTap: () {
-          if (_canNav()) context.push('/next-of-kin/gift-subscription');
-        },
-      ),
-      (
-        emoji: '💬',
-        iconBg: AppColors.teal.withValues(alpha: 0.15),
-        label: 'Chat volunteer',
-        onTap: () {
-          if (_canNav()) context.push('/next-of-kin/chat-volunteer');
-        },
-      ),
-    ];
-
-    return Row(
-      children: [
-        for (int i = 0; i < actions.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
-          Expanded(child: _quickActionButton(actions[i])),
-        ],
-      ],
-    );
-  }
-
-  Widget _quickActionButton(
-      ({String emoji, Color iconBg, String label, VoidCallback onTap}) action) {
-    return GestureDetector(
-      onTap: action.onTap,
-      child: TBCard(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                  color: action.iconBg,
-                  borderRadius: BorderRadius.circular(12)),
-              alignment: Alignment.center,
-              child: Text(action.emoji, style: const TextStyle(fontSize: 20)),
-            ),
-            const SizedBox(height: 8),
-            Text(action.label,
-                textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
   // "Current trimester" here is whatever the user last picked on the full
   // Checklist screen (getCurrentChecklistPhaseIndex), not derived from the
   // mum's real week — same source of truth both screens read from.
@@ -563,21 +529,55 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
   // Mirrors the mum dashboard's Explore section (same TBSectionTitle +
   // card style) so AI Assistant lives in a consistent spot across roles,
-  // now that it's off the bottom nav.
+  // now that it's off the bottom nav. Also absorbs the old Quick Actions
+  // row (Health logs / Gift premium / Chat volunteer) — "Join consult" was
+  // dropped since it duplicated the Consultations card below.
   Widget _buildExploreSection(BuildContext context) {
-    final items = [
-      {
-        'emoji': '🤖',
-        'title': 'AI Assistant',
-        'desc': 'Get personalised pregnancy guidance',
-        'route': '/chatbot',
-      },
-      {
-        'emoji': '👩‍⚕️',
-        'title': 'Consultations',
-        'desc': 'Book volunteer or specialist support',
-        'route': '/consultation',
-      },
+    final items = <({String emoji, String title, String desc, VoidCallback onTap})>[
+      (
+        emoji: '📋',
+        title: 'Health Logs',
+        desc: "View her health logs",
+        onTap: () {
+          // go(), not push() — /logs is a bottom-nav tab inside the same
+          // ShellRoute; pushing it leaves the dashboard underneath instead
+          // of replacing it, so the tab highlight never updates and the
+          // dashboard never reloads when you come back to it.
+          if (_canNav()) context.go('/logs');
+        },
+      ),
+      (
+        emoji: '🤖',
+        title: 'AI Assistant',
+        desc: 'Get personalised pregnancy guidance',
+        onTap: () {
+          if (_canNav()) context.push('/chatbot');
+        },
+      ),
+      (
+        emoji: '👩‍⚕️',
+        title: 'Consultations',
+        desc: 'Book volunteer or specialist support',
+        onTap: () {
+          if (_canNav()) context.push('/consultation');
+        },
+      ),
+      (
+        emoji: '🎁',
+        title: 'Gift Premium',
+        desc: 'Gift her a premium subscription',
+        onTap: () {
+          if (_canNav()) context.push('/next-of-kin/gift-subscription');
+        },
+      ),
+      (
+        emoji: '💬',
+        title: 'Chat Volunteer',
+        desc: 'Browse and chat with volunteers',
+        onTap: () {
+          if (_canNav()) context.push('/next-of-kin/chat-volunteer');
+        },
+      ),
     ];
 
     return Column(
@@ -585,37 +585,42 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       children: [
         const TBSectionTitle(title: 'Explore', action: ''),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (int i = 0; i < items.length; i++) ...[
-              if (i > 0) const SizedBox(width: 12),
-              Expanded(child: _exploreCard(context, items[i])),
+        for (int i = 0; i < items.length; i += 2) ...[
+          if (i > 0) const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _exploreCard(items[i])),
+              const SizedBox(width: 12),
+              Expanded(
+                child: i + 1 < items.length
+                    ? _exploreCard(items[i + 1])
+                    : const SizedBox.shrink(),
+              ),
             ],
-          ],
-        ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _exploreCard(BuildContext context, Map<String, String> item) {
+  Widget _exploreCard(
+      ({String emoji, String title, String desc, VoidCallback onTap}) item) {
     return GestureDetector(
-      onTap: () {
-        if (_canNav()) context.push(item['route']!);
-      },
+      onTap: item.onTap,
       child: TBCard(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(item['emoji']!, style: const TextStyle(fontSize: 24)),
+            Text(item.emoji, style: const TextStyle(fontSize: 24)),
             const SizedBox(height: 6),
-            Text(item['title']!,
+            Text(item.title,
                 style:
                     const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             const SizedBox(height: 2),
-            Text(item['desc']!,
+            Text(item.desc,
                 style:
                     const TextStyle(color: AppColors.textLight, fontSize: 11),
                 maxLines: 2,

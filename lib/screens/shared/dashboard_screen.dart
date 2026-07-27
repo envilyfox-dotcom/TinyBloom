@@ -1514,6 +1514,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 10),
+                          TBNotificationBell(
+                            // _notifications is already filtered to
+                            // unread-only by _loadDashboardNotifications
+                            // (see _load()), so this is the same accurate
+                            // count the full Notifications Centre would
+                            // show — no extra queries needed.
+                            count: _notifications.length,
+                            onTap: () async {
+                              if (!_canNav()) return;
+                              // Reload on return so the badge reflects
+                              // whatever got marked read during the visit.
+                              await context.push('/notifications');
+                              if (mounted) _load();
+                            },
+                          ),
+                          const SizedBox(width: 10),
                           GestureDetector(
                             onTap: () => context.push('/profile'),
                             child: CircleAvatar(

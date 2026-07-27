@@ -625,27 +625,49 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                                       fontSize: 11)),
                             ],
                           ),
-                          GestureDetector(
-                            onTap: () => context.go('/profile'),
-                            child: CircleAvatar(
-                              radius: 22,
-                              backgroundColor:
-                                  AppColors.rose.withValues(alpha: 0.15),
-                              backgroundImage: _photoUrl != null
-                                  ? CachedNetworkImageProvider(_photoUrl!,
-                                      maxWidth: 200)
-                                  : null,
-                              child: _photoUrl != null
-                                  ? null
-                                  : Text(
-                                      _firstName.isNotEmpty
-                                          ? _firstName[0]
-                                          : '?',
-                                      style: const TextStyle(
-                                          color: AppColors.roseDeep,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700)),
-                            ),
+                          Row(
+                            children: [
+                              TBNotificationBell(
+                                // No persisted "read" state for specialist
+                                // notifications (see
+                                // specialist_notifications_helpers.dart) —
+                                // every item currently in the feed counts,
+                                // and it naturally clears once the
+                                // consultation/article no longer needs
+                                // action. Reload on return so the badge
+                                // reflects anything that resolved while
+                                // the centre was open.
+                                count: _notifications.length,
+                                onTap: () async {
+                                  await context
+                                      .push('/specialist/notifications');
+                                  if (mounted) _load();
+                                },
+                              ),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: () => context.go('/profile'),
+                                child: CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor:
+                                      AppColors.rose.withValues(alpha: 0.15),
+                                  backgroundImage: _photoUrl != null
+                                      ? CachedNetworkImageProvider(_photoUrl!,
+                                          maxWidth: 200)
+                                      : null,
+                                  child: _photoUrl != null
+                                      ? null
+                                      : Text(
+                                          _firstName.isNotEmpty
+                                              ? _firstName[0]
+                                              : '?',
+                                          style: const TextStyle(
+                                              color: AppColors.roseDeep,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w700)),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

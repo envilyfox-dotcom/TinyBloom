@@ -8,3 +8,22 @@ String timeAgo(DateTime date) {
   if (diff.inDays < 7) return '${diff.inDays}d ago';
   return DateFormat('d MMM').format(date);
 }
+
+// Small role label shown under a forum post/comment author's name.
+String forumRoleLabel(String? role) {
+  switch (role) {
+    case 'free_user':
+    case 'premium_user':
+      return 'Mother';
+    case 'next_of_kin':
+      return 'Next of Kin';
+    case 'specialist':
+      return 'Specialist';
+    case 'volunteer':
+      return 'Volunteer';
+    case 'admin':
+      return 'Admin';
+    default:
+      return '';
+  }
+}

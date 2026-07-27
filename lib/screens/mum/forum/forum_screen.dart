@@ -206,6 +206,7 @@ class _ForumScreenState extends State<ForumScreen> {
     final id = post['id'] as String;
     final profile = post['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name'] as String? ?? 'Member';
+    final roleLabel = forumRoleLabel(profile?['role'] as String?);
     final content = post['content'] as String? ?? '';
     final createdAt = DateTime.tryParse(post['created_at'] as String? ?? '');
     final commentCount = _embeddedCount(post, 'forum_comments');
@@ -239,6 +240,12 @@ class _ForumScreenState extends State<ForumScreen> {
                   Text(name,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 14)),
+                  if (roleLabel.isNotEmpty)
+                    Text(roleLabel,
+                        style: const TextStyle(
+                            color: AppColors.textLight,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
                   Text(createdAt != null ? timeAgo(createdAt) : '',
                       style: const TextStyle(
                           color: AppColors.textLight, fontSize: 11)),

@@ -69,6 +69,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final post = widget.post;
     final profile = post['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name'] as String? ?? 'Member';
+    final roleLabel = forumRoleLabel(profile?['role'] as String?);
     final content = post['content'] as String? ?? '';
     final createdAt = DateTime.tryParse(post['created_at'] as String? ?? '');
     final myId = SupabaseService.currentUser?.id;
@@ -112,6 +113,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w700,
                                             fontSize: 14)),
+                                    if (roleLabel.isNotEmpty)
+                                      Text(roleLabel,
+                                          style: const TextStyle(
+                                              color: AppColors.textLight,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600)),
                                     Text(
                                         createdAt != null
                                             ? timeAgo(createdAt)
@@ -203,6 +210,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _commentTile(Map<String, dynamic> c, String? myId) {
     final profile = c['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name'] as String? ?? 'Member';
+    final roleLabel = forumRoleLabel(profile?['role'] as String?);
     final createdAt = DateTime.tryParse(c['created_at'] as String? ?? '');
     final isMine = c['author_id'] == myId;
     return Padding(
@@ -228,6 +236,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(width: 6),
+                if (roleLabel.isNotEmpty) ...[
+                  Text(roleLabel,
+                      style: const TextStyle(
+                          color: AppColors.textLight,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 6),
+                  const Text('•',
+                      style: TextStyle(
+                          color: AppColors.textLight, fontSize: 11)),
+                  const SizedBox(width: 6),
+                ],
                 Text(createdAt != null ? timeAgo(createdAt) : '',
                     style: const TextStyle(
                         color: AppColors.textLight, fontSize: 11)),

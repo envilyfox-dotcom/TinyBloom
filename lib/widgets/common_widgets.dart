@@ -200,6 +200,68 @@ class TBEmptyState extends StatelessWidget {
   }
 }
 
+// ── Notification Bell (dashboard header) ────────────────────────────
+// Shared across every role that has its own Notifications Centre (mum,
+// next-of-kin, specialist) so the bell + unread-count badge look and
+// behave identically no matter which dashboard it's on.
+class TBNotificationBell extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const TBNotificationBell({super.key, required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textDark.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.notifications_outlined,
+                color: AppColors.textDark, size: 22),
+          ),
+          if (count > 0)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.white, width: 1.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  count > 99 ? '99+' : '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Loading Spinner ───────────────────────────────────────────────
 class TBLoading extends StatelessWidget {
   const TBLoading({super.key});

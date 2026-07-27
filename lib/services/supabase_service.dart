@@ -1348,7 +1348,7 @@ class SupabaseService {
         // path PostgREST finds via forum_likes (which also references both
         // forum_posts and profiles, looking like a many-to-many join).
         .select(
-            '*, profiles!forum_posts_author_id_fkey(full_name), forum_comments(count), forum_likes(count)')
+            '*, profiles!forum_posts_author_id_fkey(full_name, role), forum_comments(count), forum_likes(count)')
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(res);
   }
@@ -1400,7 +1400,7 @@ class SupabaseService {
       String postId) async {
     final res = await client
         .from('forum_comments')
-        .select('*, profiles(full_name)')
+        .select('*, profiles(full_name, role)')
         .eq('post_id', postId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);
@@ -1418,6 +1418,34 @@ class SupabaseService {
 
   static Future<void> deleteForumComment(String id) async {
     await client.from('forum_comments').delete().eq('id', id);
+  }
+
+  // ── Daily reminders (next-of-kin) ─────────────────────────────────
+  // Reminders are "sent" (materialized as daily_reminder_sends rows) by a
+  // daily cron job (see add_next_of_kin_daily_reminders.sql). This also
+  // calls the idempotent per-user RPC as a safety net so reminders still
+  // show up even if the cron job hasn't run yet for today.
+  static Future<List<Map<String, dynamic>>> getMyDailyReminders() async {
+    final user = currentUser;
+    if (user == null) return [];
+
+    try {
+      await client.rpc('ensure_my_daily_reminders');
+    } catch (_) {}
+
+    try {
+      final today = DateTime.now().toIso8601String().split('T').first;
+      final res = await client
+          .from('daily_reminder_sends')
+          .select(
+              'id, created_at, template:template_id(title, subtitle_template, icon_name, display_order)')
+          .eq('user_id', user.id)
+          .eq('sent_date', today)
+          .order('created_at', ascending: true);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      return [];
+    }
   }
 
   // ── Checklist (next-of-kin support checklist) ────────────────────
