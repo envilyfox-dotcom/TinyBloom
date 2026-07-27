@@ -181,29 +181,31 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
   int get _linkedMumWeek => (_linkedMum?['current_week'] as int?) ?? 0;
   String get _linkedMumName => (_linkedMum?['full_name'] as String?) ?? 'her';
 
-  String _appointmentDateLabel(String? scheduledDate) {
-    final date =
-        scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
-    if (date == null) return 'Upcoming Appointment';
-    final today = DateTime.now();
-    final diff = DateTime(date.year, date.month, date.day)
-        .difference(DateTime(today.year, today.month, today.day))
-        .inDays;
-    if (diff == 0) return 'Appointment Today';
-    if (diff == 1) return 'Appointment Tomorrow';
-    if (diff < 0) return 'Past Appointment';
-    return 'Appointment on ${DateFormat('d MMM').format(date)}';
+  String _titleCase(String value) {
+    final clean = value.trim();
+    if (clean.isEmpty) return clean;
+    return clean[0].toUpperCase() + clean.substring(1).toLowerCase();
   }
 
-  String _appointmentSubtitle(Map<String, dynamic> c) {
-    final type = (c['consultation_type'] as String? ?? 'specialist');
-    final typeLabel =
-        '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
-    final time = c['scheduled_time'] as String?;
-    final providerName = _providerNames[c['specialist_id']];
-    if (time == null && providerName == null) return typeLabel;
-    final timeProvider = [time, providerName].whereType<String>().join(' - ');
-    return '$typeLabel\n$timeProvider';
+  String _consultationScheduledLine(Map<String, dynamic> c) {
+    final dateStr = c['scheduled_date'] as String?;
+    final time = (c['scheduled_time'] as String?)?.trim();
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+    if (date == null) return time ?? 'Not confirmed yet';
+    final formatted = DateFormat('yyyy-MM-dd').format(date);
+    return time == null || time.isEmpty ? formatted : '$formatted, $time';
+  }
+
+  List<String> _consultationDetailLines(Map<String, dynamic> c) {
+    final purpose = (c['purpose'] as String? ?? '').trim();
+    final platform = (c['platform'] as String? ?? 'Zoom Meeting').trim();
+    final status = (c['status'] as String? ?? 'pending');
+    return [
+      'Time: ${_consultationScheduledLine(c)}',
+      if (purpose.isNotEmpty) 'Purpose: $purpose',
+      'Mode: $platform',
+      'Status: ${_titleCase(status)}',
+    ];
   }
 
   void _comingSoon(String feature) {
@@ -253,15 +255,26 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
 
       case 'consultation':
         final c = s.consultation!;
+        final providerName = _providerNames[c['specialist_id']] ?? 'Specialist';
+        final purpose = (c['purpose'] as String? ?? '').trim();
+        final platform = (c['platform'] as String? ?? 'Zoom Meeting').trim();
+        final status = (c['status'] as String? ?? 'pending');
+        final subtitle = [
+          if (purpose.isNotEmpty) purpose,
+          _consultationScheduledLine(c),
+          platform,
+          '${_titleCase(status)} Specialist',
+        ].join(' • ');
         return _AlertItem(
           key: s.key,
           type: 'consultation',
           icon: Icons.calendar_month_outlined,
           color: AppColors.sage,
-          title: _appointmentDateLabel(c['scheduled_date'] as String?),
-          subtitle: _appointmentSubtitle(c),
+          title: providerName,
+          subtitle: subtitle,
+          detailLines: _consultationDetailLines(c),
           timestamp: s.timestamp,
-          onTap: () => context.push('/consultation'),
+          onTap: () => context.push('/consultation/detail', extra: c),
         );
 
       case 'volunteer':

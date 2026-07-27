@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/next_of_kin_relationship.dart';
 import '../../widgets/common_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -294,6 +295,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
+                        if (_linkedMum != null)
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined,
+                                color: AppColors.roseDeep, size: 20),
+                            tooltip: 'Edit relationship',
+                            onPressed: () async {
+                              final updated = await editNextOfKinRelationship(
+                                  context,
+                                  currentRelationship:
+                                      _linkedMum?['relationship'] as String?);
+                              if (updated != null && mounted) {
+                                setState(() {
+                                  _linkedMum = {
+                                    ..._linkedMum!,
+                                    'relationship': updated,
+                                  };
+                                });
+                              }
+                            },
+                          ),
                       ],
                     ),
                   ),

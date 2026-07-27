@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../../services/auth_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
@@ -163,6 +165,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Next-of-kin can only view the linked mum's consultations — cancelling
+    // is her own action, so the Cancel button is hidden entirely for them.
+    final isNextOfKin = context.watch<AuthProvider>().isNextOfKin;
     final c = widget.consultation;
     final status = (c['status'] as String?) ?? 'pending';
     final profile = _provider?['profiles'] as Map<String, dynamic>? ?? {};
@@ -353,7 +358,8 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  if (status == 'confirmed' || status == 'pending')
+                  if (!isNextOfKin &&
+                      (status == 'confirmed' || status == 'pending'))
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(

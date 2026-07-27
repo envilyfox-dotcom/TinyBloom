@@ -802,7 +802,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
           title: _appointmentDateLabel(c['scheduled_date'] as String?),
           subtitle: _appointmentSubtitle(c),
           onTap: () {
-            if (_canNav()) context.push('/consultation');
+            if (_canNav()) context.push('/consultation/detail', extra: c);
           },
         );
 

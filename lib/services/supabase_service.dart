@@ -1192,6 +1192,22 @@ class SupabaseService {
     return mum['full_name'] as String? ?? 'Mum';
   }
 
+  // Edits the relationship on an existing link without touching which mum
+  // it points to — re-linking to a different mum still goes through
+  // linkToMum's delete+insert flow.
+  static Future<void> updateNextOfKinRelationship(String relationship) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+    final res = await client
+        .from('next_of_kin_profiles')
+        .update({'relationship': relationship})
+        .eq('user_id', user.id)
+        .select();
+    if (res.isEmpty) {
+      throw Exception('Could not update — you may not be linked yet.');
+    }
+  }
+
   // Specialists & volunteers
   static Future<List<Map<String, dynamic>>> getSpecialists() async {
     final res = await client

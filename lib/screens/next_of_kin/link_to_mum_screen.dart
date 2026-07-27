@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/next_of_kin_relationship.dart';
 import '../../widgets/common_widgets.dart';
 
 // ── Link to Pregnant User (Next of Kin) ──────────────────────────────
@@ -13,10 +14,6 @@ class LinkToMumScreen extends StatefulWidget {
 }
 
 class _LinkToMumScreenState extends State<LinkToMumScreen> {
-  static const _relationshipOptions = [
-    'Husband / Partner', 'Mother', 'Father', 'Sister', 'Brother', 'Friend', 'Other',
-  ];
-
   final _formKey = GlobalKey<FormState>();
   final _userCodeCtrl = TextEditingController();
   String? _relationship;
@@ -182,7 +179,7 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                           decoration: const InputDecoration(
                               labelText: 'Relationship to Expectant Mother'),
                           hint: const Text('Select relationship'),
-                          items: _relationshipOptions
+                          items: nextOfKinRelationshipOptions
                               .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                               .toList(),
                           onChanged: (v) => setState(() => _relationship = v),
@@ -269,6 +266,20 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                 ],
               ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined,
+                color: AppColors.roseDeep, size: 20),
+            tooltip: 'Edit relationship',
+            onPressed: () async {
+              final updated = await editNextOfKinRelationship(context,
+                  currentRelationship: relationship);
+              if (updated != null && mounted) {
+                setState(() {
+                  _linkedMum = {..._linkedMum!, 'relationship': updated};
+                });
+              }
+            },
           ),
         ],
       ),
