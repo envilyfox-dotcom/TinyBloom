@@ -35,6 +35,7 @@ class _SpecialistCreateArticleScreenState
   bool _saving = false;
   bool _uploadingImage = false;
   final Set<String> _selectedTags = {};
+  String? _tagsError;
 
   // Trimester tags sit in the same multi-select tag list as ordinary
   // categories — no separate "Relevant Trimester" section — so an article
@@ -169,10 +170,10 @@ class _SpecialistCreateArticleScreenState
       return;
     }
     if (_selectedTags.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please choose at least one tag.')));
+      setState(() => _tagsError = 'Please select at least one tag');
       return;
     }
+    if (_tagsError != null) setState(() => _tagsError = null);
     setState(() => _saving = true);
     try {
       final created = await SupabaseService.createArticleDraft(
@@ -474,6 +475,11 @@ class _SpecialistCreateArticleScreenState
                               } else {
                                 _selectedTags.add(tag);
                               }
+                              if (_tagsError != null) {
+                                _tagsError = _selectedTags.isEmpty
+                                    ? 'Please select at least one tag'
+                                    : null;
+                              }
                             }),
                             selectedColor: AppColors.tealLight,
                             checkmarkColor: AppColors.teal,
@@ -484,6 +490,13 @@ class _SpecialistCreateArticleScreenState
                                     : AppColors.textLight.withValues(alpha: 0.3)),
                           );
                         }).toList()),
+                    if (_tagsError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, left: 4),
+                        child: Text(_tagsError!,
+                            style: const TextStyle(
+                                color: Colors.red, fontSize: 12)),
+                      ),
                     const SizedBox(height: 24),
                     Row(
                       children: [

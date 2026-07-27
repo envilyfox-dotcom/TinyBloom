@@ -234,14 +234,22 @@ class _SpecialistConsultationsScreenState
     }
   }
 
+  // Approving creates a real Zoom meeting and confirms in one step — see
+  // the matching comment in specialist_consultation_detail_screen.dart.
   Future<void> _approve(Map<String, dynamic> consultation) async {
     final id = consultation['id']?.toString();
     if (id == null) return;
 
     setState(() => _busyIds.add(id));
     try {
-      await SupabaseService.updateConsultationStatus(id, 'confirmed');
-      if (mounted) setState(() => consultation['status'] = 'confirmed');
+      final link = await SupabaseService.approveConsultation(id);
+      if (mounted) {
+        setState(() {
+          consultation['status'] = 'confirmed';
+          consultation['meeting_link'] = link;
+          consultation['platform'] = 'Zoom Meeting';
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1086,6 +1086,27 @@ class SupabaseService {
     }
   }
 
+  // Approving a specialist consultation now also creates a real Zoom
+  // meeting (via the create-zoom-meeting edge function, using Zoom's
+  // Server-to-Server OAuth API) and stores its genuine join_url as
+  // meeting_link, instead of just flipping the status. Returns the new
+  // meeting link so the caller can update its local state immediately.
+  static Future<String> approveConsultation(String id) async {
+    final response = await client.functions.invoke(
+      'create-zoom-meeting',
+      body: {'consultation_id': id},
+    );
+    final data = response.data;
+    final link = data is Map ? data['meeting_link']?.toString() : null;
+    if (link == null || link.isEmpty) {
+      final error = data is Map
+          ? (data['error']?.toString() ?? 'Could not create the Zoom meeting.')
+          : 'Could not create the Zoom meeting.';
+      throw Exception(error);
+    }
+    return link;
+  }
+
   // Looks up the specialist/volunteer profile (+ name) for a consultation's
   // other party, trying specialist_profiles first then volunteer_profiles.
   static Future<Map<String, dynamic>?> getProviderProfile(String userId) async {

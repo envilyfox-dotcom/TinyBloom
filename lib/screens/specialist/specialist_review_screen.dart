@@ -495,11 +495,20 @@ class _GroupInfoDialog extends StatelessWidget {
                           Icon(Icons.checklist_rounded,
                               color: AppColors.sage, size: 20),
                           SizedBox(width: 8),
-                          Text('First and Second review',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                  color: AppColors.textDark)),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Primary group',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: AppColors.textDark)),
+                              Text('First and Second review',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textLight)),
+                            ],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -535,11 +544,20 @@ class _GroupInfoDialog extends StatelessWidget {
                           Icon(Icons.visibility_rounded,
                               color: AppColors.teal, size: 20),
                           SizedBox(width: 8),
-                          Text('Second review only',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                  color: AppColors.textDark)),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Secondary Group',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: AppColors.textDark)),
+                              Text('Second review only',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textLight)),
+                            ],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),

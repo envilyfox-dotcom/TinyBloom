@@ -219,13 +219,19 @@ class _SpecialistConsultationDetailScreenState
     }
   }
 
+  // Approving creates a real, joinable Zoom meeting (via Zoom's Server-to-
+  // Server OAuth API, see supabase/functions/create-zoom-meeting) and
+  // confirms the consultation in the same step, rather than confirming
+  // against a meeting link that doesn't exist yet.
   Future<void> _approve() async {
     setState(() => _approving = true);
     try {
-      await SupabaseService.updateConsultationStatus(
-          widget.consultation['id'], 'confirmed');
+      final link = await SupabaseService.approveConsultation(
+          widget.consultation['id']);
       if (mounted) {
         widget.consultation['status'] = 'confirmed';
+        widget.consultation['meeting_link'] = link;
+        widget.consultation['platform'] = 'Zoom Meeting';
         setState(() => _approving = false);
       }
     } catch (e) {

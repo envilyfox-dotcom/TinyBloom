@@ -33,6 +33,9 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
   Future<void> _confirm() async {
     setState(() => _submitting = true);
     try {
+      // No meeting_link yet: a real Zoom meeting is only created once the
+      // specialist approves the booking (see SupabaseService.approveConsultation),
+      // so there's never a link on show that doesn't actually exist.
       await SupabaseService.bookConsultation({
         'specialist_id': widget.provider['user_id'],
         'consultation_type': widget.type,
@@ -40,8 +43,6 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
         'scheduled_time': widget.time.split('-').first.trim(),
         'purpose': widget.purpose.isEmpty ? null : widget.purpose,
         'platform': 'Zoom Meeting',
-        'meeting_link':
-            'https://zoom.us/j/${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
       });
       if (mounted) {
         setState(() {

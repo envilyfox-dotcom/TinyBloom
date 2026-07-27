@@ -525,7 +525,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'No new consultation. Tap to view all to open the consultation page.',
+                'No new consultation. Tap view all to open the consultation page.',
                 style: TextStyle(
                   color: AppColors.textMid,
                   fontSize: 12,
