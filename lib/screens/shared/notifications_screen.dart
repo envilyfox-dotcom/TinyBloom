@@ -457,31 +457,55 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('created_at', ascending: false)
         .limit(12);
 
-    final rows = <Map<String, dynamic>>[];
-
     final now = DateTime.now();
+    final kept = <Map<String, dynamic>>[];
 
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
       final item = Map<String, dynamic>.from(rawItem);
-      final status = (item['status'] ?? 'booked').toString();
 
-      // Drop consultations that are over — cancelled/completed/etc, or past
-      // their scheduled slot by more than 2 hours — so the Consultation
-      // filter shows current/upcoming bookings, not an ever-growing history.
-      if (!_isUpcomingConsultationStatus(status)) continue;
+      // Same status vocabulary as the mum's own consultations list
+      // (effectiveConsultationStatus in consultation_helpers.dart): drop
+      // anything cancelled/completed — including a still-'pending' request
+      // the specialist never responded to, which counts as cancelled once
+      // its slot passes — so the Consultation filter shows current/upcoming
+      // bookings only, not an ever-growing history.
+      final effectiveStatus = effectiveConsultationStatus(item);
+      if (effectiveStatus == 'cancelled' || effectiveStatus == 'completed') {
+        continue;
+      }
       final scheduledAt = _consultationReminderDateTime(item);
       if (scheduledAt != null &&
           scheduledAt.isBefore(now.subtract(const Duration(hours: 2)))) {
         continue;
       }
 
+      kept.add(item);
+    }
+
+    // Fetch every distinct specialist's profile once, in parallel, instead
+    // of one sequential round trip per consultation — several bookings
+    // often share the same specialist, and this used to be an N+1 chain
+    // that could make the whole Notifications Centre feel slow to load.
+    final specialistIds = kept
+        .map((c) => c['specialist_id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final providers = <String, Map<String, dynamic>?>{};
+    await Future.wait(specialistIds.map((id) async {
+      providers[id] = await _safeSpecialistProvider(id);
+    }));
+
+    final rows = <Map<String, dynamic>>[];
+    for (final item in kept) {
+      final status = (item['status'] ?? 'booked').toString();
       final consultationType =
           (item['consultation_type'] ?? 'consultation').toString();
       final purpose = (item['purpose'] ?? '').toString().trim();
       final scheduled = _formatConsultationDate(item);
       final platform = (item['platform'] ?? '').toString().trim();
       final specialistId = item['specialist_id']?.toString();
-      final specialistProvider = await _safeSpecialistProvider(specialistId);
+      final specialistProvider =
+          specialistId == null ? null : providers[specialistId];
 
       final providerName =
           (specialistProvider?['name'] ?? 'Specialist').toString().trim();
@@ -553,7 +577,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('scheduled_date');
 
     final now = DateTime.now();
-    final rows = <Map<String, dynamic>>[];
+    final kept = <Map<String, dynamic>>[];
 
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
       final item = Map<String, dynamic>.from(rawItem);
@@ -576,9 +600,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         continue;
       }
 
+      kept.add(item);
+    }
+
+    // Fetch every distinct volunteer's profile once, in parallel, rather
+    // than one sequential round trip per row.
+    final volunteerIds = kept
+        .map((r) => r['volunteer_id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final volunteerProfiles = <String, Map<String, dynamic>?>{};
+    await Future.wait(volunteerIds.map((id) async {
+      volunteerProfiles[id] = await _safeLinkedProfile(id);
+    }));
+
+    final rows = <Map<String, dynamic>>[];
+    for (final item in kept) {
       final scheduled = _formatConsultationDate(item);
+      final volunteerId = item['volunteer_id']?.toString();
       final volunteerProfile =
-          await _safeLinkedProfile(item['volunteer_id']?.toString());
+          volunteerId == null ? null : volunteerProfiles[volunteerId];
       final providerName =
           (volunteerProfile?['full_name'] ?? '').toString().trim();
       final providerPhotoUrl =
@@ -626,8 +667,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (date == null || date.isEmpty) return null;
 
     final rawTime = item['scheduled_time']?.toString().trim() ?? '';
+    // Inline (?i) case-insensitive flags aren't valid JS RegExp syntax, so
+    // this threw a FormatException on web (compiled via dart2js/DDC) even
+    // though the Dart VM tolerated it — use the caseSensitive param instead.
     final cleanedTime = rawTime
-        .replaceAll(RegExp(r'(?i)^today\s*'), '')
+        .replaceAll(RegExp(r'^today\s*', caseSensitive: false), '')
         .split('-')
         .first
         .trim();
@@ -662,18 +706,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return DateTime.tryParse(date)?.toLocal();
   }
 
-  bool _isUpcomingConsultationStatus(String status) {
-    final clean = status.trim().toLowerCase();
-    return ![
-      'cancelled',
-      'canceled',
-      'completed',
-      'done',
-      'rejected',
-      'declined',
-      'no_show',
-      'noshow',
-    ].contains(clean);
+  // Non-null only for the two upcoming-consultation card sources
+  // (_loadRowsFromConsultationsTable / _loadVolunteerCallReminderRows) that
+  // have a parseable slot — used to bubble them near the top of the feed,
+  // soonest first, instead of leaving them ordered by booking date.
+  DateTime? _upcomingConsultationSortDate(Map<String, dynamic> item) {
+    final sourceTable = item['source_table']?.toString();
+    if (sourceTable != 'consultations' &&
+        sourceTable != 'volunteer_call_reminder') {
+      return null;
+    }
+    return _consultationReminderDateTime(item);
   }
 
   Future<List<Map<String, dynamic>>> _loadRowsFromAiRecommendationsTable(
@@ -812,9 +855,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .limit(20);
 
     return List<Map<String, dynamic>>.from(data)
-        .where((item) =>
-            !_volunteerServiceHasEnded(
-                (item['availability'] ?? '').toString().trim()))
+        .where((item) => !_volunteerServiceHasEnded(
+            (item['availability'] ?? '').toString().trim()))
         .map((item) {
       final volunteer = item['volunteer'] is Map<String, dynamic>
           ? item['volunteer'] as Map<String, dynamic>
@@ -1259,116 +1301,147 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _loadNotifications() async {
     final userId = SupabaseService.currentUser?.id;
 
-    final profile = await _safeProfile();
-    final pregnancyProfile = await _safePregnancyProfile();
+    final profileFuture = _safeProfile();
+    final pregnancyProfileFuture = _safePregnancyProfile();
     final merged = <Map<String, dynamic>>[];
 
-    if (userId != null) {
+    Future<void> addSafely(
+      String label,
+      Future<List<Map<String, dynamic>>> Function() loader, {
+      Future<List<Map<String, dynamic>>> Function()? fallback,
+    }) async {
       try {
-        merged.addAll(await _loadRowsFromNotificationsTable(userId));
+        merged.addAll(await loader());
       } catch (e) {
-        debugPrint('Failed to load rows from notifications table: $e');
-      }
-
-      try {
-        merged.addAll(await _loadRowsFromActiveAlertsTable(userId));
-      } catch (e) {
-        // This table is optional for the notification centre. If RLS blocks it,
-        // normal notifications should still work instead of showing a blank page.
-        debugPrint('Failed to load rows from active_alerts table: $e');
-      }
-
-      try {
-        merged.addAll(await _loadRowsFromHealthLogEmergencyAlerts(userId));
-      } catch (e) {
-        debugPrint('Failed to scan health logs for emergency alerts: $e');
-      }
-    }
-
-    if (userId != null) {
-      try {
-        // _loadRowsFromConsultationsTable already only returns upcoming
-        // consultations (cancelled/completed/past ones are filtered out
-        // there), so this card already doubles as the "you have one coming
-        // up" indicator — a separate reminder-type row would just duplicate it.
-        merged.addAll(await _loadRowsFromConsultationsTable(userId));
-      } catch (e) {
-        debugPrint('Failed to load rows from consultations table: $e');
-      }
-
-      try {
-        merged.addAll(await _loadVolunteerCallReminderRows(userId));
-      } catch (e) {
-        debugPrint('Failed to load volunteer call reminder rows: $e');
+        debugPrint('Failed to load $label: $e');
+        if (fallback != null) merged.addAll(await fallback());
       }
     }
 
     try {
-      merged.addAll(await _loadRowsFromAiRecommendationsTable(profile));
+      // Every source below is independent of the others, so they're all
+      // fetched concurrently instead of one sequential round trip after
+      // another — with ~10 different tables involved, that sequential chain
+      // was what made the whole Notifications Centre slow to load. Capped
+      // with a timeout so one stuck/slow source (e.g. a network hiccup)
+      // can't leave the whole screen spinning forever — whatever's already
+      // in `merged` by then still gets shown.
+      await Future.wait([
+        if (userId != null) ...[
+          addSafely('rows from notifications table',
+              () => _loadRowsFromNotificationsTable(userId)),
+          // This table is optional for the notification centre. If RLS
+          // blocks it, normal notifications should still work instead of a
+          // blank page.
+          addSafely('rows from active_alerts table',
+              () => _loadRowsFromActiveAlertsTable(userId)),
+          addSafely('health log emergency alerts',
+              () => _loadRowsFromHealthLogEmergencyAlerts(userId)),
+          // _loadRowsFromConsultationsTable already only returns upcoming
+          // consultations (cancelled/completed/past ones are filtered out
+          // there), so this card already doubles as the "you have one
+          // coming up" indicator — a separate reminder row would just
+          // duplicate it.
+          addSafely('rows from consultations table',
+              () => _loadRowsFromConsultationsTable(userId)),
+          addSafely('volunteer call reminder rows',
+              () => _loadVolunteerCallReminderRows(userId)),
+        ],
+        // AI recommendations are optional. If the table has RLS/policy
+        // issues, the Notifications Centre should still show normal alerts.
+        addSafely(
+            'rows from ai_recommendations table',
+            () async =>
+                _loadRowsFromAiRecommendationsTable(await profileFuture)),
+        addSafely('rows from articles table',
+            () async => _loadRowsFromArticlesTable(await profileFuture)),
+        addSafely(
+            'rows from volunteer_services table',
+            () async =>
+                _loadRowsFromVolunteerServicesTable(await profileFuture)),
+        addSafely(
+            'rows from baby_development table',
+            () async =>
+                _loadRowsFromBabyDevelopmentTable(await pregnancyProfileFuture),
+            fallback: () async =>
+                _fallbackMilestoneRows(await pregnancyProfileFuture)),
+        addSafely('rows from emergency_rules table',
+            () => _loadRowsFromEmergencyRulesTable(),
+            fallback: () async => _fallbackEmergencyRows()),
+      ]).timeout(const Duration(seconds: 10), onTimeout: () => []);
     } catch (e) {
-      // AI recommendations are optional. If the table has RLS/policy issues,
-      // the Notifications Centre should still show normal alerts.
-      debugPrint('Failed to load rows from ai_recommendations table: $e');
+      debugPrint('Failed to load notifications: $e');
     }
 
+    Map<String, dynamic>? profile;
     try {
-      merged.addAll(await _loadRowsFromArticlesTable(profile));
+      profile = await profileFuture.timeout(const Duration(seconds: 5));
     } catch (e) {
-      debugPrint('Failed to load rows from articles table: $e');
+      debugPrint('Failed to resolve profile for notifications: $e');
     }
 
+    Set<String> readReceiptKeys = {};
     try {
-      merged.addAll(await _loadRowsFromVolunteerServicesTable(profile));
-    } catch (e) {
-      debugPrint('Failed to load rows from volunteer_services table: $e');
-    }
-
-    try {
-      merged.addAll(await _loadRowsFromBabyDevelopmentTable(pregnancyProfile));
-    } catch (e) {
-      debugPrint('Failed to load rows from baby_development table: $e');
-      merged.addAll(_fallbackMilestoneRows(pregnancyProfile));
-    }
-
-    try {
-      merged.addAll(await _loadRowsFromEmergencyRulesTable());
-    } catch (e) {
-      debugPrint('Failed to load rows from emergency_rules table: $e');
-      merged.addAll(_fallbackEmergencyRows());
-    }
-
-    final readReceiptKeys = userId == null
-        ? <String>{}
-        : await _loadNotificationReadReceiptKeys(userId);
-
-    final mergedWithReadState = merged.map((item) {
-      final sourceTable = item['source_table']?.toString() ?? 'notifications';
-      final sourceId = item['id']?.toString();
-
-      // Apply read receipts to EVERY source, including the notifications
-      // table. This fixes global notifications where user_id is NULL, because
-      // those rows cannot be updated with is_read=true for one user only.
-      if (sourceId != null &&
-          readReceiptKeys.contains(
-            _notificationReadReceiptKey(sourceTable, sourceId),
-          )) {
-        return {...item, 'is_read': true};
+      if (userId != null) {
+        readReceiptKeys = await _loadNotificationReadReceiptKeys(userId)
+            .timeout(const Duration(seconds: 5));
       }
+    } catch (e) {
+      debugPrint('Failed to load notification read receipts: $e');
+    }
 
-      return item;
-    }).toList();
+    // Guarded — an exception thrown mid-sort (e.g. from a bad date/regex on
+    // one particular row) would otherwise propagate out of _loadNotifications
+    // entirely and leave the spinner stuck forever, since nothing after this
+    // point would ever run. Worst case now is an unsorted/unmarked list
+    // instead of a screen that never finishes loading.
+    var mergedWithReadState = merged;
+    try {
+      mergedWithReadState = merged.map((item) {
+        final sourceTable = item['source_table']?.toString() ?? 'notifications';
+        final sourceId = item['id']?.toString();
 
-    mergedWithReadState.sort((a, b) {
-      // Emergency alerts always float to the very top, ahead of every other
-      // category, so a mum never has to scroll past routine updates to see
-      // an urgent one. Everything else is strictly newest-first.
-      final aEmergency = _normaliseType(a['type']) == 'emergency' ? 0 : 1;
-      final bEmergency = _normaliseType(b['type']) == 'emergency' ? 0 : 1;
-      final emergencyCompare = aEmergency.compareTo(bEmergency);
-      if (emergencyCompare != 0) return emergencyCompare;
+        // Apply read receipts to EVERY source, including the notifications
+        // table. This fixes global notifications where user_id is NULL,
+        // because those rows cannot be updated with is_read=true for one
+        // user only.
+        if (sourceId != null &&
+            readReceiptKeys.contains(
+              _notificationReadReceiptKey(sourceTable, sourceId),
+            )) {
+          return {...item, 'is_read': true};
+        }
 
-      return _createdAt(b).compareTo(_createdAt(a));
-    });
+        return item;
+      }).toList();
+
+      mergedWithReadState.sort((a, b) {
+        // Emergency alerts always float to the very top, ahead of every
+        // other category, so a mum never has to scroll past routine
+        // updates to see an urgent one.
+        final aEmergency = _normaliseType(a['type']) == 'emergency' ? 0 : 1;
+        final bEmergency = _normaliseType(b['type']) == 'emergency' ? 0 : 1;
+        final emergencyCompare = aEmergency.compareTo(bEmergency);
+        if (emergencyCompare != 0) return emergencyCompare;
+
+        // Upcoming consultations/video calls float just below Emergency
+        // too, soonest first — so a mum sees what's coming up next
+        // without scrolling past routine updates that just happen to be
+        // newer.
+        final aUpcoming = _upcomingConsultationSortDate(a);
+        final bUpcoming = _upcomingConsultationSortDate(b);
+        if (aUpcoming != null && bUpcoming != null) {
+          return aUpcoming.compareTo(bUpcoming);
+        }
+        if (aUpcoming != null) return -1;
+        if (bUpcoming != null) return 1;
+
+        // Everything else is strictly newest-first.
+        return _createdAt(b).compareTo(_createdAt(a));
+      });
+    } catch (e) {
+      debugPrint('Failed to sort/mark notifications: $e');
+    }
 
     if (!mounted) return;
     setState(() {

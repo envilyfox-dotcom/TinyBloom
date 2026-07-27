@@ -1491,8 +1491,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Picks up new notifications (e.g. a volunteer publishing a service)
     // without the mum having to manually pull-to-refresh — mirrors
     // volunteer_services_screen.dart's own auto-refresh timer.
-    _refreshTimer =
-        Timer.periodic(const Duration(seconds: 15), (_) => _load());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
   @override
@@ -1537,7 +1536,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     // Load latest notifications and active alerts for the dashboard preview.
-    notifications = await _loadDashboardNotifications(profile, pp);
+    // Guarded with a timeout + catch — this used to be an unprotected await,
+    // so if it ever threw or a sub-query hung, _load() never reached the
+    // setState below and the dashboard spun on "loading" forever.
+    try {
+      notifications = await _loadDashboardNotifications(profile, pp)
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('Failed to load dashboard notifications: $e');
+    }
 
     // Look up provider names for whichever consultations the Active Alerts
     // card will actually show, so it can read "2:00 PM - Nur Aisyah".
