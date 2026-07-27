@@ -224,8 +224,22 @@ class SupabaseService {
     await client.from('pregnancy_profiles').upsert(
       {
         'user_id': user.id,
+        if (data['age'] != null) 'age': data['age'],
+        if (data['pregnancy_status'] != null)
+          'pregnancy_status': data['pregnancy_status'],
         if (data['due_date'] != null) 'due_date': data['due_date'],
         if (week != null) 'current_week': week.clamp(1, 42),
+        if (data['pregnancy_week'] != null)
+          'pregnancy_week': data['pregnancy_week'],
+        if (data['height_cm'] != null) 'height_cm': data['height_cm'],
+        if (data['weight_kg'] != null) 'weight_kg': data['weight_kg'],
+        if (data['medical_conditions'] != null)
+          'medical_conditions': data['medical_conditions'],
+        if (data['allergies'] != null) 'allergies': data['allergies'],
+        if (data['areas_of_interest'] != null)
+          'areas_of_interest': data['areas_of_interest'],
+        if (data['consultation_needs'] != null)
+          'consultation_needs': data['consultation_needs'],
       },
       onConflict: 'user_id',
     );
@@ -944,10 +958,11 @@ class SupabaseService {
         .update({'call_status': 'declined'}).eq('id', requestId);
   }
 
-  // Slots this volunteer has already proposed to some mum (still pending
-  // an accept/decline, not yet 48h stale) on the given date — kept out of
-  // the request picker so the same slot can't be double-proposed to two
-  // different mums at once.
+  // Slots this volunteer can't be offered again on the given date: any call
+  // already confirmed with a mum (holds its slot until the thread closes),
+  // plus any still-pending proposal (holds its slot for 48h before
+  // expiring) — kept out of the request picker so the same slot can't be
+  // double-proposed, or double-booked against a call already confirmed.
   static Future<Set<String>> getHeldCallTimesForDate(DateTime date) async {
     final user = currentUser;
     if (user == null) return {};
@@ -956,12 +971,14 @@ class SupabaseService {
     try {
       final rows = await client
           .from('volunteer_requests')
-          .select('scheduled_time, call_requested_at')
+          .select('scheduled_time, call_requested_at, call_status')
           .eq('volunteer_id', user.id)
-          .eq('call_status', 'requested')
-          .eq('scheduled_date', dateStr);
+          .neq('status', 'closed')
+          .eq('scheduled_date', dateStr)
+          .inFilter('call_status', ['requested', 'accepted']);
       return List<Map<String, dynamic>>.from(rows)
           .where((r) {
+            if (r['call_status'] == 'accepted') return true;
             final requestedAt =
                 DateTime.tryParse(r['call_requested_at']?.toString() ?? '');
             return requestedAt != null && requestedAt.isAfter(cutoff);

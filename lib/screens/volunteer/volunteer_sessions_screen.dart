@@ -59,10 +59,16 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
         Map<String, dynamic>? pregnancy;
         try {
           profile = await SupabaseService.getProfileById(patientId);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[Sessions] getProfileById($patientId) failed: $e');
+        }
         try {
           pregnancy = await SupabaseService.getPregnancyProfileByUserId(patientId);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint(
+              '[Sessions] getPregnancyProfileByUserId($patientId) failed: $e');
+        }
+        debugPrint('[Sessions] patientId=$patientId pregnancy=$pregnancy');
         c['_mumName'] = profile?['full_name'] as String?;
         c['_mumPhoto'] = profile?['profile_picture_url'] as String?;
         c['_mumAge'] = (pregnancy?['age'] as num?)?.toString() ??
@@ -338,39 +344,39 @@ class _VideoCallSessionCard extends StatelessWidget {
                     'Descriptions: ${(session['question'] as String? ?? '').isEmpty ? 'No purpose specified.' : session['question']}',
                     style:
                         const TextStyle(color: AppColors.textMid, fontSize: 13)),
+                if (!isClosed) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: hasLink
+                        ? ElevatedButton(
+                            onPressed: () => _joinCall(context),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.teal,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24))),
+                            child: const Text('Join Video Call',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          )
+                        : OutlinedButton(
+                            onPressed: () => _openChat(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.teal,
+                              side: const BorderSide(color: AppColors.teal),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24)),
+                            ),
+                            child: const Text('Send Meeting Link',
+                                style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                  ),
+                ],
               ],
             ),
           ),
-          if (!isClosed) ...[
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: hasLink
-                  ? ElevatedButton(
-                      onPressed: () => _joinCall(context),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.teal,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24))),
-                      child: const Text('Join Video Call',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                    )
-                  : OutlinedButton(
-                      onPressed: () => _openChat(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.teal,
-                        side: const BorderSide(color: AppColors.teal),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24)),
-                      ),
-                      child: const Text('Send Meeting Link',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                    ),
-            ),
-          ],
         ],
       ),
     );

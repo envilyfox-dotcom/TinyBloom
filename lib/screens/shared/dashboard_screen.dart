@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, String> _providerNames = {};
   bool _loading = true;
   DateTime? _lastNavTime;
+  Timer? _refreshTimer;
 
   bool _canNav() {
     final now = DateTime.now();
@@ -1485,6 +1488,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _load();
+    // Picks up new notifications (e.g. a volunteer publishing a service)
+    // without the mum having to manually pull-to-refresh — mirrors
+    // volunteer_services_screen.dart's own auto-refresh timer.
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 15), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
