@@ -7,6 +7,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/quick_chat_volunteer.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1350,7 +1351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<Map<String, dynamic>> myQuestions = [];
     try {
       final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
-      myQuestions = await _enrichQuickChatQuestions(
+      myQuestions = await enrichQuickChatQuestions(
         List<Map<String, dynamic>>.from(rawQuestions),
       );
     } catch (e) {
@@ -1455,6 +1456,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String? get _photoUrl => _profile?['profile_picture_url'] as String?;
 
+  // Notification-bell badge count. _notifications is broader than "unread
+  // notifications" — it's the dashboard's own "Active Alerts" preview
+  // list, which deliberately keeps showing consultation cards until the
+  // user taps one (see _openDashboardNotification), even though the full
+  // Notifications Centre (notifications_screen.dart) always treats
+  // consultation rows as already-read and never counts them toward its
+  // own "$unreadCount unread notification(s)" text. Excluding
+  // consultations here keeps the bell in agreement with that count
+  // instead of the (larger) Active Alerts preview count.
+  int get _notificationBellCount => _notifications
+      .where((n) => _normaliseNotificationType(n['type']) != 'consultation')
+      .length;
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -1515,12 +1529,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           const SizedBox(width: 10),
                           TBNotificationBell(
-                            // _notifications is already filtered to
-                            // unread-only by _loadDashboardNotifications
-                            // (see _load()), so this is the same accurate
-                            // count the full Notifications Centre would
-                            // show — no extra queries needed.
-                            count: _notifications.length,
+                            count: _notificationBellCount,
                             onTap: () async {
                               if (!_canNav()) return;
                               // Reload on return so the badge reflects
@@ -1861,453 +1870,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  String _firstNonEmptyText(List<dynamic> values) {
-    for (final value in values) {
-      final text = value?.toString().trim() ?? '';
-      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
-    }
-    return '';
-  }
-
-  Map<String, dynamic>? _nestedMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
-    return null;
-  }
-
-  String? _quickChatVolunteerId(Map<String, dynamic> q) {
-    final id = _firstNonEmptyText([
-      q['volunteer_id'],
-      q['assigned_volunteer_id'],
-      q['volunteer_user_id'],
-      q['provider_id'],
-      q['responder_id'],
-      q['answered_by'],
-      q['last_reply_by'],
-      q['reply_by'],
-    ]);
-
-    return id.isEmpty ? null : id;
-  }
-
-  String _quickChatVolunteerName(Map<String, dynamic> q) {
-    final direct = _firstNonEmptyText([
-      q['volunteer_name'],
-      q['provider_name'],
-      q['assigned_volunteer_name'],
-      q['responder_name'],
-      q['helper_name'],
-    ]);
-
-    if (direct.isNotEmpty) return direct;
-
-    for (final key in [
-      'volunteer',
-      'provider',
-      'assigned_volunteer',
-      'responder',
-      'profiles',
-    ]) {
-      final map = _nestedMap(q[key]);
-      if (map == null) continue;
-
-      final nestedName = _firstNonEmptyText([
-        map['full_name'],
-        map['name'],
-        map['display_name'],
-        map['username'],
-      ]);
-      if (nestedName.isNotEmpty) return nestedName;
-
-      final nestedProfile = _nestedMap(map['profiles']);
-      if (nestedProfile != null) {
-        final profileName = _firstNonEmptyText([
-          nestedProfile['full_name'],
-          nestedProfile['name'],
-          nestedProfile['display_name'],
-        ]);
-        if (profileName.isNotEmpty) return profileName;
-      }
-    }
-
-    return 'Volunteer Support';
-  }
-
-  String? _quickChatVolunteerPhotoUrl(Map<String, dynamic> q) {
-    final direct = _firstNonEmptyText([
-      q['provider_photo_url'],
-      q['volunteer_photo_url'],
-      q['profile_picture_url'],
-      q['photo_url'],
-      q['avatar_url'],
-    ]);
-
-    if (direct.isNotEmpty) return direct;
-
-    for (final key in [
-      'volunteer',
-      'provider',
-      'assigned_volunteer',
-      'responder',
-      'profiles',
-    ]) {
-      final map = _nestedMap(q[key]);
-      if (map == null) continue;
-
-      final nestedPhoto = _firstNonEmptyText([
-        map['profile_picture_url'],
-        map['photo_url'],
-        map['avatar_url'],
-      ]);
-      if (nestedPhoto.isNotEmpty) return nestedPhoto;
-
-      final nestedProfile = _nestedMap(map['profiles']);
-      if (nestedProfile != null) {
-        final profilePhoto = _firstNonEmptyText([
-          nestedProfile['profile_picture_url'],
-          nestedProfile['photo_url'],
-          nestedProfile['avatar_url'],
-        ]);
-        if (profilePhoto.isNotEmpty) return profilePhoto;
-      }
-    }
-
-    return null;
-  }
-
-  String _quickChatQuestionText(Map<String, dynamic> q) {
-    final text = _firstNonEmptyText([
-      q['question'],
-      q['title'],
-      q['subject'],
-      q['content'],
-    ]);
-
-    return text.isEmpty ? 'No question details available.' : text;
-  }
-
-  String _quickChatLatestReplyText(Map<String, dynamic> q) {
-    final question = _quickChatQuestionText(q);
-    final reply = _firstNonEmptyText([
-      q['latest_reply'],
-      q['last_reply'],
-      q['volunteer_reply'],
-      q['reply'],
-      q['response'],
-      q['answer'],
-      q['latest_message'],
-      q['last_message'],
-      q['message'],
-    ]);
-
-    if (reply.isEmpty || reply == question) return '';
-    return reply;
-  }
-
-  String _quickChatStatusText(Map<String, dynamic> q) {
-    final status = (q['status'] ?? '').toString().trim().toLowerCase();
-    final reply = _quickChatLatestReplyText(q);
-
-    if (status == 'pending' || status == 'open' || status == 'waiting') {
-      return 'Waiting for volunteer reply';
-    }
-
-    if (status == 'closed' || status == 'completed' || status == 'resolved') {
-      return 'Chat completed';
-    }
-
-    if (status == 'answered' || status == 'replied' || reply.isNotEmpty) {
-      return 'Volunteer replied';
-    }
-
-    if (status.isEmpty) return 'Quick chat';
-    return _titleCase(status.replaceAll('_', ' '));
-  }
-
-  Color _quickChatStatusColor(Map<String, dynamic> q) {
-    final status = (q['status'] ?? '').toString().trim().toLowerCase();
-    final reply = _quickChatLatestReplyText(q);
-
-    if (status == 'pending' || status == 'open' || status == 'waiting') {
-      return AppColors.gold;
-    }
-
-    if (status == 'closed' || status == 'completed' || status == 'resolved') {
-      return AppColors.textMid;
-    }
-
-    if (status == 'answered' || status == 'replied' || reply.isNotEmpty) {
-      return AppColors.sage;
-    }
-
-    return AppColors.infoBlue;
-  }
-
-  String _quickChatTimeText(Map<String, dynamic> q) {
-    final raw = _firstNonEmptyText([
-      q['last_reply_at'],
-      q['updated_at'],
-      q['created_at'],
-      q['submitted_at'],
-    ]);
-
-    if (raw.isEmpty) return '';
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) return '';
-
-    return DateFormat('d MMM, h:mm a').format(parsed.toLocal());
-  }
-
-  String _quickChatPreviewText(Map<String, dynamic> q) {
-    final question = _quickChatQuestionText(q);
-    final reply = _quickChatLatestReplyText(q);
-    final status = _quickChatStatusText(q);
-    final time = _quickChatTimeText(q);
-
-    return _joinPreviewParts([
-      status,
-      if (time.isNotEmpty) time,
-      if (reply.isNotEmpty) 'Latest reply: $reply' else 'Question: $question',
-    ]);
-  }
-
-  Future<List<Map<String, dynamic>>> _enrichQuickChatQuestions(
-    List<Map<String, dynamic>> questions,
-  ) async {
-    final enriched = <Map<String, dynamic>>[];
-
-    for (final question in questions) {
-      final row = Map<String, dynamic>.from(question);
-      final existingName = _quickChatVolunteerName(row);
-      final existingPhoto = _quickChatVolunteerPhotoUrl(row);
-      final volunteerId = _quickChatVolunteerId(row);
-
-      if (volunteerId != null &&
-          (existingName == 'Volunteer Support' || existingPhoto == null)) {
-        try {
-          final provider = await _loadProviderDisplay(
-            volunteerId,
-            fallbackName: existingName,
-          );
-
-          final providerName = provider['name']?.trim();
-          final providerPhoto = provider['photo_url']?.trim();
-
-          if (providerName != null &&
-              providerName.isNotEmpty &&
-              providerName != 'Volunteer Support') {
-            row['provider_name'] = providerName;
-          }
-
-          if (providerPhoto != null && providerPhoto.isNotEmpty) {
-            row['provider_photo_url'] = providerPhoto;
-          }
-        } catch (e) {
-          debugPrint('Failed to enrich quick chat volunteer $volunteerId: $e');
-        }
-      }
-
-      enriched.add(row);
-    }
-
-    enriched.sort((a, b) {
-      final aDate = DateTime.tryParse(_firstNonEmptyText([
-            a['last_reply_at'],
-            a['updated_at'],
-            a['created_at'],
-            a['submitted_at'],
-          ])) ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = DateTime.tryParse(_firstNonEmptyText([
-            b['last_reply_at'],
-            b['updated_at'],
-            b['created_at'],
-            b['submitted_at'],
-          ])) ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-      return bDate.compareTo(aDate);
-    });
-
-    return enriched;
-  }
-
-  Widget _quickChatPreviewCard(Map<String, dynamic> q) {
-    final volunteerName = _quickChatVolunteerName(q);
-    final photoUrl = _quickChatVolunteerPhotoUrl(q);
-    final status = _quickChatStatusText(q);
-    final statusColor = _quickChatStatusColor(q);
-    final question = _quickChatQuestionText(q);
-    final preview = _quickChatPreviewText(q);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TBCard(
-        onTap: () async {
-          await context.push('/ask-volunteer/detail', extra: q);
-          if (mounted) await _load();
-        },
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(14),
-                image: photoUrl != null && photoUrl.isNotEmpty
-                    ? DecorationImage(
-                        image: CachedNetworkImageProvider(
-                          photoUrl,
-                          maxWidth: 200,
-                        ),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-              ),
-              child: photoUrl != null && photoUrl.isNotEmpty
-                  ? null
-                  : Center(
-                      child: Text(
-                        volunteerName.isNotEmpty
-                            ? volunteerName[0].toUpperCase()
-                            : 'V',
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Quick Chat with Volunteer',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.infoBlue,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          status,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: statusColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    volunteerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textDark,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    question,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    preview,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textLight,
-                      fontSize: 11,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.textLight,
-              size: 18,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildMyQuestions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Quick Chat with Volunteer',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            TextButton(
-              onPressed: () => context.push('/consultation'),
-              child: const Text('View All'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Latest volunteer replies and question updates at a glance.',
-          style: TextStyle(
-            color: AppColors.textMid,
-            fontSize: 12,
-            height: 1.35,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ..._myQuestions.take(3).map(_quickChatPreviewCard),
-        const SizedBox(height: 8),
-      ],
-    );
+    return QuickChatVolunteerSection(questions: _myQuestions, onReload: _load);
   }
 
   Widget _emptyAlertCard() {

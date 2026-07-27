@@ -18,7 +18,6 @@ import 'next_of_kin/link_to_mum_screen.dart';
 import 'next_of_kin/gift_subscription_screen.dart';
 import 'next_of_kin/next_of_kin_faq_screen.dart';
 import 'next_of_kin/checklist_screen.dart';
-import 'next_of_kin/chat_volunteer_screen.dart';
 import 'next_of_kin/alerts_screen.dart';
 
 import 'shared/dashboard_screen.dart';
@@ -366,9 +365,6 @@ final router = GoRouter(
     GoRoute(
         path: '/next-of-kin/faq',
         builder: (_, __) => const NextOfKinFaqScreen()),
-    GoRoute(
-        path: '/next-of-kin/chat-volunteer',
-        builder: (_, __) => const ChatVolunteerScreen()),
     GoRoute(
         path: '/next-of-kin/alerts',
         builder: (_, __) => const NextOfKinAlertsScreen()),

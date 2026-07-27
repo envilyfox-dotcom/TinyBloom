@@ -7,7 +7,9 @@ import '../../utils/next_of_kin_alert_read_state.dart';
 import '../../utils/next_of_kin_alerts_data.dart';
 import '../../utils/pregnancy_log_danger_scan.dart';
 import '../../utils/pregnancy_week_data.dart';
+import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/quick_chat_volunteer.dart';
 
 // ── Notifications Centre (Next of Kin) ────────────────────────────────
 // Restyled to match the mum's NotificationsScreen (header with urgent
@@ -16,9 +18,13 @@ import '../../widgets/common_widgets.dart';
 // emergencies). Data is scoped to the linked mum rather than the mum's
 // own multi-table system: milestones + consultations, emergency alerts
 // derived from the linked mum's pregnancy_logs (the same danger-symptom
-// scan the mum's own centre runs on her logs), and daily reminders
-// written for the next-of-kin's role. Reminders are "sent" server-side
-// (see supabase/migrations/add_next_of_kin_daily_reminders.sql).
+// scan the mum's own centre runs on her logs), daily reminders written
+// for the next-of-kin's role, and a "volunteer replied" alert when a
+// volunteer claims/replies to a question the next-of-kin posted via Ask a
+// Volunteer (volunteer_requests.volunteer_id being set is their first
+// reply — see claimAndReplyToRequest in supabase_service.dart). Reminders
+// are "sent" server-side (see
+// supabase/migrations/add_next_of_kin_daily_reminders.sql).
 //
 // Read tracking: alerts never disappear once seen (unlike the old
 // dismiss-on-tap behaviour) — they stay in the list but stop being
@@ -36,7 +42,8 @@ class NextOfKinAlertsScreen extends StatefulWidget {
 
 class _AlertItem {
   final String key;
-  final String type; // 'emergency' | 'milestone' | 'consultation' | 'reminder'
+  // 'emergency' | 'milestone' | 'consultation' | 'reminder' | 'volunteer_reply'
+  final String type;
   final IconData icon;
   final Color color;
   final String title;
@@ -64,6 +71,8 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
   List<Map<String, dynamic>> _consultations = [];
   List<Map<String, dynamic>> _pregnancyLogs = [];
   List<Map<String, dynamic>> _dailyReminderSends = [];
+  List<Map<String, dynamic>> _myQuestions = [];
+  DateTime? _milestoneTimestamp;
   Map<String, String> _providerNames = {};
   bool _loading = true;
   String _selectedFilter = 'All';
@@ -78,6 +87,7 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
     'Milestone',
     'Consultation',
     'Reminder',
+    'Volunteer',
   ];
 
   @override
@@ -128,12 +138,33 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
       }
     }
 
+    List<Map<String, dynamic>> myQuestions = [];
+    try {
+      final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
+      myQuestions = await enrichQuickChatQuestions(
+        List<Map<String, dynamic>>.from(rawQuestions),
+      );
+    } catch (_) {}
+
+    final week = (linkedMum?['current_week'] as int?) ?? 0;
+    // Prefer the real, server-derived week-start date (a pure function of
+    // due_date) over the local "first seen on this device" fallback, so
+    // the milestone's timestamp doesn't reset to "just now" on every
+    // fresh install/device.
+    final weekStartDate = DateTime.tryParse(
+        (linkedMum?['current_week_start_date'] ?? '').toString());
+    final milestoneTimestamp = week <= 0
+        ? null
+        : weekStartDate ?? await getOrRecordMilestoneTimestamp(week);
+
     if (mounted) {
       setState(() {
         _linkedMum = linkedMum;
         _consultations = consultations;
         _pregnancyLogs = pregnancyLogs;
         _dailyReminderSends = dailyReminderSends;
+        _myQuestions = myQuestions;
+        _milestoneTimestamp = milestoneTimestamp;
         _providerNames = providerNames;
         _readAlertKeys = previouslyReadKeys;
         _loading = false;
@@ -178,21 +209,6 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('$feature — coming soon')));
-  }
-
-  IconData _iconForReminderName(String? name) {
-    switch (name) {
-      case 'favorite_border':
-        return Icons.favorite_border;
-      case 'visibility_outlined':
-        return Icons.visibility_outlined;
-      case 'event_note_outlined':
-        return Icons.event_note_outlined;
-      case 'water_drop_outlined':
-        return Icons.water_drop_outlined;
-      default:
-        return Icons.notifications_none_outlined;
-    }
   }
 
   _AlertItem _alertItemFromSource(NextOfKinAlertSource s) {
@@ -248,6 +264,21 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
           onTap: () => context.push('/consultation'),
         );
 
+      case 'volunteer':
+        final row = s.volunteerQuestion!;
+        final volunteerName = quickChatVolunteerName(row);
+        final questionText = quickChatQuestionText(row);
+        return _AlertItem(
+          key: s.key,
+          type: 'volunteer',
+          icon: Icons.forum_outlined,
+          color: AppColors.infoBlue,
+          title: '$volunteerName replied',
+          subtitle: 'Question: $questionText',
+          timestamp: s.timestamp,
+          onTap: () => context.push('/ask-volunteer/detail', extra: row),
+        );
+
       case 'reminder':
       default:
         final row = s.reminderSend!;
@@ -258,7 +289,7 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
         return _AlertItem(
           key: s.key,
           type: 'reminder',
-          icon: _iconForReminderName(template?['icon_name'] as String?),
+          icon: iconForReminderName(template?['icon_name'] as String?),
           color: AppColors.roseDeep,
           title: title,
           subtitle: subtitleTemplate.replaceAll('{name}', _linkedMumName),
@@ -274,8 +305,13 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
       consultations: _consultations,
       pregnancyLogs: _pregnancyLogs,
       dailyReminderSends: _dailyReminderSends,
+      volunteerQuestions: _myQuestions,
+      milestoneTimestamp: _milestoneTimestamp,
     );
-    return [for (final s in sources) _alertItemFromSource(s)];
+    final items = [for (final s in sources) _alertItemFromSource(s)];
+    // Latest activity first, regardless of type.
+    items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return items;
   }
 
   List<_AlertItem> get _filteredAlerts {
@@ -300,14 +336,14 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
     }
   }
 
+  // A plain received-at timestamp rather than a purely relative label —
+  // "Just now" for the first minute, then the actual date and time, so
+  // two alerts received minutes apart are never both stuck reading
+  // "Just now" indefinitely.
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
     if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
-    if (diff.inHours < 24) return '${diff.inHours} hrs ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    if (diff.inDays < 7) return '${diff.inDays} days ago';
-    return DateFormat('d MMM').format(date);
+    return DateFormat('d MMM, h:mm a').format(toSingaporeTime(date));
   }
 
   @override
@@ -505,7 +541,7 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
           ),
           SizedBox(height: 4),
           Text(
-            'Milestones, appointments, health alerts and reminders will show up here.',
+            'Milestones, appointments, health alerts, reminders and volunteer replies will show up here.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textLight,
@@ -527,6 +563,8 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
         return 'Consultation Update';
       case 'reminder':
         return 'Daily Reminder';
+      case 'volunteer':
+        return 'Volunteer Reply';
       default:
         return 'Notification';
     }

@@ -39,7 +39,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   void initState() {
     super.initState();
     _isNextOfKin = context.read<AuthProvider>().isNextOfKin;
-    _tabs = TabController(length: _isNextOfKin ? 1 : 2, vsync: this);
+    // Both roles get 2 tabs now: mum sees My Consultations + Book New;
+    // next-of-kin sees My Consultations (active) + History (past).
+    _tabs = TabController(length: 2, vsync: this);
     _load();
   }
 
@@ -81,9 +83,33 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }).toList();
   }
 
+  // Next-of-kin's two tabs split by status instead of using the Filter
+  // sheet (that stays mum-only): active items now, history once resolved.
+  bool _isHistoryItem(Map<String, dynamic> item) {
+    final category = _itemCategory(item);
+    return category == 'completed' || category == 'cancelled';
+  }
+
+  List<Map<String, dynamic>> get _activeConsultations =>
+      _consultations.where((c) => !_isHistoryItem(c)).toList();
+
+  List<Map<String, dynamic>> get _historyConsultations =>
+      _consultations.where(_isHistoryItem).toList();
+
   Future<void> _load() async {
     try {
-      final c = await SupabaseService.getConsultations();
+      List<Map<String, dynamic>> c;
+      if (_isNextOfKin) {
+        // Next-of-kin doesn't book consultations themselves — the real
+        // data is the linked mum's own consultations.
+        final linkedMum = await SupabaseService.getLinkedMum();
+        c = linkedMum != null
+            ? await SupabaseService.getConsultationsForPatient(
+                linkedMum['id'] as String)
+            : <Map<String, dynamic>>[];
+      } else {
+        c = await SupabaseService.getConsultations();
+      }
       List<Map<String, dynamic>> questions = [];
       try {
         questions = await SupabaseService.getMyVolunteerQuestions();
@@ -263,186 +289,204 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
           },
         ),
         title: const Text('Consultations'),
-        bottom: _isNextOfKin
-            ? null
-            : TabBar(
-                controller: _tabs,
-                indicatorColor: AppColors.teal,
-                labelColor: AppColors.teal,
-                unselectedLabelColor: AppColors.textLight,
-                tabs: const [
-                  Tab(text: 'My Consultations'),
-                  Tab(text: 'Book New')
-                ],
-              ),
+        bottom: TabBar(
+          controller: _tabs,
+          indicatorColor: AppColors.teal,
+          labelColor: AppColors.teal,
+          unselectedLabelColor: AppColors.textLight,
+          tabs: [
+            const Tab(text: 'My Consultations'),
+            Tab(text: _isNextOfKin ? 'History' : 'Book New'),
+          ],
+        ),
       ),
       body: TabBarView(
         controller: _tabs,
-        children: [
-          // Tab 1: My consultations
-          Column(
-            children: [
-              if (!_loading && _error == null && _consultations.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      onPressed: _showFilterSheet,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.teal,
-                        side: const BorderSide(color: AppColors.teal),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                      ),
-                      icon: Badge(
-                        isLabelVisible: _hasActiveFilter,
-                        backgroundColor: AppColors.teal,
-                        smallSize: 8,
-                        child: const Icon(Icons.filter_list, size: 18),
-                      ),
-                      label: const Text('Filter'),
-                    ),
-                  ),
+        children: _isNextOfKin
+            ? [
+                _nextOfKinConsultationsList(
+                  _activeConsultations,
+                  emptyEmoji: '👩‍⚕️',
+                  emptyTitle: 'No active consultations',
+                  emptySubtitle:
+                      "Consultations and questions currently in progress will show up here.",
                 ),
-              Expanded(
-                child: _loading
-                    ? const TBLoading()
-                    : _error != null
-                        ? TBEmptyState(
-                            emoji: '⚠️',
-                            title: 'Couldn\'t load consultations',
-                            subtitle: _error!,
-                            buttonLabel: 'Retry',
-                            onButton: () {
-                              setState(() => _loading = true);
-                              _load();
-                            })
-                        : _consultations.isEmpty
-                            ? TBEmptyState(
-                                emoji: '👩‍⚕️',
-                                title: 'No consultations yet',
-                                subtitle: _isNextOfKin
-                                    ? 'Consultations booked by the linked pregnant user will show up here.'
-                                    : isPremium
-                                        ? 'Book a consultation with a specialist or ask a volunteer a question.'
-                                        : 'Ask a community volunteer a question.',
-                                buttonLabel: _isNextOfKin ? null : 'Book Now',
-                                onButton:
-                                    _isNextOfKin ? null : () => _tabs.animateTo(1))
-                            : _filteredConsultations.isEmpty
-                                ? TBEmptyState(
-                                    emoji: '🔍',
-                                    title: 'No matches',
-                                    subtitle:
-                                        'No consultations match this filter.',
-                                    buttonLabel: 'Clear Filter',
-                                    onButton: () => setState(() {
-                                          _selectedFilter = 'All';
-                                          _selectedProviders =
-                                              _providerOptions.toSet();
-                                        }))
-                                : ListView.builder(
-                                    padding: const EdgeInsets.all(16),
-                                    itemCount: _filteredConsultations.length,
-                                    itemBuilder: (ctx, i) {
-                                      final c = _filteredConsultations[i];
-                                      if (c['_kind'] == 'question') {
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 10),
-                                          child: _questionCard(context, c),
-                                        );
-                                      }
-                                      final status = c['status'] ?? 'pending';
-                                      return Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 10),
-                                        child: TBCard(
-                                          onTap: () async {
-                                            await context.push(
-                                                '/consultation/detail',
-                                                extra: c);
-                                            _load();
-                                          },
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                width: 44,
-                                                height: 44,
-                                                decoration: BoxDecoration(
-                                                    color: statusColor(status)
-                                                        .withValues(
-                                                            alpha: 0.12),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10)),
-                                                child: Center(
-                                                    child: statusIconWidget(
-                                                        status)),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                        consultationTypeLabel(
-                                                            c['consultation_type']
-                                                                as String?),
-                                                        style: const TextStyle(
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                            fontSize: 14)),
-                                                    Text(status.toUpperCase(),
-                                                        style: TextStyle(
-                                                            color: statusColor(
-                                                                status),
-                                                            fontSize: 11,
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .w700)),
-                                                    const SizedBox(height: 4),
-                                                    const Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        Icon(Icons.video_call,
-                                                            color:
-                                                                AppColors.teal,
-                                                            size: 15),
-                                                        SizedBox(width: 4),
-                                                        Text('Zoom Meeting',
-                                                            style: TextStyle(
-                                                                color: AppColors
-                                                                    .teal,
-                                                                fontSize: 11,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600)),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const Icon(Icons.chevron_right,
-                                                  color: AppColors.textLight,
-                                                  size: 18),
-                                            ],
+                _nextOfKinConsultationsList(
+                  _historyConsultations,
+                  emptyEmoji: '🗂️',
+                  emptyTitle: 'No history yet',
+                  emptySubtitle:
+                      'Completed or cancelled consultations and questions will show up here.',
+                ),
+              ]
+            : [
+                // Tab 1: My consultations
+                Column(
+                  children: [
+                    if (!_loading && _error == null && _consultations.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: OutlinedButton.icon(
+                            onPressed: _showFilterSheet,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.teal,
+                              side: const BorderSide(color: AppColors.teal),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20)),
+                            ),
+                            icon: Badge(
+                              isLabelVisible: _hasActiveFilter,
+                              backgroundColor: AppColors.teal,
+                              smallSize: 8,
+                              child: const Icon(Icons.filter_list, size: 18),
+                            ),
+                            label: const Text('Filter'),
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: _loading
+                          ? const TBLoading()
+                          : _error != null
+                              ? TBEmptyState(
+                                  emoji: '⚠️',
+                                  title: 'Couldn\'t load consultations',
+                                  subtitle: _error!,
+                                  buttonLabel: 'Retry',
+                                  onButton: () {
+                                    setState(() => _loading = true);
+                                    _load();
+                                  })
+                              : _consultations.isEmpty
+                                  ? TBEmptyState(
+                                      emoji: '👩‍⚕️',
+                                      title: 'No consultations yet',
+                                      subtitle: isPremium
+                                          ? 'Book a consultation with a specialist or ask a volunteer a question.'
+                                          : 'Ask a community volunteer a question.',
+                                      buttonLabel: 'Book Now',
+                                      onButton: () => _tabs.animateTo(1))
+                                  : _filteredConsultations.isEmpty
+                                      ? TBEmptyState(
+                                          emoji: '🔍',
+                                          title: 'No matches',
+                                          subtitle:
+                                              'No consultations match this filter.',
+                                          buttonLabel: 'Clear Filter',
+                                          onButton: () => setState(() {
+                                                _selectedFilter = 'All';
+                                                _selectedProviders =
+                                                    _providerOptions.toSet();
+                                              }))
+                                      : ListView.builder(
+                                          padding: const EdgeInsets.all(16),
+                                          itemCount:
+                                              _filteredConsultations.length,
+                                          itemBuilder: (ctx, i) => Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 10),
+                                            child: _itemCard(
+                                                _filteredConsultations[i]),
                                           ),
                                         ),
-                                      );
-                                    },
-                                  ),
-              ),
-            ],
-          ),
+                    ),
+                  ],
+                ),
 
-          // Tab 2: Book new — everyone can reach volunteers; specialists are
-          // premium-only. Not shown to next-of-kin at all (see TabController
-          // length and AppBar.bottom above).
-          if (!_isNextOfKin) _buildBookTab(isPremium),
+                // Tab 2: Book new — everyone can reach volunteers;
+                // specialists are premium-only.
+                _buildBookTab(isPremium),
+              ],
+      ),
+    );
+  }
+
+  Widget _nextOfKinConsultationsList(
+    List<Map<String, dynamic>> items, {
+    required String emptyEmoji,
+    required String emptyTitle,
+    required String emptySubtitle,
+  }) {
+    if (_loading) return const TBLoading();
+    if (_error != null) {
+      return TBEmptyState(
+        emoji: '⚠️',
+        title: 'Couldn\'t load consultations',
+        subtitle: _error!,
+        buttonLabel: 'Retry',
+        onButton: () {
+          setState(() => _loading = true);
+          _load();
+        },
+      );
+    }
+    if (items.isEmpty) {
+      return TBEmptyState(
+          emoji: emptyEmoji, title: emptyTitle, subtitle: emptySubtitle);
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      itemBuilder: (ctx, i) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: _itemCard(items[i]),
+      ),
+    );
+  }
+
+  Widget _itemCard(Map<String, dynamic> item) {
+    if (item['_kind'] == 'question') return _questionCard(context, item);
+
+    final c = item;
+    final status = c['status'] ?? 'pending';
+    return TBCard(
+      onTap: () async {
+        await context.push('/consultation/detail', extra: c);
+        _load();
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+                color: statusColor(status).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10)),
+            child: Center(child: statusIconWidget(status)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(consultationTypeLabel(c['consultation_type'] as String?),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14)),
+                Text(status.toUpperCase(),
+                    style: TextStyle(
+                        color: statusColor(status),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.video_call, color: AppColors.teal, size: 15),
+                    SizedBox(width: 4),
+                    Text('Zoom Meeting',
+                        style: TextStyle(
+                            color: AppColors.teal,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right,
+              color: AppColors.textLight, size: 18),
         ],
       ),
     );

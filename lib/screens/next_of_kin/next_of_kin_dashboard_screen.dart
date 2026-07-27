@@ -7,8 +7,10 @@ import '../../utils/app_theme.dart';
 import '../../utils/checklist_data.dart';
 import '../../utils/next_of_kin_alert_read_state.dart';
 import '../../utils/next_of_kin_alerts_data.dart';
+import '../../utils/pregnancy_log_danger_scan.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/quick_chat_volunteer.dart';
 
 class NextOfKinDashboardScreen extends StatefulWidget {
   const NextOfKinDashboardScreen({super.key});
@@ -24,16 +26,14 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   List<Map<String, dynamic>> _consultations = [];
   List<Map<String, dynamic>> _pregnancyLogs = [];
   List<Map<String, dynamic>> _dailyReminderSends = [];
+  List<Map<String, dynamic>> _myQuestions = [];
+  DateTime? _milestoneTimestamp;
   Set<String> _readAlertKeys = {};
   Map<String, String> _providerNames = {};
   List<ChecklistPhase> _checklistPhases = [];
   int _checklistPhaseIndex = 0;
   bool _loading = true;
   DateTime? _lastNavTime;
-  // Local-only "seen" tracking — resets each session. There's no backend
-  // read-receipt store for these derived alerts (unlike the mum's
-  // notifications table), so this is a placeholder until that's designed.
-  final Set<String> _dismissedAlertKeys = {};
 
   bool _canNav() {
     final now = DateTime.now();
@@ -112,6 +112,24 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     final checklistPhaseIndex = await getCurrentChecklistPhaseIndex();
     final readAlertKeys = await getReadAlertKeys();
 
+    List<Map<String, dynamic>> myQuestions = [];
+    try {
+      final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
+      myQuestions = await enrichQuickChatQuestions(
+        List<Map<String, dynamic>>.from(rawQuestions),
+      );
+    } catch (_) {}
+
+    final week = (linkedMum?['current_week'] as int?) ?? 0;
+    // Prefer the real, server-derived week-start date over the local
+    // "first seen on this device" fallback — see alerts_screen.dart's
+    // _load() for the full rationale.
+    final weekStartDate = DateTime.tryParse(
+        (linkedMum?['current_week_start_date'] ?? '').toString());
+    final milestoneTimestamp = week <= 0
+        ? null
+        : weekStartDate ?? await getOrRecordMilestoneTimestamp(week);
+
     if (mounted) {
       setState(() {
         _profile = profile;
@@ -120,6 +138,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         _pregnancyLogs = pregnancyLogs;
         _readAlertKeys = readAlertKeys;
         _dailyReminderSends = dailyReminderSends;
+        _myQuestions = myQuestions;
+        _milestoneTimestamp = milestoneTimestamp;
         _providerNames = providerNames;
         _checklistPhases = checklistPhases;
         _checklistPhaseIndex = checklistPhaseIndex.clamp(
@@ -153,6 +173,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       consultations: _consultations,
       pregnancyLogs: _pregnancyLogs,
       dailyReminderSends: _dailyReminderSends,
+      volunteerQuestions: _myQuestions,
+      milestoneTimestamp: _milestoneTimestamp,
     );
     return sources.where((s) => !_readAlertKeys.contains(s.key)).length;
   }
@@ -319,6 +341,13 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           _buildChecklistSection(context),
                           const SizedBox(height: 20),
                           _buildActiveAlerts(),
+                          if (_myQuestions.isNotEmpty) ...[
+                            const SizedBox(height: 20),
+                            QuickChatVolunteerSection(
+                              questions: _myQuestions,
+                              onReload: _load,
+                            ),
+                          ],
                           const SizedBox(height: 20),
                           _buildExploreSection(context),
                         ],
@@ -572,10 +601,15 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
       ),
       (
         emoji: '💬',
-        title: 'Chat Volunteer',
-        desc: 'Browse and chat with volunteers',
-        onTap: () {
-          if (_canNav()) context.push('/next-of-kin/chat-volunteer');
+        title: 'Ask a Volunteer',
+        desc: 'Post a question and any volunteer can reply',
+        onTap: () async {
+          if (!_canNav()) return;
+          // Reload on return so a newly-posted question shows up in the
+          // Quick Chat preview immediately instead of only after
+          // switching tabs.
+          await context.push('/ask-volunteer');
+          if (mounted) _load();
         },
       ),
     ];
@@ -631,49 +665,21 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
+  // Same alert-source builder that drives the bell badge and the full
+  // Notifications Centre, so "any new notification" (milestone, active
+  // consultation, health-log emergency, daily reminder, volunteer reply)
+  // shows up here too — not just milestone/consultation like before.
+  // Sorted latest-first, same as the full centre.
   Widget _buildActiveAlerts() {
-    final week = _linkedMumWeek;
-
-    final activeConsultations = _consultations.where((c) {
-      final status = (c['status'] as String? ?? '').toLowerCase();
-      return status == 'pending' || status == 'confirmed';
-    }).toList();
-
-    final specs = <(
-      String key,
-      IconData icon,
-      Color iconBg,
-      Color iconColor,
-      String title,
-      String subtitle,
-      VoidCallback onTap
-    )>[
-      if (week > 0)
-        (
-          'milestone-$week',
-          Icons.auto_awesome,
-          AppColors.rose.withValues(alpha: 0.15),
-          AppColors.roseDeep,
-          'New Milestone',
-          'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
-          () => _comingSoon('Milestone journey'),
-        ),
-      for (final c in activeConsultations.take(2))
-        (
-          'consultation-${c['id']}',
-          Icons.calendar_today_outlined,
-          AppColors.sage.withValues(alpha: 0.15),
-          AppColors.sage,
-          _appointmentDateLabel(c['scheduled_date'] as String?),
-          _appointmentSubtitle(c),
-          () {
-            if (_canNav()) context.push('/consultation');
-          },
-        ),
-    ];
-
-    final visible =
-        specs.where((s) => !_dismissedAlertKeys.contains(s.$1)).toList();
+    final sources = buildNextOfKinAlertSources(
+      linkedMumWeek: _linkedMumWeek,
+      consultations: _consultations,
+      pregnancyLogs: _pregnancyLogs,
+      dailyReminderSends: _dailyReminderSends,
+      volunteerQuestions: _myQuestions,
+      milestoneTimestamp: _milestoneTimestamp,
+    )..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final visible = sources.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,15 +687,19 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         TBSectionTitle(
           title: 'Active Alerts & Notifications',
           action: 'View All',
-          onAction: () {
-            if (_canNav()) context.push('/next-of-kin/alerts');
+          onAction: () async {
+            if (!_canNav()) return;
+            await context.push('/next-of-kin/alerts');
+            if (mounted) _load();
           },
         ),
         const SizedBox(height: 12),
         if (visible.isEmpty)
           TBCard(
-            onTap: () {
-              if (_canNav()) context.push('/next-of-kin/alerts');
+            onTap: () async {
+              if (!_canNav()) return;
+              await context.push('/next-of-kin/alerts');
+              if (mounted) _load();
             },
             child: Row(
               children: [
@@ -714,18 +724,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
             ),
           )
         else
-          for (final s in visible)
-            _alertCard(
-              icon: s.$2,
-              iconBg: s.$3,
-              iconColor: s.$4,
-              title: s.$5,
-              subtitle: s.$6,
-              onTap: () {
-                setState(() => _dismissedAlertKeys.add(s.$1));
-                s.$7();
-              },
-            ),
+          for (final s in visible) _activeAlertCard(s),
       ],
     );
   }
@@ -755,37 +754,119 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     return '$typeLabel\n$timeProvider';
   }
 
-  Widget _alertCard({
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
+  ({
+    IconData icon,
+    Color iconBg,
+    Color iconColor,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  }) _previewFieldsForSource(NextOfKinAlertSource s) {
+    switch (s.type) {
+      case 'emergency':
+        final log = s.log!;
+        final symptoms = stringListFromArray(log['symptoms']);
+        final notes = (log['notes'] ?? '').toString();
+        final matches = dangerSymptomMatches(cleanHealthText(symptoms, notes));
+        return (
+          icon: Icons.warning_amber_rounded,
+          iconBg: Colors.redAccent.withValues(alpha: 0.15),
+          iconColor: Colors.redAccent,
+          title: 'Symptom Alert',
+          subtitle: matches.isEmpty
+              ? "From $_linkedMumName's pregnancy log"
+              : "From $_linkedMumName's pregnancy log: ${matches.first}",
+          onTap: () {
+            if (_canNav()) context.push('/logs/${log['id']}', extra: log);
+          },
+        );
+
+      case 'milestone':
+        final week = s.milestoneWeek!;
+        return (
+          icon: Icons.auto_awesome,
+          iconBg: AppColors.rose.withValues(alpha: 0.15),
+          iconColor: AppColors.roseDeep,
+          title: 'New Milestone',
+          subtitle:
+              'Baby now weighs ~${pregnancyWeekData[week]?['weight'] ?? '—'} — Size of ${pregnancyWeekData[week]?['size'] ?? 'growing strong'} ${pregnancyWeekData[week]?['emoji'] ?? ''}',
+          onTap: () => _comingSoon('Milestone journey'),
+        );
+
+      case 'consultation':
+        final c = s.consultation!;
+        return (
+          icon: Icons.calendar_today_outlined,
+          iconBg: AppColors.sage.withValues(alpha: 0.15),
+          iconColor: AppColors.sage,
+          title: _appointmentDateLabel(c['scheduled_date'] as String?),
+          subtitle: _appointmentSubtitle(c),
+          onTap: () {
+            if (_canNav()) context.push('/consultation');
+          },
+        );
+
+      case 'volunteer':
+        final row = s.volunteerQuestion!;
+        return (
+          icon: Icons.forum_outlined,
+          iconBg: AppColors.infoBlue.withValues(alpha: 0.15),
+          iconColor: AppColors.infoBlue,
+          title: '${quickChatVolunteerName(row)} replied',
+          subtitle: 'Question: ${quickChatQuestionText(row)}',
+          onTap: () async {
+            if (!_canNav()) return;
+            await context.push('/ask-volunteer/detail', extra: row);
+            if (mounted) _load();
+          },
+        );
+
+      case 'reminder':
+      default:
+        final row = s.reminderSend!;
+        final template = row['template'] as Map<String, dynamic>?;
+        final title = (template?['title'] as String?) ?? 'Reminder';
+        final subtitleTemplate =
+            (template?['subtitle_template'] as String?) ?? '';
+        return (
+          icon: iconForReminderName(template?['icon_name'] as String?),
+          iconBg: AppColors.roseDeep.withValues(alpha: 0.15),
+          iconColor: AppColors.roseDeep,
+          title: title,
+          subtitle: subtitleTemplate.replaceAll('{name}', _linkedMumName),
+          onTap: () {},
+        );
+    }
+  }
+
+  Widget _activeAlertCard(NextOfKinAlertSource s) {
+    final fields = _previewFieldsForSource(s);
+    final isRead = _readAlertKeys.contains(s.key);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TBCard(
-        onTap: onTap,
+        onTap: fields.onTap,
         child: Row(
           children: [
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                  color: iconBg, borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: iconColor, size: 20),
+                  color: fields.iconBg, borderRadius: BorderRadius.circular(12)),
+              child: Icon(fields.icon, color: fields.iconColor, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(fields.title,
+                      style: TextStyle(
+                          fontWeight:
+                              isRead ? FontWeight.w600 : FontWeight.w700,
+                          fontSize: 14)),
                   const SizedBox(height: 2),
-                  Text(subtitle,
+                  Text(fields.subtitle,
                       style: const TextStyle(
                           color: AppColors.textLight, fontSize: 12),
                       maxLines: 2,
@@ -793,6 +874,15 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                 ],
               ),
             ),
+            if (!isRead) ...[
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                    color: AppColors.rose, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+            ],
             const Icon(Icons.chevron_right,
                 color: AppColors.textLight, size: 18),
           ],

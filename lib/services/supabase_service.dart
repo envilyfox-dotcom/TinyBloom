@@ -1106,6 +1106,13 @@ class SupabaseService {
       // Best-effort: the linked mum's own pregnancy_profiles row may not be
       // readable depending on RLS, so a missing week just means we show none.
       int? week;
+      // The calendar date the current week began — a pure function of
+      // due_date, not "whenever a device first noticed this week." Lets
+      // the next-of-kin milestone notification show a real, stable
+      // received-at time instead of resetting to "just now" on every
+      // fresh install/device (see getOrRecordMilestoneTimestamp, which is
+      // only a fallback for when due_date isn't set).
+      DateTime? weekStartDate;
       try {
         final pp = await client
             .from('pregnancy_profiles')
@@ -1120,6 +1127,7 @@ class SupabaseService {
             final conception = due.subtract(const Duration(days: 280));
             week = (DateTime.now().difference(conception).inDays ~/ 7)
                 .clamp(1, 42);
+            weekStartDate = conception.add(Duration(days: week * 7));
           }
         }
         week ??= (pp?['current_week'] as num?)?.toInt();
@@ -1131,6 +1139,7 @@ class SupabaseService {
         'email': mum['email'],
         'relationship': link?['relationship'],
         'current_week': week,
+        'current_week_start_date': weekStartDate?.toIso8601String(),
         'role': mum['role'],
         'subscription_plan': mum['subscription_plan'],
       };

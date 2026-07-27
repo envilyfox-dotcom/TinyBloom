@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'pregnancy_log_danger_scan.dart';
 
 // ── Next-of-kin alert sources ──────────────────────────────────────
@@ -9,11 +10,13 @@ import 'pregnancy_log_danger_scan.dart';
 // means the two screens can never disagree on what counts as "active."
 class NextOfKinAlertSource {
   final String key;
-  final String type; // 'emergency' | 'milestone' | 'consultation' | 'reminder'
+  // 'emergency' | 'milestone' | 'consultation' | 'reminder' | 'volunteer'
+  final String type;
   final DateTime timestamp;
   final Map<String, dynamic>? consultation;
   final Map<String, dynamic>? log;
   final Map<String, dynamic>? reminderSend;
+  final Map<String, dynamic>? volunteerQuestion;
   final int? milestoneWeek;
 
   NextOfKinAlertSource({
@@ -23,6 +26,7 @@ class NextOfKinAlertSource {
     this.consultation,
     this.log,
     this.reminderSend,
+    this.volunteerQuestion,
     this.milestoneWeek,
   });
 }
@@ -32,11 +36,14 @@ List<NextOfKinAlertSource> buildNextOfKinAlertSources({
   required List<Map<String, dynamic>> consultations,
   required List<Map<String, dynamic>> pregnancyLogs,
   required List<Map<String, dynamic>> dailyReminderSends,
+  List<Map<String, dynamic>> volunteerQuestions = const [],
+  // When the current milestone week was first seen (see
+  // getOrRecordMilestoneTimestamp) — falls back to now if the caller
+  // hasn't fetched it, so this parameter is optional rather than required.
+  DateTime? milestoneTimestamp,
 }) {
   final sources = <NextOfKinAlertSource>[];
 
-  // Emergency alerts always float to the top of the full centre, ahead of
-  // routine updates — kept first here too so both screens see them first.
   for (final log in pregnancyLogs) {
     if (!pregnancyLogHasDangerSymptom(log)) continue;
     final timestamp = DateTime.tryParse(
@@ -54,7 +61,7 @@ List<NextOfKinAlertSource> buildNextOfKinAlertSources({
     sources.add(NextOfKinAlertSource(
       key: 'milestone-$linkedMumWeek',
       type: 'milestone',
-      timestamp: DateTime.now(),
+      timestamp: milestoneTimestamp ?? DateTime.now(),
       milestoneWeek: linkedMumWeek,
     ));
   }
@@ -84,5 +91,40 @@ List<NextOfKinAlertSource> buildNextOfKinAlertSources({
     ));
   }
 
+  // A volunteer claiming the thread (volunteer_id gets set) is their first
+  // reply — see claimAndReplyToRequest in supabase_service.dart. The key
+  // has no timestamp component, so this only notifies once per question
+  // (matches "a volunteer started the chat with them"), not on every
+  // follow-up message after that.
+  for (final row in volunteerQuestions) {
+    if (row['volunteer_id'] == null) continue;
+    final timestamp = DateTime.tryParse(
+            (row['last_activity_at'] ?? row['created_at'] ?? '').toString()) ??
+        DateTime.now();
+    sources.add(NextOfKinAlertSource(
+      key: 'volunteer-reply-${row['id']}',
+      type: 'volunteer',
+      timestamp: timestamp,
+      volunteerQuestion: row,
+    ));
+  }
+
   return sources;
+}
+
+// Shared between the full centre and the dashboard's compact preview so
+// a reminder's icon always matches wherever it's shown.
+IconData iconForReminderName(String? name) {
+  switch (name) {
+    case 'favorite_border':
+      return Icons.favorite_border;
+    case 'visibility_outlined':
+      return Icons.visibility_outlined;
+    case 'event_note_outlined':
+      return Icons.event_note_outlined;
+    case 'water_drop_outlined':
+      return Icons.water_drop_outlined;
+    default:
+      return Icons.notifications_none_outlined;
+  }
 }
