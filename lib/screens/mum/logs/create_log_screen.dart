@@ -17,94 +17,18 @@ class CreateLogScreen extends StatefulWidget {
 class _CreateLogScreenState extends State<CreateLogScreen> {
   DateTime _date = DateTime.now();
   bool _loading = false;
+  bool _optionsLoading = true;
 
   final _notesCtrl = TextEditingController();
+  final _otherSymptomCtrl = TextEditingController();
+  final _otherMilestoneCtrl = TextEditingController();
 
-  final List<String> _allSymptoms = const [
-    'Morning sickness',
-    'Nausea',
-    'Vomiting',
-    'Fatigue',
-    'Headache',
-    'Back pain',
-    'Pelvic pain',
-    'Round ligament pain',
-    'Leg cramps',
-    'Swollen feet',
-    'Swollen hands',
-    'Heartburn',
-    'Indigestion',
-    'Constipation',
-    'Diarrhoea',
-    'Bloating',
-    'Frequent urination',
-    'Breast tenderness',
-    'Braxton Hicks contractions',
-    'Baby kicking',
-    'Reduced baby movement',
-    'Dizziness',
-    'Shortness of breath',
-    'Nasal congestion',
-    'Insomnia',
-    'Mood swings',
-    'Food cravings',
-    'Food aversions',
-    'Acne',
-    'Stretch marks',
-    'Itchy skin',
-    'Bleeding gums',
-    'Varicose veins',
-    'Haemorrhoids',
-    'Vaginal discharge',
-    'Water retention',
-    'Hot flashes',
-    'Chills',
-    'Fever',
-    'No symptoms',
-  ];
-
+  List<String> _allSymptoms = [];
   final Set<String> _selectedSymptoms = {};
 
   String _selectedMood = '';
 
-  final List<String> _allMilestones = const [
-    'Positive pregnancy test',
-    'Heartbeat detected',
-    'First ultrasound',
-    'Dating scan',
-    'NT scan',
-    'NIPT completed',
-    'Baby heartbeat heard',
-    'Baby started moving',
-    'First kick felt',
-    'Partner felt baby kick',
-    '20-week anatomy scan',
-    'Baby responds to sound',
-    'Gender revealed',
-    'Baby hiccups',
-    'Third trimester begins',
-    'Hospital tour completed',
-    'Birth plan completed',
-    'Hospital bag packed',
-    'Car seat installed',
-    'Baby shower',
-    'Nursery completed',
-    'Maternity leave begins',
-    'Breastfeeding class completed',
-    'Parenting class completed',
-    'Baby dropped',
-    'Cervix dilating',
-    'Labour contractions started',
-    'Water broke',
-    'Delivery day',
-    'Baby born',
-    'Skin-to-skin completed',
-    'First breastfeed',
-    'Discharged home',
-    'First paediatric visit',
-    'Postpartum check-up',
-  ];
-
+  List<String> _allMilestones = [];
   final Set<String> _selectedMilestones = {};
 
   @override
@@ -118,12 +42,41 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       _selectedMilestones.addAll(asStringList(log['milestones']));
       if (log['log_date'] != null) _date = DateTime.parse(log['log_date']);
     }
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    try {
+      final options = await SupabaseService.getPregnancyLogOptions();
+      if (mounted) {
+        setState(() {
+          _allSymptoms = options['symptom'] ?? [];
+          _allMilestones = options['milestone'] ?? [];
+          _optionsLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _optionsLoading = false);
+    }
   }
 
   @override
   void dispose() {
     _notesCtrl.dispose();
+    _otherSymptomCtrl.dispose();
+    _otherMilestoneCtrl.dispose();
     super.dispose();
+  }
+
+  void _addOther(TextEditingController ctrl, Set<String> selectedItems) {
+    final text = ctrl.text.trim();
+    if (text.isEmpty) return;
+    final exists = selectedItems
+        .any((s) => s.toLowerCase() == text.toLowerCase());
+    setState(() {
+      if (!exists) selectedItems.add(text);
+      ctrl.clear();
+    });
   }
 
   Future<void> _pickDate() async {
@@ -216,21 +169,59 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
               ),
             ]),
             _sectionCard('🤒 Symptoms', [
-              _chipWrap(
-                items: _allSymptoms,
+              if (_optionsLoading)
+                const Center(
+                    child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                ))
+              else
+                _chipWrap(
+                  items: [
+                    ..._allSymptoms,
+                    ..._selectedSymptoms
+                        .where((s) => !_allSymptoms.contains(s)),
+                  ],
+                  selectedItems: _selectedSymptoms,
+                  selectedColor: AppColors.blush,
+                  selectedTextColor: AppColors.roseDeep,
+                  selectedBorderColor: AppColors.rose,
+                ),
+              const SizedBox(height: 10),
+              _otherInput(
+                controller: _otherSymptomCtrl,
                 selectedItems: _selectedSymptoms,
-                selectedColor: AppColors.blush,
-                selectedTextColor: AppColors.roseDeep,
-                selectedBorderColor: AppColors.rose,
               ),
             ]),
             _sectionCard('🌟 Baby Milestones', [
-              _chipWrap(
-                items: _allMilestones,
+              if (_optionsLoading)
+                const Center(
+                    child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                ))
+              else
+                _chipWrap(
+                  items: [
+                    ..._allMilestones,
+                    ..._selectedMilestones
+                        .where((s) => !_allMilestones.contains(s)),
+                  ],
+                  selectedItems: _selectedMilestones,
+                  selectedColor: AppColors.tealLight,
+                  selectedTextColor: AppColors.teal,
+                  selectedBorderColor: AppColors.teal,
+                ),
+              const SizedBox(height: 10),
+              _otherInput(
+                controller: _otherMilestoneCtrl,
                 selectedItems: _selectedMilestones,
-                selectedColor: AppColors.tealLight,
-                selectedTextColor: AppColors.teal,
-                selectedBorderColor: AppColors.teal,
               ),
             ]),
             _sectionCard('📅 Date', [
@@ -352,6 +343,40 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         );
       }).toList(),
+    );
+  }
+
+  Widget _otherInput({
+    required TextEditingController controller,
+    required Set<String> selectedItems,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Other (please specify)',
+              hintStyle: const TextStyle(fontSize: 13),
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                    color: AppColors.textLight.withValues(alpha: 0.3)),
+              ),
+            ),
+            onSubmitted: (_) => _addOther(controller, selectedItems),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: () => _addOther(controller, selectedItems),
+          icon: const Icon(Icons.add_circle, color: AppColors.rose),
+        ),
+      ],
     );
   }
 

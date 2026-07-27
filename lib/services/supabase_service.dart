@@ -281,6 +281,27 @@ class SupabaseService {
     }
   }
 
+  // Symptom/milestone chip options for CreateLogScreen, editable directly
+  // from the Supabase Table Editor (pregnancy_log_options) instead of
+  // requiring an app release. Returns {'symptom': [...], 'milestone': [...]}.
+  static Future<Map<String, List<String>>> getPregnancyLogOptions() async {
+    final res = await client
+        .from('pregnancy_log_options')
+        .select('category, label')
+        .order('category')
+        .order('sort_order');
+    final symptoms = <String>[];
+    final milestones = <String>[];
+    for (final row in List<Map<String, dynamic>>.from(res)) {
+      if (row['category'] == 'symptom') {
+        symptoms.add(row['label'] as String);
+      } else if (row['category'] == 'milestone') {
+        milestones.add(row['label'] as String);
+      }
+    }
+    return {'symptom': symptoms, 'milestone': milestones};
+  }
+
   static Future<void> createLog(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
