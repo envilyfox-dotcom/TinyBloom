@@ -1112,6 +1112,39 @@ class SupabaseService {
     return link;
   }
 
+  // Publishing (or editing) a volunteer service listing used to require
+  // pasting in a Zoom link the volunteer created themselves. This calls the
+  // create-zoom-meeting-service edge function to mint a real one instead —
+  // there's no existing row to read/write here (unlike approveConsultation
+  // or acceptVideoCall), just a one-shot "create a meeting for this slot"
+  // call, so the function takes the listing's details directly rather than
+  // an id.
+  static Future<String> createServiceZoomMeeting({
+    required String title,
+    required DateTime date,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final response = await client.functions.invoke(
+      'create-zoom-meeting-service',
+      body: {
+        'title': title,
+        'date': date.toIso8601String().split('T').first,
+        'start_time': startTime,
+        'end_time': endTime,
+      },
+    );
+    final data = response.data;
+    final link = data is Map ? data['meeting_link']?.toString() : null;
+    if (link == null || link.isEmpty) {
+      final error = data is Map
+          ? (data['error']?.toString() ?? 'Could not create the Zoom meeting.')
+          : 'Could not create the Zoom meeting.';
+      throw Exception(error);
+    }
+    return link;
+  }
+
   // Looks up the specialist/volunteer profile (+ name) for a consultation's
   // other party, trying specialist_profiles first then volunteer_profiles.
   static Future<Map<String, dynamic>?> getProviderProfile(String userId) async {

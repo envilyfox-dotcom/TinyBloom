@@ -32,3 +32,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/create-zoom-meeting-volunteer-call/deno.json"
 entrypoint = "./functions/create-zoom-meeting-volunteer-call/index.ts"
+
+[functions.create-zoom-meeting-service]
+enabled = true
+verify_jwt = true
+import_map = "./functions/create-zoom-meeting-service/deno.json"
+entrypoint = "./functions/create-zoom-meeting-service/index.ts"

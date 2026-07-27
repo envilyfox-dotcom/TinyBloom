@@ -407,7 +407,7 @@ class _ServiceCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.label_outline, size: 13, color: AppColors.textLight),
+                const Icon(Icons.label_outline, size: 13, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(category,
                     style: GoogleFonts.poppins(
@@ -427,7 +427,7 @@ class _ServiceCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.schedule_outlined,
+                const Icon(Icons.schedule_outlined,
                     size: 13, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Expanded(
@@ -463,7 +463,7 @@ class _ServiceCard extends StatelessWidget {
                   onPressed: () => onEdit(service),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.rose,
-                    side: BorderSide(color: AppColors.rose),
+                    side: const BorderSide(color: AppColors.rose),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
@@ -509,7 +509,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   late TextEditingController _titleCtrl;
   late TextEditingController _descCtrl;
   late TextEditingController _catCtrl;
-  late TextEditingController _zoomCtrl;
   DateTime? _availDate;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -522,7 +521,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     _descCtrl =
         TextEditingController(text: widget.service?['description'] ?? '');
     _catCtrl = TextEditingController(text: widget.service?['category'] ?? '');
-    _zoomCtrl = TextEditingController(text: widget.service?['zoom_link'] ?? '');
 
     final avail = widget.service?['availability'] as String?;
     if (avail != null && avail.contains(' | ')) {
@@ -559,7 +557,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _catCtrl.dispose();
-    _zoomCtrl.dispose();
     super.dispose();
   }
 
@@ -658,22 +655,32 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           : '${DateFormat('yyyy-MM-dd').format(_availDate ?? DateTime.now())} | '
               '${_formatTime(_startTime!)} - ${_formatTime(_endTime!)}';
       if (widget.mode == ServiceMode.create) {
+        // A real, joinable Zoom meeting is minted for this slot instead of
+        // asking the volunteer to paste one in — see
+        // SupabaseService.createServiceZoomMeeting.
+        final zoomLink = await SupabaseService.createServiceZoomMeeting(
+          title: _titleCtrl.text.trim(),
+          date: _availDate!,
+          startTime: _formatTime(_startTime!),
+          endTime: _formatTime(_endTime!),
+        );
         await SupabaseService.client.from('volunteer_services').insert({
           'volunteer_id': SupabaseService.currentUser!.id,
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
           'availability': availability,
           'category': _catCtrl.text.trim(),
-          'zoom_link': _zoomCtrl.text.trim(),
+          'zoom_link': zoomLink,
           'status': 'available',
         });
       } else if (widget.mode == ServiceMode.edit) {
+        // zoom_link is left untouched — the meeting created at publish
+        // time is still the same real, joinable link.
         await SupabaseService.client.from('volunteer_services').update({
           'title': _titleCtrl.text.trim(),
           'description': _descCtrl.text.trim(),
           'availability': availability,
           'category': _catCtrl.text.trim(),
-          'zoom_link': _zoomCtrl.text.trim(),
         }).eq('id', widget.service!['id']);
       }
       // delete is handled by the parent via pop(true)
@@ -763,7 +770,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.calendar_today_outlined,
+                      const Icon(Icons.calendar_today_outlined,
                           size: 16, color: AppColors.rose),
                       const SizedBox(width: 10),
                       Expanded(
@@ -806,8 +813,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               const SizedBox(height: 12),
               _field('Category', _catCtrl, readOnly: isReadOnly),
               const SizedBox(height: 12),
-              _field('Zoom Link (for mums to join)', _zoomCtrl,
-                  readOnly: isReadOnly),
+              _zoomLinkSection(),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -860,6 +866,60 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // Create mode: no link exists yet — it's minted from the chosen slot the
+  // moment the volunteer hits Publish (see SupabaseService.createServiceZoomMeeting).
+  // Edit/delete mode: show the real link that was generated at publish
+  // time, read-only — there's nothing to type in any more.
+  Widget _zoomLinkSection() {
+    if (widget.mode == ServiceMode.create) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.teal.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.videocam_outlined, size: 16, color: AppColors.teal),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'A Zoom link will be created automatically for this slot when you publish.',
+                style: GoogleFonts.poppins(color: AppColors.textDark, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final zoomLink = (widget.service?['zoom_link'] as String? ?? '').trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Zoom Link (for mums to join)',
+            style: GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.textLight.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            zoomLink.isEmpty ? 'No Zoom link on this listing yet.' : zoomLink,
+            style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: zoomLink.isEmpty ? AppColors.textLight : AppColors.textDark),
+          ),
+        ),
+      ],
     );
   }
 
@@ -928,7 +988,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.access_time, size: 16, color: AppColors.rose),
+                const Icon(Icons.access_time, size: 16, color: AppColors.rose),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
