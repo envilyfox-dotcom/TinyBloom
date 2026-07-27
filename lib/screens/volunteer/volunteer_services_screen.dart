@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/availability_format.dart';
@@ -282,17 +283,11 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
                     controller: _tabs,
                     children: [
                       _ServiceList(
-                          services: _searchedServices,
-                          onEdit: _onEdit,
-                          onDelete: _onDeleteConfirm),
+                          services: _searchedServices, onEdit: _onEdit),
                       _ServiceList(
-                          services: _byStatus('available'),
-                          onEdit: _onEdit,
-                          onDelete: _onDeleteConfirm),
+                          services: _byStatus('available'), onEdit: _onEdit),
                       _ServiceList(
-                          services: _byStatus('done'),
-                          onEdit: _onEdit,
-                          onDelete: _onDeleteConfirm),
+                          services: _byStatus('done'), onEdit: _onEdit),
                     ],
                   ),
                 ),
@@ -305,7 +300,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     // A completed service is locked — no editing, no meeting join — but its
     // details stay fully viewable, same as a closed chat on the Requests page.
     final isDone = (service['status'] as String? ?? 'available') == 'done';
-    await Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ServiceFormScreen(
@@ -313,30 +308,24 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
             service: service),
       ),
     );
-    _load();
-  }
-
-  void _onDeleteConfirm(Map<String, dynamic> service) async {
-    final confirmed = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            ServiceFormScreen(mode: ServiceMode.delete, service: service),
-      ),
-    );
-    if (confirmed == true) await _deleteService(service);
+    // The Edit screen's own top-right delete action pops with 'deleted'
+    // once the user confirms, instead of performing the delete itself —
+    // the actual Supabase call and notification broadcast live here.
+    if (result == 'deleted') {
+      await _deleteService(service);
+    } else {
+      _load();
+    }
   }
 }
 
 class _ServiceList extends StatelessWidget {
   final List<Map<String, dynamic>> services;
   final void Function(Map<String, dynamic>) onEdit;
-  final void Function(Map<String, dynamic>) onDelete;
 
   const _ServiceList({
     required this.services,
     required this.onEdit,
-    required this.onDelete,
   });
 
   @override
@@ -370,7 +359,6 @@ class _ServiceList extends StatelessWidget {
       itemBuilder: (ctx, i) => _ServiceCard(
         service: services[i],
         onEdit: onEdit,
-        onDelete: onDelete,
       ),
     );
   }
@@ -379,13 +367,23 @@ class _ServiceList extends StatelessWidget {
 class _ServiceCard extends StatelessWidget {
   final Map<String, dynamic> service;
   final void Function(Map<String, dynamic>) onEdit;
-  final void Function(Map<String, dynamic>) onDelete;
 
   const _ServiceCard({
     required this.service,
     required this.onEdit,
-    required this.onDelete,
   });
+
+  Future<void> _joinCall(BuildContext context) async {
+    final link = (service['zoom_link'] as String? ?? '').trim();
+    if (link.isEmpty) return;
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the video call link.')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -396,6 +394,7 @@ class _ServiceCard extends StatelessWidget {
     final availability = service['availability'] as String? ?? '';
     final consultationMethod = service['consultation_method'] as String? ?? '';
     final serviceId = formatServiceId(service['service_number']);
+    final hasZoomLink = (service['zoom_link'] as String? ?? '').trim().isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -509,15 +508,19 @@ class _ServiceCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () => onDelete(service),
+                child: OutlinedButton.icon(
+                  onPressed:
+                      (isDone || !hasZoomLink) ? null : () => _joinCall(context),
+                  icon: const Icon(Icons.videocam_outlined, size: 16),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red.shade400,
-                    side: BorderSide(color: Colors.red.shade400),
+                    foregroundColor: AppColors.teal,
+                    side: const BorderSide(color: AppColors.teal),
+                    disabledForegroundColor:
+                        AppColors.textLight.withValues(alpha: 0.5),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: Text('Delete', style: GoogleFonts.poppins()),
+                  label: Text('Join Call', style: GoogleFonts.poppins()),
                 ),
               ),
             ],
@@ -727,6 +730,22 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     }
   }
 
+  // Pushes the read-only delete-confirmation screen; on confirmation, pops
+  // this Edit screen with 'deleted' so the caller (_onEdit) performs the
+  // actual Supabase delete instead of duplicating that logic here.
+  Future<void> _onDelete() async {
+    final confirmed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ServiceFormScreen(mode: ServiceMode.delete, service: widget.service),
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context, 'deleted');
+    }
+  }
+
   Future<void> _handlePrimary() async {
     if (widget.mode == ServiceMode.view) {
       Navigator.pop(context);
@@ -857,6 +876,13 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
+        actions: [
+          if (widget.mode == ServiceMode.edit)
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+              onPressed: _onDelete,
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -945,8 +971,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              _field('Category', _catCtrl, readOnly: isReadOnly),
               const SizedBox(height: 12),
               _zoomLinkSection(),
               const SizedBox(height: 20),
