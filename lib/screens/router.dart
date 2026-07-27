@@ -242,7 +242,8 @@ final router = GoRouter(
 
     GoRoute(
         path: '/consultation',
-        builder: (_, __) => const ConsultationListScreen()),
+        builder: (_, state) => ConsultationListScreen(
+            initialTypeFilters: state.extra as Set<String>?)),
     GoRoute(
         path: '/consultation/specialists',
         builder: (_, __) => const SpecialistsListScreen()),

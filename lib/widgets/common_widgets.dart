@@ -262,6 +262,69 @@ class TBNotificationBell extends StatelessWidget {
   }
 }
 
+// ── Generic circular header icon button ─────────────────────────────
+// Same chrome as TBNotificationBell (white circle, subtle shadow, optional
+// red count badge) but for any icon — e.g. a "chats with volunteers"
+// shortcut next to the bell — without hijacking the bell's fixed icon.
+class TBIconBadgeButton extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final VoidCallback onTap;
+  const TBIconBadgeButton(
+      {super.key, required this.icon, this.count = 0, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textDark.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: AppColors.textDark, size: 20),
+          ),
+          if (count > 0)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.white, width: 1.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  count > 99 ? '99+' : '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Loading Spinner ───────────────────────────────────────────────
 class TBLoading extends StatelessWidget {
   const TBLoading({super.key});

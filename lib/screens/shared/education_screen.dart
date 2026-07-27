@@ -30,13 +30,16 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
-// The image markdown syntax (Create Article's image button) at the very
-// start of an article's body, if any — used to show a cropped photo preview
-// on the card instead of an empty/awkward text snippet.
-final _leadingImagePattern = RegExp(r'^!\[[^\]]*\]\(([^)]+)\)');
-String? _leadingImageUrl(String content) {
-  final match = _leadingImagePattern.firstMatch(content.trimLeft());
-  return match?.group(1);
+// Every image markdown syntax (Create Article's image button) anywhere in
+// an article's body — not just a leading one — so a card can preview a
+// photo from any post that has one, not only posts that open with one.
+final _imagePattern = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
+List<String> _articleImageUrls(String content) {
+  return _imagePattern
+      .allMatches(content)
+      .map((m) => m.group(1) ?? '')
+      .where((url) => url.isNotEmpty)
+      .toList();
 }
 
 // Strips markdown formatting down to plain text for the card's body
@@ -471,7 +474,7 @@ class _ArticleCardState extends State<_ArticleCard> {
         '');
     final excerpt = article['excerpt'] as String? ?? '';
     final content = article['content'] as String? ?? '';
-    final leadingImageUrl = _leadingImageUrl(content);
+    final imageUrls = _articleImageUrls(content);
     final previewText =
         excerpt.trim().isNotEmpty ? excerpt : _plainTextPreview(content);
     final canExpand = previewText.length > 110;
@@ -590,9 +593,11 @@ class _ArticleCardState extends State<_ArticleCard> {
                 color: AppColors.textDark,
                 height: 1.25),
           ),
-          if (leadingImageUrl != null) ...[
+          if (imageUrls.isNotEmpty) ...[
             const SizedBox(height: 8),
-            _ContentImagePreview(url: leadingImageUrl),
+            imageUrls.length == 1
+                ? _ContentImagePreview(url: imageUrls.first)
+                : _ContentImageCollage(urls: imageUrls),
           ] else if (previewText.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
@@ -691,6 +696,91 @@ class _ContentImagePreview extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Collage preview for a post with more than one photo: the first photo
+// large on the left, up to two more stacked smaller on the right — an
+// "+N" badge covers the last small tile if there are more photos than
+// fit, so the count is never silently lost.
+class _ContentImageCollage extends StatelessWidget {
+  final List<String> urls;
+  const _ContentImageCollage({required this.urls});
+
+  @override
+  Widget build(BuildContext context) {
+    final big = urls.first;
+    final small = urls.skip(1).take(2).toList();
+    final extraCount = urls.length - 1 - small.length;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 120,
+        width: double.infinity,
+        child: Row(
+          children: [
+            Expanded(flex: 2, child: _CollageTile(url: big)),
+            const SizedBox(width: 3),
+            Expanded(
+              flex: 1,
+              child: Column(
+                children: [
+                  for (var i = 0; i < small.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 3),
+                    Expanded(
+                      child: _CollageTile(
+                        url: small[i],
+                        overlayLabel: (i == small.length - 1 && extraCount > 0)
+                            ? '+$extraCount'
+                            : null,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// A single collage cell — plain cropped photo, optionally darkened with a
+// "+N more" label over the last visible tile.
+class _CollageTile extends StatelessWidget {
+  final String url;
+  final String? overlayLabel;
+  const _CollageTile({required this.url, this.overlayLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          memCacheHeight: (120 * MediaQuery.of(context).devicePixelRatio).round(),
+          errorWidget: (context, url, error) => Container(
+            color: AppColors.rose.withValues(alpha: 0.08),
+            child: const Icon(Icons.broken_image_outlined,
+                color: AppColors.textLight, size: 16),
+          ),
+        ),
+        if (overlayLabel != null)
+          Container(
+            color: Colors.black.withValues(alpha: 0.45),
+            alignment: Alignment.center,
+            child: Text(
+              overlayLabel!,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -290,6 +290,18 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                           ],
                         ),
                       ),
+                      TBIconBadgeButton(
+                        icon: Icons.chat_bubble_outline,
+                        onTap: () async {
+                          if (!_canNav()) return;
+                          // Deep-links into Consultations with the
+                          // Volunteer Chats filter already selected.
+                          await context
+                              .push('/consultation', extra: {'Volunteer Chats'});
+                          if (mounted) _load();
+                        },
+                      ),
+                      const SizedBox(width: 10),
                       TBNotificationBell(
                         count: _notificationBellCount,
                         onTap: () async {
@@ -338,9 +350,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                         children: [
                           _buildTrimesterCard(context),
                           const SizedBox(height: 20),
-                          _buildChecklistSection(context),
-                          const SizedBox(height: 20),
                           _buildActiveAlerts(),
+                          const SizedBox(height: 20),
+                          _buildChecklistSection(context),
                           if (_myQuestions.isNotEmpty) ...[
                             const SizedBox(height: 20),
                             QuickChatVolunteerSection(

@@ -9,7 +9,11 @@ import 'consultation_helpers.dart';
 
 // ── Consultation List Screen ──────────────────────────────────────
 class ConsultationListScreen extends StatefulWidget {
-  const ConsultationListScreen({super.key});
+  // Lets a caller deep-link straight into a pre-filtered view — e.g. the
+  // next-of-kin dashboard's message icon jumps here with just
+  // {'Volunteer Chats'} selected, instead of landing on the unfiltered list.
+  final Set<String>? initialTypeFilters;
+  const ConsultationListScreen({super.key, this.initialTypeFilters});
   @override
   State<ConsultationListScreen> createState() => _ConsultationListScreenState();
 }
@@ -35,6 +39,14 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   String _selectedFilter = 'All';
   Set<String> _selectedProviders = _providerOptions.toSet();
 
+  // Next-of-kin's simpler type filter — a chip row instead of the Filter
+  // sheet, since their tabs already split by status (active vs history).
+  // Multi-select: Pending, Confirmed, and Volunteer Chats can each be
+  // toggled independently, so "just pending", "just confirmed", or "both"
+  // are all reachable. Empty selection means no filter (show everything).
+  static const _typeFilterOptions = ['Pending', 'Confirmed', 'Volunteer Chats'];
+  final Set<String> _selectedTypeFilters = {};
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +54,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     // Both roles get 2 tabs now: mum sees My Consultations + Book New;
     // next-of-kin sees My Consultations (active) + History (past).
     _tabs = TabController(length: 2, vsync: this);
+    if (widget.initialTypeFilters != null) {
+      _selectedTypeFilters.addAll(widget.initialTypeFilters!);
+    }
     _load();
   }
 
@@ -90,11 +105,29 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     return category == 'completed' || category == 'cancelled';
   }
 
-  List<Map<String, dynamic>> get _activeConsultations =>
-      _consultations.where((c) => !_isHistoryItem(c)).toList();
+  bool _matchesTypeFilter(Map<String, dynamic> item) {
+    if (_selectedTypeFilters.isEmpty) return true;
+    if (_providerCategory(item) == 'Volunteer') {
+      return _selectedTypeFilters.contains('Volunteer Chats');
+    }
+    final status = _itemCategory(item); // 'pending' or 'confirmed' here
+    if (status == 'pending') return _selectedTypeFilters.contains('Pending');
+    if (status == 'confirmed') {
+      return _selectedTypeFilters.contains('Confirmed');
+    }
+    // Completed/cancelled consultations only ever show up in the History
+    // tab, which Pending/Confirmed/Volunteer Chats never match — correct,
+    // since none of those describe a resolved item.
+    return false;
+  }
 
-  List<Map<String, dynamic>> get _historyConsultations =>
-      _consultations.where(_isHistoryItem).toList();
+  List<Map<String, dynamic>> get _activeConsultations => _consultations
+      .where((c) => !_isHistoryItem(c) && _matchesTypeFilter(c))
+      .toList();
+
+  List<Map<String, dynamic>> get _historyConsultations => _consultations
+      .where((c) => _isHistoryItem(c) && _matchesTypeFilter(c))
+      .toList();
 
   Future<void> _load() async {
     try {
@@ -422,16 +455,88 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         },
       );
     }
-    if (items.isEmpty) {
-      return TBEmptyState(
+
+    final Widget content;
+    if (items.isNotEmpty) {
+      content = ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        itemCount: items.length,
+        itemBuilder: (ctx, i) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _itemCard(items[i]),
+        ),
+      );
+    } else if (_selectedTypeFilters.isNotEmpty) {
+      content = TBEmptyState(
+        emoji: '🔍',
+        title: 'No matches',
+        subtitle: 'Nothing here for this filter yet.',
+        buttonLabel: 'Clear Filter',
+        onButton: () => setState(() => _selectedTypeFilters.clear()),
+      );
+    } else {
+      content = TBEmptyState(
           emoji: emptyEmoji, title: emptyTitle, subtitle: emptySubtitle);
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: items.length,
-      itemBuilder: (ctx, i) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: _itemCard(items[i]),
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: _typeFilterRow(),
+        ),
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  Widget _typeFilterRow() {
+    // "All" is its own chip: tapping it clears every specific selection.
+    // It's shown as selected exactly when nothing else is picked.
+    final chips = ['All', ..._typeFilterOptions];
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final option = chips[index];
+          final isAllChip = option == 'All';
+          final selected = isAllChip
+              ? _selectedTypeFilters.isEmpty
+              : _selectedTypeFilters.contains(option);
+          return GestureDetector(
+            onTap: () => setState(() {
+              if (isAllChip) {
+                _selectedTypeFilters.clear();
+              } else if (!_selectedTypeFilters.remove(option)) {
+                _selectedTypeFilters.add(option);
+              }
+            }),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.teal : AppColors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.teal
+                      : AppColors.textLight.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Text(
+                option,
+                style: TextStyle(
+                  color: selected ? Colors.white : AppColors.textDark,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
