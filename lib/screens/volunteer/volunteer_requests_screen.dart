@@ -61,12 +61,14 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           .toSet();
       final names = <String, String>{};
       final photos = <String, String?>{};
+      final roles = <String, String?>{};
       await Future.wait(patientIds.map((id) async {
         try {
           final profile = await SupabaseService.getProfileById(id);
           final name = profile?['full_name'] as String?;
           if (name != null) names[id] = name;
           photos[id] = profile?['profile_picture_url'] as String?;
+          roles[id] = profile?['role'] as String?;
         } catch (_) {}
       }));
 
@@ -76,6 +78,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                 'profiles': {
                   'full_name': names[r['patient_id']],
                   'profile_picture_url': photos[r['patient_id']],
+                  'role': roles[r['patient_id']],
                 },
               })
           .toList();
@@ -154,7 +157,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
             }
           },
         ),
-        title: Text('Mum\'s Requests',
+        title: Text('Requests',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
         centerTitle: true,
@@ -184,7 +187,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                         setState(() => _searchQuery = v.trim().toLowerCase()),
                     style: GoogleFonts.poppins(fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: 'Search requests or mum\'s name',
+                      hintText: 'Search requests or name',
                       hintStyle: GoogleFonts.poppins(
                           fontSize: 13, color: AppColors.textLight),
                       prefixIcon: const Icon(Icons.search,
@@ -277,8 +280,9 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mumName =
-        (request['profiles'] as Map?)?['full_name'] as String? ?? 'A mum';
+    final profile = request['profiles'] as Map?;
+    final mumName = profile?['full_name'] as String? ?? 'A mum';
+    final roleLabel = forumRoleLabel(profile?['role'] as String?);
     final status = request['status'] as String? ?? 'pending';
     final isCompleted = status == 'closed';
     final isAvailable = !isCompleted && request['volunteer_id'] == null;
@@ -346,6 +350,14 @@ class _RequestCard extends StatelessWidget {
                 Text(mumName,
                     style: GoogleFonts.poppins(
                         color: AppColors.textLight, fontSize: 12)),
+                if (roleLabel.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Text('· $roleLabel',
+                      style: GoogleFonts.poppins(
+                          color: AppColors.textLight,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                ],
               ],
             ),
           ],
@@ -921,6 +933,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final mumProfile = widget.request['profiles'] as Map?;
     final mumName = mumProfile?['full_name'] as String? ?? 'A mum';
     final mumPhoto = mumProfile?['profile_picture_url'] as String?;
+    final mumRoleLabel = forumRoleLabel(mumProfile?['role'] as String?);
+    // A next-of-kin can chat with a volunteer on the linked mum's behalf,
+    // but video calls are the mum's own to arrange — not offered here.
+    final isNextOfKinRequester = mumProfile?['role'] == 'next_of_kin';
     final requestId = formatRequestId(widget.request['request_number']);
 
     return Scaffold(
@@ -981,6 +997,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                           Text(mumName,
                               style: GoogleFonts.poppins(
                                   color: AppColors.textLight, fontSize: 12)),
+                          if (mumRoleLabel.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text('· $mumRoleLabel',
+                                style: GoogleFonts.poppins(
+                                    color: AppColors.textLight,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
+                          ],
                         ]),
                       ],
                     ),
@@ -1010,7 +1034,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (_isMine)
+                        if (_isMine && !isNextOfKinRequester)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: _videoCallControl(),
