@@ -594,6 +594,39 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     return DateFormat('h:mm a').format(dt);
   }
 
+  // True if `availability` (stored as "yyyy-MM-dd | h:mm a - h:mm a") falls
+  // on `date` and its time range overlaps [startMinutes, endMinutes).
+  bool _availabilityOverlaps(
+      String availability, DateTime date, int startMinutes, int endMinutes) {
+    if (!availability.contains(' | ')) return false;
+    final parts = availability.split(' | ');
+    final otherDate = DateTime.tryParse(parts[0].trim());
+    if (otherDate == null ||
+        otherDate.year != date.year ||
+        otherDate.month != date.month ||
+        otherDate.day != date.day) {
+      return false;
+    }
+
+    final timing = parts.length > 1 ? parts[1].trim() : '';
+    final match = RegExp(
+            r'^(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])$')
+        .firstMatch(timing);
+    if (match == null) return false;
+
+    try {
+      final otherStart =
+          DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
+      final otherEnd =
+          DateFormat('h:mm a').parse(match.group(2)!.toUpperCase());
+      final otherStartMinutes = otherStart.hour * 60 + otherStart.minute;
+      final otherEndMinutes = otherEnd.hour * 60 + otherEnd.minute;
+      return startMinutes < otherEndMinutes && otherStartMinutes < endMinutes;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _titleCtrl.dispose();
@@ -768,6 +801,32 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('End time must be after start time.')));
         return;
+      }
+
+      try {
+        final existing = await SupabaseService.client
+            .from('volunteer_services')
+            .select('id, availability')
+            .eq('volunteer_id', SupabaseService.currentUser!.id)
+            .eq('status', 'available');
+        final conflict = List<Map<String, dynamic>>.from(existing).any((row) {
+          if (widget.mode == ServiceMode.edit &&
+              row['id'].toString() == widget.service?['id'].toString()) {
+            return false;
+          }
+          return _availabilityOverlaps((row['availability'] ?? '').toString(),
+              _availDate!, startMinutes, endMinutes);
+        });
+        if (conflict) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text(
+                    'You already have a service scheduled that overlaps with this time.')));
+          }
+          return;
+        }
+      } catch (_) {
+        // Best-effort — don't block publishing if the conflict check itself fails.
       }
     }
     setState(() => _saving = true);
