@@ -101,7 +101,9 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
     final snapshotById = <String, ChecklistItem>{};
     for (final p in _phasesSnapshot!) {
       for (final c in p.categories) {
-        for (final i in c.items) snapshotById[i.id] = i;
+        for (final i in c.items) {
+          snapshotById[i.id] = i;
+        }
       }
     }
 
