@@ -36,6 +36,27 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
     return values;
   }
 
+  double _specializationFilterWidth(BuildContext context) {
+    const style = TextStyle(fontSize: 13);
+    double longest = 0;
+    for (final label in ['All specializations', ..._specializations]) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (painter.width > longest) longest = painter.width;
+    }
+    // Room for the leading icon, trailing arrow and the field's own padding.
+    const chrome = 18 + 12 + 24 + 24;
+    // Cap it well short of the screen edge so long specialization names
+    // (e.g. "Maternal-Fetal Medicine (Perinatologist)") don't force the
+    // filter to stretch across the whole page — they just wrap onto a
+    // second line inside the menu instead.
+    final maxAllowed = MediaQuery.of(context).size.width - 40;
+    return (longest + chrome).clamp(160.0, maxAllowed.clamp(160.0, 260.0));
+  }
+
   List<Map<String, dynamic>> get _filteredSpecialists {
     if (_selectedSpecialization == null) return _specialists;
     return _specialists
@@ -130,47 +151,88 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
                                 ),
                                 if (_specializations.isNotEmpty) ...[
                                   const SizedBox(height: 4),
-                                  DropdownButtonFormField<String>(
-                                    initialValue: _selectedSpecialization,
-                                    isDense: true,
-                                    style: const TextStyle(
-                                      color: AppColors.textDark,
-                                      fontSize: 13,
-                                    ),
-                                    decoration: InputDecoration(
-                                      isDense: true,
-                                      filled: true,
-                                      fillColor:
-                                          AppColors.white.withValues(alpha: 0.55),
-                                      labelText: 'Filter by specialization',
-                                      labelStyle:
-                                          const TextStyle(fontSize: 12),
-                                      prefixIcon: const Icon(
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: DropdownMenu<String?>(
+                                      initialSelection: _selectedSpecialization,
+                                      width:
+                                          _specializationFilterWidth(context),
+                                      menuHeight: 320,
+                                      enableSearch: false,
+                                      requestFocusOnTap: false,
+                                      textStyle: const TextStyle(
+                                        color: AppColors.textDark,
+                                        fontSize: 13,
+                                      ),
+                                      leadingIcon: const Icon(
                                         Icons.filter_list,
                                         color: AppColors.textMid,
                                         size: 18,
                                       ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 10),
-                                    ),
-                                    hint: const Text('All specializations',
-                                        style: TextStyle(fontSize: 13)),
-                                    isExpanded: true,
-                                    items: [
-                                      const DropdownMenuItem<String>(
-                                        value: null,
-                                        child: Text('All specializations'),
-                                      ),
-                                      ..._specializations.map(
-                                        (s) => DropdownMenuItem<String>(
-                                          value: s,
-                                          child: Text(s),
+                                      label: const Text(
+                                          'Filter by specialization',
+                                          style: TextStyle(fontSize: 12)),
+                                      inputDecorationTheme:
+                                          InputDecorationTheme(
+                                        isDense: true,
+                                        filled: true,
+                                        fillColor: AppColors.white,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 10),
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          borderSide: BorderSide(
+                                              color: AppColors.textLight
+                                                  .withValues(alpha: 0.3)),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          borderSide: BorderSide(
+                                              color: AppColors.textLight
+                                                  .withValues(alpha: 0.3)),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          borderSide: const BorderSide(
+                                              color: AppColors.rose,
+                                              width: 1.5),
                                         ),
                                       ),
-                                    ],
-                                    onChanged: (v) => setState(
-                                        () => _selectedSpecialization = v),
+                                      menuStyle: MenuStyle(
+                                        backgroundColor:
+                                            const WidgetStatePropertyAll(
+                                                AppColors.white),
+                                        elevation:
+                                            const WidgetStatePropertyAll(4),
+                                        shape: WidgetStatePropertyAll(
+                                          RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            side: BorderSide(
+                                                color: AppColors.textLight
+                                                    .withValues(alpha: 0.3)),
+                                          ),
+                                        ),
+                                      ),
+                                      onSelected: (v) => setState(
+                                          () => _selectedSpecialization = v),
+                                      dropdownMenuEntries: [
+                                        const DropdownMenuEntry<String?>(
+                                          value: null,
+                                          label: 'All specializations',
+                                        ),
+                                        ..._specializations.map(
+                                          (s) => DropdownMenuEntry<String?>(
+                                            value: s,
+                                            label: s,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   const SizedBox(height: 16),
                                 ],

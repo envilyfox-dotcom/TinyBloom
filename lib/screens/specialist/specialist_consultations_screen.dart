@@ -393,6 +393,166 @@ class _SpecialistConsultationsScreenState
     );
   }
 
+  String _formatScheduledDate(dynamic rawDate) {
+    if (rawDate == null) return '—';
+    try {
+      return DateFormat('d MMMM yyyy').format(DateTime.parse(rawDate.toString()));
+    } catch (_) {
+      return '—';
+    }
+  }
+
+  // Small pop-up shown from the "!" badge on a rescheduled appointment's
+  // avatar — a before/after comparison of the same field set as the card
+  // itself (Appointment ID, Name, Age, Date, Time, Status, Descriptions):
+  // the previous slot on top, an arrow down, then the new slot below, with
+  // Date/Time picked out in a gold chip on both so the change is obvious at
+  // a glance.
+  Future<void> _showRescheduleDetails(
+    Map<String, dynamic> consultation,
+    String patientName,
+    String patientAge,
+  ) async {
+    final id = consultation['id']?.toString() ?? '';
+    final apptId = appointmentIdLabel(
+        id, consultation['consultation_type'] as String?);
+    final status = statusLabel(_effectiveStatusKey(consultation));
+    final purpose = consultation['purpose'] as String? ?? '';
+    final ageLabel = patientAge == '—' ? '—' : '$patientAge yrs old';
+
+    final oldDateStr = _formatScheduledDate(consultation['previous_scheduled_date']);
+    final oldTimeStr = consultation['previous_scheduled_time'] as String? ?? '—';
+    final newDateStr = _formatScheduledDate(consultation['scheduled_date']);
+    final newTimeStr = consultation['scheduled_time'] as String? ?? '—';
+
+    Widget detailsCard(String dateStr, String timeStr) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _rescheduleDetailRow('Appointment ID', apptId),
+            _rescheduleDetailRow('Name', patientName),
+            _rescheduleDetailRow('Age', ageLabel),
+            _rescheduleDetailRow('Date', dateStr, highlight: true),
+            _rescheduleDetailRow('Time', timeStr, highlight: true),
+            _rescheduleDetailRow('Status', status),
+            const SizedBox(height: 4),
+            const Text('Descriptions',
+                style: TextStyle(
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13)),
+            const SizedBox(height: 3),
+            Text(purpose.isEmpty ? 'No purpose specified.' : purpose,
+                style: const TextStyle(
+                    color: AppColors.textMid, fontSize: 13, height: 1.35)),
+          ],
+        ),
+      );
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.textDark.withValues(alpha: 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('Patient Details',
+                        style: TextStyle(
+                            color: AppColors.textDark,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17)),
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => Navigator.of(ctx).pop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close,
+                          color: AppColors.textDark, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              detailsCard(oldDateStr, oldTimeStr),
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Icon(Icons.arrow_downward_rounded,
+                      color: AppColors.roseDeep, size: 26),
+                ),
+              ),
+              detailsCard(newDateStr, newTimeStr),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _rescheduleDetailRow(String label, String value,
+      {bool highlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('$label: ',
+              style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13)),
+          if (highlight)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.gold,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(value,
+                  style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12)),
+            )
+          else
+            Expanded(
+              child: Text(value,
+                  style: const TextStyle(
+                      color: AppColors.textMid, fontSize: 13)),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _consultationCard(Map<String, dynamic> consultation) {
     final id = consultation['id']?.toString() ?? '';
     final patientId = consultation['patient_id'] as String?;
@@ -421,6 +581,12 @@ class _SpecialistConsultationsScreenState
     final platform = consultation['platform'] as String? ?? 'Zoom Meeting';
     final canStartSession = _canStartSession(consultation);
     final busy = _busyIds.contains(id);
+    // Set by SupabaseService.rescheduleConsultation whenever the mum moves
+    // this appointment — cleared implicitly once the specialist re-approves
+    // (status leaves 'pending'), so the badge doesn't linger after that.
+    final wasRescheduled =
+        consultation['previous_scheduled_date'] != null &&
+            effectiveKey == 'pending';
 
     return GestureDetector(
       onTap: () async {
@@ -448,22 +614,70 @@ class _SpecialistConsultationsScreenState
                           fontSize: 20,
                           color: AppColors.textDark)),
                 ),
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                  backgroundImage: photoUrl != null
-                      ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
-                      : null,
-                  child: photoUrl != null
-                      ? null
-                      : Text(
-                          patientName.isNotEmpty
-                              ? patientName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                              color: AppColors.roseDeep,
-                              fontWeight: FontWeight.w700),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                      backgroundImage: photoUrl != null
+                          ? CachedNetworkImageProvider(photoUrl, maxWidth: 200)
+                          : null,
+                      child: photoUrl != null
+                          ? null
+                          : Text(
+                              patientName.isNotEmpty
+                                  ? patientName[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                  color: AppColors.roseDeep,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                    ),
+                    if (wasRescheduled)
+                      Positioned(
+                        // The visual badge stays 20x20 (offset -4/-4 from the
+                        // avatar as before) but the tap target is padded out
+                        // to 36x36 — a bare 20px circle is fiddly to hit on a
+                        // touchscreen, so the extra padding is invisible but
+                        // still tappable.
+                        top: -12,
+                        right: -12,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _showRescheduleDetails(
+                              consultation, patientName, patientAge),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: AppColors.roseDeep, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.textDark
+                                        .withValues(alpha: 0.2),
+                                    blurRadius: 3,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text('!',
+                                  style: TextStyle(
+                                      color: AppColors.roseDeep,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                      height: 1)),
+                            ),
+                          ),
                         ),
+                      ),
+                  ],
                 ),
               ],
             ),

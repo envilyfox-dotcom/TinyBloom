@@ -1,0 +1,16 @@
+Nuts, Dairy, Eggs, Seafood, Wheat & Gluten, Soy, Sesame, Fruits & Vegetables, Environmental, Animals, Insect Stings & Bites, Medications & Materials
+
+| Category                    | Includes                                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Nuts**                    | Peanuts and all tree nuts (almonds, walnuts, cashews, pistachios, etc.)                                  |
+| **Dairy**                   | Milk, cheese, yogurt, butter, cream                                                                      |
+| **Eggs**                    | Chicken eggs and egg-containing products                                                                 |
+| **Seafood**                 | Fish and shellfish (shrimp, crab, lobster, oysters, salmon, tuna, etc.)                                  |
+| **Wheat & Gluten**          | Wheat and, if desired, other gluten-containing grains (note: gluten sensitivity isn't always an allergy) |
+| **Soy**                     | Soybeans, tofu, soy milk, soy sauce, edamame                                                             |
+| **Sesame**                  | Sesame seeds and sesame oil                                                                              |
+| **Fruits & Vegetables**     | Common produce allergies like kiwi, banana, avocado, celery, tomato, peach, etc.                         |
+| **Environmental**           | Pollen, dust mites, mold, grass                                                                          |
+| **Animals**                 | Cats, dogs, rabbits, birds, and other animal dander                                                      |
+| **Insect Stings & Bites**   | Bees, wasps, hornets, fire ants, mosquitoes                                                              |
+| **Medications & Materials** | Penicillin, sulfa drugs, latex, nickel, adhesives, and other common medication or contact allergies 

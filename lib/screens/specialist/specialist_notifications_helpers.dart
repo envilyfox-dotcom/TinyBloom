@@ -32,14 +32,50 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
     }
   }
 
+  // "24 May 2026, 3:00 pm" — falls back to just the date if there's no
+  // parseable time.
+  String formatDateTimeLabel(dynamic dateValue, dynamic timeValue) {
+    if (dateValue == null) return '';
+    try {
+      final date = DateTime.parse(dateValue.toString());
+      final timeStr = timeValue?.toString();
+      if (timeStr == null || timeStr.isEmpty) {
+        return DateFormat('d MMM yyyy').format(date);
+      }
+      final dt = slotDateTime(date, timeStr);
+      if (dt == null) return DateFormat('d MMM yyyy').format(date);
+      return DateFormat('d MMM yyyy, h:mm a').format(dt);
+    } catch (_) {
+      return '';
+    }
+  }
+
   for (final c in consultations) {
     if (c['specialist_id']?.toString() != userId) continue;
     final status = (c['status'] as String? ?? '').toLowerCase();
     final scheduled = scheduledDateTime(c);
     final apptId =
         appointmentIdLabel(c['id'], c['consultation_type'] as String?);
+    // Rescheduling (see SupabaseService.rescheduleConsultation) resets the
+    // consultation back to 'pending' and stashes the slot it moved from —
+    // distinguishing "pending because the mum just moved it" from an
+    // ordinary new booking, which gets the plain confirmation prompt below.
+    final previousScheduledDate = c['previous_scheduled_date'];
 
-    if (status == 'pending' && (scheduled == null || scheduled.isAfter(now))) {
+    if (status == 'pending' && previousScheduledDate != null) {
+      final fromLabel =
+          formatDateTimeLabel(previousScheduledDate, c['previous_scheduled_time']);
+      final toLabel =
+          formatDateTimeLabel(c['scheduled_date'], c['scheduled_time']);
+      items.add({
+        'id': 'consult-reschedule-${c['id']}',
+        'category': 'consultation',
+        'title': 'Consultation reschedule reminder',
+        'message': 'Appointment ID $apptId was rescheduled from $fromLabel to $toLabel',
+        'created_at': c['rescheduled_at'] ?? c['created_at'],
+        'consultation': c,
+      });
+    } else if (status == 'pending' && (scheduled == null || scheduled.isAfter(now))) {
       items.add({
         'id': 'consult-confirm-${c['id']}',
         'category': 'consultation',

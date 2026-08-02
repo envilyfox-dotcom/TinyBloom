@@ -20,6 +20,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _phoneCtrl;
+  final _ageCtrl = TextEditingController();
 
   final _oldPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
@@ -31,6 +32,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _photoBusy = false;
   bool _showPassword = false;
 
+  bool get _isMum {
+    final role = widget.profile?['role'] as String?;
+    return role == 'free_user' || role == 'premium_user';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +45,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailCtrl = TextEditingController(text: _originalEmail);
     _phoneCtrl = TextEditingController(text: widget.profile?['phone'] ?? '');
     _photoUrl = widget.profile?['profile_picture_url'] as String?;
+    if (_isMum) _loadAge();
+  }
+
+  // pregnancy_profiles.age isn't part of the `profiles` row this screen is
+  // seeded with, so it's fetched separately — this is also what lets a mum
+  // fill in an age that never got captured during onboarding (e.g. an
+  // older onboarding flow that didn't require it), which otherwise has no
+  // way to be corrected since onboarding only ever runs once per account.
+  Future<void> _loadAge() async {
+    try {
+      final pp = await SupabaseService.getPregnancyProfile();
+      final age = pp?['age'];
+      if (mounted && age != null) {
+        setState(() => _ageCtrl.text = age.toString());
+      }
+    } catch (_) {}
   }
 
   @override
@@ -46,6 +68,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
+    _ageCtrl.dispose();
     _oldPasswordCtrl.dispose();
     _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -132,6 +155,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
+    int? age;
+    if (_isMum && _ageCtrl.text.trim().isNotEmpty) {
+      age = int.tryParse(_ageCtrl.text.trim());
+      if (age == null || age < 12 || age > 60) {
+        _showSnack('Please enter a valid age.');
+        return;
+      }
+    }
+
     final changingPassword = oldPassword.isNotEmpty ||
         newPassword.isNotEmpty ||
         confirmPassword.isNotEmpty;
@@ -161,6 +193,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'phone': phone,
         'email': newEmail,
       });
+
+      if (_isMum && age != null) {
+        await SupabaseService.savePregnancyProfile({'age': age});
+      }
 
       final messages = <String>[];
 
@@ -383,6 +419,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 icon: Icons.phone_outlined,
               ),
             ),
+            if (_isMum) ...[
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _ageCtrl,
+                keyboardType: TextInputType.number,
+                decoration: _inputDecoration(
+                  label: 'Age',
+                  icon: Icons.cake_outlined,
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             _sectionTitle(
               'Change Password',

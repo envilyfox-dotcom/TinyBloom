@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import 'consultation_helpers.dart';
 
@@ -9,11 +9,15 @@ import 'consultation_helpers.dart';
 class ConsultationBookingScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
+  // Non-null when this screen is picking a new slot for an existing
+  // consultation instead of creating a brand new one.
+  final Map<String, dynamic>? consultation;
 
   const ConsultationBookingScreen({
     super.key,
     required this.provider,
     required this.type,
+    this.consultation,
   });
 
   @override
@@ -29,6 +33,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   final _purposeCtrl = TextEditingController();
   final Set<String> _bookedTimes = <String>{};
   bool _loadingBookedTimes = false;
+
+  bool get _isReschedule => widget.consultation != null;
 
   static const List<String> _fallbackTimeSlots = [
     '9:00 AM',
@@ -49,6 +55,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     final today = DateTime.now();
     _selectedDate = DateTime(today.year, today.month, today.day);
     _month = DateTime(today.year, today.month);
+    _purposeCtrl.text = widget.consultation?['purpose'] as String? ?? '';
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBookedTimesForSelectedDate();
@@ -191,21 +198,15 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     }
 
     try {
-      final dateString = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final rawBooked = await SupabaseService.getBookedConsultationSlots(
+        providerIds,
+        _selectedDate,
+      );
 
-      final rows = await Supabase.instance.client
-          .from('consultations')
-          .select('scheduled_time, status')
-          .inFilter('specialist_id', providerIds)
-          .eq('scheduled_date', dateString)
-          .inFilter('status', ['pending', 'confirmed']);
-
-      final booked = <String>{};
-      for (final row in rows as List) {
-        final map = row as Map<String, dynamic>;
-        final time = _normaliseTime(map['scheduled_time']?.toString());
-        if (time.isNotEmpty) booked.add(time);
-      }
+      final booked = <String>{
+        for (final time in rawBooked)
+          if (_normaliseTime(time).isNotEmpty) _normaliseTime(time),
+      };
 
       if (mounted) {
         setState(() {
@@ -276,6 +277,9 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
       'date': _selectedDate,
       'time': _selectedTime,
       'purpose': _purposeCtrl.text.trim(),
+      'consultationId': widget.consultation?['id'],
+      'previousScheduledDate': widget.consultation?['scheduled_date'],
+      'previousScheduledTime': widget.consultation?['scheduled_time'],
     });
   }
 
@@ -295,9 +299,9 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Book Consultation',
-          style: TextStyle(
+        title: Text(
+          _isReschedule ? 'Reschedule Consultation' : 'Book Consultation',
+          style: const TextStyle(
             color: AppColors.textDark,
             fontWeight: FontWeight.w700,
           ),
@@ -310,7 +314,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Consultation Booking',
+              _isReschedule ? 'Reschedule Consultation' : 'Consultation Booking',
               style: Theme.of(context)
                   .textTheme
                   .headlineMedium
@@ -318,7 +322,9 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Select your preferred date and time with $name.',
+              _isReschedule
+                  ? 'Choose a new date and time with $name.'
+                  : 'Select your preferred date and time with $name.',
               style: const TextStyle(color: AppColors.textMid, fontSize: 13),
             ),
             const SizedBox(height: 20),

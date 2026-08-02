@@ -20,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _linkedMum;
+  int? _age;
   bool _loading = true;
 
   @override
@@ -38,11 +39,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         } catch (_) {}
       }
 
+      int? age;
+      if (p?['role'] == 'free_user' || p?['role'] == 'premium_user') {
+        try {
+          final pp = await SupabaseService.getPregnancyProfile();
+          age = (pp?['age'] as num?)?.toInt();
+        } catch (_) {}
+      }
+
       if (!mounted) return;
 
       setState(() {
         _profile = p;
         _linkedMum = linkedMum;
+        _age = age;
         _loading = false;
       });
     } catch (e) {
@@ -175,6 +185,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _infoRow('Full name', name),
                       _infoRow('Email', email),
                       if (phone.isNotEmpty) _infoRow('Phone number', phone),
+                      if (role == 'free_user' || role == 'premium_user')
+                        _infoRow('Age', _age != null ? '$_age' : 'Not set'),
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,

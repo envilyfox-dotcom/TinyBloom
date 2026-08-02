@@ -13,6 +13,11 @@ class ConfirmConsultationScreen extends StatefulWidget {
   final DateTime date;
   final String time;
   final String purpose;
+  // Non-null when confirming a new slot for an existing consultation
+  // instead of creating a brand new one.
+  final String? consultationId;
+  final String? previousScheduledDate;
+  final String? previousScheduledTime;
   const ConfirmConsultationScreen({
     super.key,
     required this.provider,
@@ -20,6 +25,9 @@ class ConfirmConsultationScreen extends StatefulWidget {
     required this.date,
     required this.time,
     required this.purpose,
+    this.consultationId,
+    this.previousScheduledDate,
+    this.previousScheduledTime,
   });
   @override
   State<ConfirmConsultationScreen> createState() =>
@@ -30,20 +38,32 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
   bool _submitting = false;
   bool _submitted = false;
 
+  bool get _isReschedule => widget.consultationId != null;
+
   Future<void> _confirm() async {
     setState(() => _submitting = true);
     try {
-      // No meeting_link yet: a real Zoom meeting is only created once the
-      // specialist approves the booking (see SupabaseService.approveConsultation),
-      // so there's never a link on show that doesn't actually exist.
-      await SupabaseService.bookConsultation({
-        'specialist_id': widget.provider['user_id'],
-        'consultation_type': widget.type,
-        'scheduled_date': widget.date.toIso8601String().split('T').first,
-        'scheduled_time': widget.time.split('-').first.trim(),
-        'purpose': widget.purpose.isEmpty ? null : widget.purpose,
-        'platform': 'Zoom Meeting',
-      });
+      if (_isReschedule) {
+        await SupabaseService.rescheduleConsultation(
+          widget.consultationId!,
+          scheduledDate: widget.date.toIso8601String().split('T').first,
+          scheduledTime: widget.time.split('-').first.trim(),
+          previousScheduledDate: widget.previousScheduledDate,
+          previousScheduledTime: widget.previousScheduledTime,
+        );
+      } else {
+        // No meeting_link yet: a real Zoom meeting is only created once the
+        // specialist approves the booking (see SupabaseService.approveConsultation),
+        // so there's never a link on show that doesn't actually exist.
+        await SupabaseService.bookConsultation({
+          'specialist_id': widget.provider['user_id'],
+          'consultation_type': widget.type,
+          'scheduled_date': widget.date.toIso8601String().split('T').first,
+          'scheduled_time': widget.time.split('-').first.trim(),
+          'purpose': widget.purpose.isEmpty ? null : widget.purpose,
+          'platform': 'Zoom Meeting',
+        });
+      }
       if (mounted) {
         setState(() {
           _submitted = true;
@@ -63,9 +83,12 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
     }
   }
 
-  String get _listingRoute => widget.type == 'volunteer'
-      ? '/consultation/volunteers'
-      : '/consultation/specialists';
+  String get _listingRoute {
+    if (_isReschedule) return '/consultation';
+    return widget.type == 'volunteer'
+        ? '/consultation/volunteers'
+        : '/consultation/specialists';
+  }
 
   // Once a booking is confirmed, going "back" (app bar arrow or hardware
   // back) must not return to the date/time form underneath -- that screen
@@ -127,9 +150,9 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
             icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
             onPressed: _leave,
           ),
-          title: const Text(
-            'Confirm Consultation',
-            style: TextStyle(
+          title: Text(
+            _isReschedule ? 'Confirm Reschedule' : 'Confirm Consultation',
+            style: const TextStyle(
               color: AppColors.textDark,
               fontWeight: FontWeight.w700,
             ),
@@ -141,15 +164,17 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Confirm Consultation',
+                _isReschedule ? 'Confirm Reschedule' : 'Confirm Consultation',
                 style: Theme.of(
                   context,
                 ).textTheme.headlineMedium?.copyWith(fontSize: 24),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Review your consultation details.',
-                style: TextStyle(color: AppColors.textMid, fontSize: 13),
+              Text(
+                _isReschedule
+                    ? 'Review your new consultation time.'
+                    : 'Review your consultation details.',
+                style: const TextStyle(color: AppColors.textMid, fontSize: 13),
               ),
               const SizedBox(height: 20),
               Container(
@@ -264,9 +289,12 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                     color: AppColors.sage.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    'Consultation request sent!',
-                    style: TextStyle(
+                  child: Text(
+                    _isReschedule
+                        ? 'Consultation rescheduled! Waiting for specialist approval.'
+                        : 'Consultation request sent!',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       color: AppColors.sage,
                       fontWeight: FontWeight.w700,
                     ),
@@ -315,9 +343,12 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text(
-                                'Confirm Booking',
-                                style: TextStyle(fontWeight: FontWeight.w700),
+                            : Text(
+                                _isReschedule
+                                    ? 'Confirm Reschedule'
+                                    : 'Confirm Booking',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
                               ),
                       ),
                     ),

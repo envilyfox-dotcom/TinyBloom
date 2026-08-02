@@ -27,8 +27,9 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   final _heightCtrl = TextEditingController();
   final _weightCtrl = TextEditingController();
   final Set<String> _conditions = {};
-  final _allergiesCtrl = TextEditingController();
+  final Set<String> _allergies = {};
   final _otherConditionCtrl = TextEditingController();
+  final _otherAllergyCtrl = TextEditingController();
 
   final Set<String> _interests = {};
   final Set<String> _consultationNeeds = {};
@@ -41,7 +42,6 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   ];
 
   static const _conditionOptions = [
-    'None',
     'Gestational Diabetes',
     'Hypertension',
     'Anaemia',
@@ -51,6 +51,42 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     'Back Pain',
     'Other',
   ];
+
+  static const _allergyOptions = [
+    'Nuts',
+    'Dairy',
+    'Eggs',
+    'Seafood',
+    'Wheat & Gluten',
+    'Soy',
+    'Sesame',
+    'Fruits & Vegetables',
+    'Environmental',
+    'Animals',
+    'Insect Stings & Bites',
+    'Medications & Materials',
+    'Other',
+  ];
+
+  static const _allergyDescriptions = {
+    'Nuts':
+        'Peanuts and all tree nuts (almonds, walnuts, cashews, pistachios, etc.)',
+    'Dairy': 'Milk, cheese, yogurt, butter, cream',
+    'Eggs': 'Chicken eggs and egg-containing products',
+    'Seafood':
+        'Fish and shellfish (shrimp, crab, lobster, oysters, salmon, tuna, etc.)',
+    'Wheat & Gluten':
+        "Wheat and, if desired, other gluten-containing grains (note: gluten sensitivity isn't always an allergy)",
+    'Soy': 'Soybeans, tofu, soy milk, soy sauce, edamame',
+    'Sesame': 'Sesame seeds and sesame oil',
+    'Fruits & Vegetables':
+        'Common produce allergies like kiwi, banana, avocado, celery, tomato, peach, etc.',
+    'Environmental': 'Pollen, dust mites, mold, grass',
+    'Animals': 'Cats, dogs, rabbits, birds, and other animal dander',
+    'Insect Stings & Bites': 'Bees, wasps, hornets, fire ants, mosquitoes',
+    'Medications & Materials':
+        'Penicillin, sulfa drugs, latex, nickel, adhesives, and other common medication or contact allergies',
+  };
 
   static const _interestOptions = [
     'Nutrition & Diet',
@@ -78,8 +114,8 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     _ageCtrl.dispose();
     _heightCtrl.dispose();
     _weightCtrl.dispose();
-    _allergiesCtrl.dispose();
     _otherConditionCtrl.dispose();
+    _otherAllergyCtrl.dispose();
     super.dispose();
   }
 
@@ -123,16 +159,16 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
         return false;
       }
 
-      if (_conditions.isEmpty) {
-        setState(() => _error =
-            'Please select at least one medical condition, or choose None.');
-        return false;
-      }
-
       if (_conditions.contains('Other') &&
           _otherConditionCtrl.text.trim().isEmpty) {
         setState(
             () => _error = 'Please describe your other medical condition.');
+        return false;
+      }
+
+      if (_allergies.contains('Other') &&
+          _otherAllergyCtrl.text.trim().isEmpty) {
+        setState(() => _error = 'Please describe your other allergy.');
         return false;
       }
     }
@@ -188,9 +224,15 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
           }
           return list.join(', ');
         }(),
-        'allergies': _allergiesCtrl.text.trim().isEmpty
-            ? null
-            : _allergiesCtrl.text.trim(),
+        'allergies': () {
+          if (_allergies.isEmpty) return null;
+          final list = _allergies.toList();
+          final otherText = _otherAllergyCtrl.text.trim();
+          if (list.contains('Other') && otherText.isNotEmpty) {
+            list[list.indexOf('Other')] = 'Other: $otherText';
+          }
+          return list.join(', ');
+        }(),
         'areas_of_interest': _interests.isEmpty ? null : _interests.join(', '),
         'consultation_needs':
             _consultationNeeds.isEmpty ? null : _consultationNeeds.join(', '),
@@ -240,23 +282,19 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
                     weightCtrl: _weightCtrl,
                     conditions: _conditions,
                     conditionOptions: _conditionOptions,
-                    allergiesCtrl: _allergiesCtrl,
                     otherConditionCtrl: _otherConditionCtrl,
-                    onConditionToggled: (c) => setState(() {
-                      if (c == 'None') {
-                        if (_conditions.contains('None')) {
-                          _conditions.remove('None');
-                        } else {
-                          _conditions.clear();
-                          _conditions.add('None');
-                        }
-                      } else {
-                        _conditions.remove('None');
+                    onConditionToggled: (c) => setState(() =>
                         _conditions.contains(c)
                             ? _conditions.remove(c)
-                            : _conditions.add(c);
-                      }
-                    }),
+                            : _conditions.add(c)),
+                    allergies: _allergies,
+                    allergyOptions: _allergyOptions,
+                    allergyDescriptions: _allergyDescriptions,
+                    otherAllergyCtrl: _otherAllergyCtrl,
+                    onAllergyToggled: (a) => setState(() =>
+                        _allergies.contains(a)
+                            ? _allergies.remove(a)
+                            : _allergies.add(a)),
                   ),
                   _StepInterests(
                     interests: _interests,
@@ -648,18 +686,26 @@ class _StepHealthDetails extends StatelessWidget {
   final TextEditingController weightCtrl;
   final Set<String> conditions;
   final List<String> conditionOptions;
-  final TextEditingController allergiesCtrl;
   final TextEditingController otherConditionCtrl;
   final ValueChanged<String> onConditionToggled;
+  final Set<String> allergies;
+  final List<String> allergyOptions;
+  final Map<String, String> allergyDescriptions;
+  final TextEditingController otherAllergyCtrl;
+  final ValueChanged<String> onAllergyToggled;
 
   const _StepHealthDetails({
     required this.heightCtrl,
     required this.weightCtrl,
     required this.conditions,
     required this.conditionOptions,
-    required this.allergiesCtrl,
     required this.otherConditionCtrl,
     required this.onConditionToggled,
+    required this.allergies,
+    required this.allergyOptions,
+    required this.allergyDescriptions,
+    required this.otherAllergyCtrl,
+    required this.onAllergyToggled,
   });
 
   @override
@@ -704,12 +750,15 @@ class _StepHealthDetails extends StatelessWidget {
         _InfoCard(
           icon: '🏥',
           title: 'Medical Conditions',
-          subtitle: 'Select all that apply, or choose None.',
+          subtitle: 'Select all that apply, or leave blank.',
           children: [
-            _ConditionChips(
-              conditions: conditions,
-              conditionOptions: conditionOptions,
-              onConditionToggled: onConditionToggled,
+            _ChipWrap(
+              options: conditionOptions,
+              selected: conditions,
+              selectedColor: AppColors.blush,
+              selectedTextColor: AppColors.roseDeep,
+              selectedBorderColor: AppColors.rose,
+              onToggle: onConditionToggled,
             ),
             if (conditions.contains('Other')) ...[
               const SizedBox(height: 12),
@@ -726,14 +775,14 @@ class _StepHealthDetails extends StatelessWidget {
         _InfoCard(
           icon: '⚠️',
           title: 'Allergies',
-          subtitle: 'Leave this blank if you do not have any.',
+          subtitle: 'Select all that apply, or leave blank.',
           children: [
-            TextFormField(
-              controller: allergiesCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Penicillin, nuts, latex',
-              ),
+            _AllergyChips(
+              selected: allergies,
+              options: allergyOptions,
+              descriptions: allergyDescriptions,
+              onToggled: onAllergyToggled,
+              otherController: otherAllergyCtrl,
             ),
           ],
         ),
@@ -1040,52 +1089,75 @@ class _WeekSummaryCard extends StatelessWidget {
   }
 }
 
-class _ConditionChips extends StatelessWidget {
-  final Set<String> conditions;
-  final List<String> conditionOptions;
-  final ValueChanged<String> onConditionToggled;
+// Allergy chips double as their own description viewer — tapping any chip
+// (including to deselect it) swaps in that allergy's description at the
+// bottom of the card, so this needs its own State to remember which one
+// was tapped last across the parent's rebuilds.
+class _AllergyChips extends StatefulWidget {
+  final Set<String> selected;
+  final List<String> options;
+  final Map<String, String> descriptions;
+  final ValueChanged<String> onToggled;
+  final TextEditingController otherController;
 
-  const _ConditionChips({
-    required this.conditions,
-    required this.conditionOptions,
-    required this.onConditionToggled,
+  const _AllergyChips({
+    required this.selected,
+    required this.options,
+    required this.descriptions,
+    required this.onToggled,
+    required this.otherController,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final noneSelected = conditions.contains('None');
+  State<_AllergyChips> createState() => _AllergyChipsState();
+}
 
+class _AllergyChipsState extends State<_AllergyChips> {
+  String? _activeDescription;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _PrettyChip(
-          label: 'None',
-          selected: noneSelected,
-          selectedColor: AppColors.tealLight,
-          selectedTextColor: AppColors.teal,
-          selectedBorderColor: AppColors.teal,
-          onTap: () => onConditionToggled('None'),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Divider(height: 1),
-        ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: conditionOptions.where((c) => c != 'None').map((c) {
-            final selected = conditions.contains(c);
+          children: widget.options.map((option) {
             return _PrettyChip(
-              label: c,
-              selected: selected,
-              disabled: noneSelected,
+              label: option,
+              selected: widget.selected.contains(option),
               selectedColor: AppColors.blush,
               selectedTextColor: AppColors.roseDeep,
               selectedBorderColor: AppColors.rose,
-              onTap: noneSelected ? null : () => onConditionToggled(c),
+              onTap: () {
+                widget.onToggled(option);
+                setState(
+                    () => _activeDescription = widget.descriptions[option]);
+              },
             );
           }).toList(),
         ),
+        if (widget.selected.contains('Other')) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: widget.otherController,
+            decoration: const InputDecoration(
+              hintText: 'Please describe your allergy',
+            ),
+          ),
+        ],
+        if (_activeDescription != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            _activeDescription!,
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textDark.withValues(alpha: 0.45),
+              height: 1.3,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1130,7 +1202,6 @@ class _ChipWrap extends StatelessWidget {
 class _PrettyChip extends StatelessWidget {
   final String label;
   final bool selected;
-  final bool disabled;
   final Color selectedColor;
   final Color selectedTextColor;
   final Color selectedBorderColor;
@@ -1139,7 +1210,6 @@ class _PrettyChip extends StatelessWidget {
   const _PrettyChip({
     required this.label,
     required this.selected,
-    this.disabled = false,
     required this.selectedColor,
     required this.selectedTextColor,
     required this.selectedBorderColor,
@@ -1148,31 +1218,21 @@ class _PrettyChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = disabled
-        ? AppColors.textLight
-        : selected
-            ? selectedTextColor
-            : AppColors.textMid;
+    final textColor = selected ? selectedTextColor : AppColors.textMid;
 
     return InkWell(
-      onTap: disabled ? null : onTap,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(22),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: disabled
-              ? AppColors.white
-              : selected
-                  ? selectedColor
-                  : AppColors.background,
+          color: selected ? selectedColor : AppColors.background,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: disabled
-                ? AppColors.textLight.withValues(alpha: 0.18)
-                : selected
-                    ? selectedBorderColor
-                    : AppColors.textLight.withValues(alpha: 0.25),
+            color: selected
+                ? selectedBorderColor
+                : AppColors.textLight.withValues(alpha: 0.25),
           ),
         ),
         child: Row(

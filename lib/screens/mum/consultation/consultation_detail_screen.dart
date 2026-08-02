@@ -19,6 +19,11 @@ class ConsultationDetailScreen extends StatefulWidget {
       _ConsultationDetailScreenState();
 }
 
+// A reschedule within this window of the consultation's start time is
+// blocked — too close to the appointment for the specialist to realistically
+// review and re-approve a new slot before it (or the original one) begins.
+const Duration _minRescheduleNotice = Duration(minutes: 30);
+
 class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   Map<String, dynamic>? _provider;
   bool _loading = true;
@@ -116,6 +121,19 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     }
   }
 
+  Future<void> _reschedule() async {
+    final provider = _provider;
+    if (provider == null) return;
+    final c = widget.consultation;
+    final type = c['consultation_type'] as String? ??
+        (provider['provider_type'] == 'specialist' ? 'specialist' : 'volunteer');
+    context.push('/consultation/book', extra: {
+      'provider': provider,
+      'type': type,
+      'consultation': c,
+    });
+  }
+
   // Matches the forum's "+ New Post" bottom sheet design so cancellation
   // flows feel consistent with the rest of the app.
   Future<String?> _promptCancellationReason() async {
@@ -204,6 +222,13 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         !isNextOfKin && status == 'confirmed' && meetingLink.isNotEmpty;
     final showCancel =
         !isNextOfKin && (status == 'confirmed' || status == 'pending');
+    // Same eligibility as Cancel, plus a cutoff: once the appointment is
+    // less than 30 minutes away (or already started), rescheduling is no
+    // longer offered.
+    final scheduledAt = consultationScheduledDateTime(c);
+    final tooCloseToReschedule = scheduledAt != null &&
+        scheduledAt.difference(DateTime.now()) <= _minRescheduleNotice;
+    final showReschedule = showCancel && _provider != null && !tooCloseToReschedule;
     // Still 'pending' in the database, but the slot has passed — the
     // specialist never responded in time, so it now reads as cancelled.
     // Distinguished from a deliberate cancel so the mum gets the right
@@ -399,6 +424,22 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
+                  if (showReschedule) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _reschedule,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          foregroundColor: AppColors.teal,
+                          side: const BorderSide(color: AppColors.teal),
+                        ),
+                        icon: const Icon(Icons.event_repeat, size: 18),
+                        label: const Text('Reschedule'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   if (showJoin || showCancel)
                     Row(
                       children: [

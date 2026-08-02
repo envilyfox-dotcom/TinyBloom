@@ -814,6 +814,33 @@ class SupabaseService {
     }
   }
 
+  // Booked-slot check for the date/time picker. Goes through the
+  // get_booked_consultation_slots RPC (see
+  // add_consultation_slot_availability_function.sql) instead of selecting
+  // from `consultations` directly: that table's SELECT policy only allows a
+  // patient to read their own rows, so a plain select here would silently
+  // come back empty for slots OTHER patients already hold, and the picker
+  // would show them as free. The RPC is SECURITY DEFINER and returns only
+  // the taken time strings -- no patient identity or booking detail -- so it
+  // can safely see every hold on the specialist without widening what any
+  // patient can read from the table itself.
+  static Future<Set<String>> getBookedConsultationSlots(
+    List<String> specialistIds,
+    DateTime date,
+  ) async {
+    if (specialistIds.isEmpty) return {};
+    final dateString =
+        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final rows = await client.rpc('get_booked_consultation_slots', params: {
+      'p_specialist_ids': specialistIds,
+      'p_date': dateString,
+    });
+    return List<Map<String, dynamic>>.from(rows as List)
+        .map((row) => row['scheduled_time']?.toString() ?? '')
+        .where((time) => time.isNotEmpty)
+        .toSet();
+  }
+
   static Future<void> bookConsultation(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
@@ -1105,6 +1132,48 @@ class SupabaseService {
         .select();
     if (res.isEmpty) {
       throw Exception('Could not update consultation status.');
+    }
+  }
+
+  // Moving a consultation to a new slot resets it to 'pending' (and clears
+  // any existing Zoom link) so the specialist has to re-approve the new
+  // time, exactly as if it were a fresh booking — the old approval doesn't
+  // carry over to a slot the specialist never agreed to. The previous
+  // date/time is kept around (see add_consultation_reschedule_tracking.sql)
+  // purely so the specialist's reschedule notification/badge can say what
+  // it changed from.
+  static Future<void> rescheduleConsultation(
+    String id, {
+    required String scheduledDate,
+    required String scheduledTime,
+    String? previousScheduledDate,
+    String? previousScheduledTime,
+  }) async {
+    try {
+      final res = await client
+          .from('consultations')
+          .update({
+            'scheduled_date': scheduledDate,
+            'scheduled_time': scheduledTime,
+            'status': 'pending',
+            'meeting_link': null,
+            'previous_scheduled_date': previousScheduledDate,
+            'previous_scheduled_time': previousScheduledTime,
+            'rescheduled_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', id)
+          .select();
+      if (res.isEmpty) {
+        throw Exception(
+            'Could not reschedule this consultation — you may not have permission to.');
+      }
+    } on PostgrestException catch (e) {
+      // 23505 = unique_violation, same slot-conflict guard as bookConsultation.
+      if (e.code == '23505') {
+        throw Exception(
+            'That time slot is no longer available. Please choose a different time.');
+      }
+      rethrow;
     }
   }
 

@@ -274,7 +274,8 @@ final router = GoRouter(
           final extra = state.extra as Map<String, dynamic>;
           return ConsultationBookingScreen(
               provider: extra['provider'] as Map<String, dynamic>,
-              type: extra['type'] as String);
+              type: extra['type'] as String,
+              consultation: extra['consultation'] as Map<String, dynamic>?);
         }),
     GoRoute(
         path: '/consultation/confirm',
@@ -285,7 +286,10 @@ final router = GoRouter(
               type: extra['type'] as String,
               date: extra['date'] as DateTime,
               time: extra['time'] as String,
-              purpose: extra['purpose'] as String);
+              purpose: extra['purpose'] as String,
+              consultationId: extra['consultationId'] as String?,
+              previousScheduledDate: extra['previousScheduledDate'] as String?,
+              previousScheduledTime: extra['previousScheduledTime'] as String?);
         }),
     GoRoute(
         path: '/consultation/detail/:id',

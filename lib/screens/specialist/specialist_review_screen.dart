@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -27,11 +29,17 @@ class SpecialistReviewScreen extends StatefulWidget {
 }
 
 class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
+  static const _tabLabels = ['Needs Review', 'All Visible', 'My Submissions'];
+
   int _tab = 0;
   bool _loading = true;
   String? _loadError;
   List<Map<String, dynamic>> _queue = [];
   List<Map<String, dynamic>> _mine = [];
+
+  final _searchCtrl = TextEditingController();
+  final ValueNotifier<String> _searchQuery = ValueNotifier('');
+  Timer? _searchDebounce;
 
   String? _myName;
   String? _mySpecialization;
@@ -45,6 +53,35 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
     super.initState();
     _load();
     _loadGroupInfo();
+  }
+
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce =
+        Timer(const Duration(milliseconds: 250), () => _searchQuery.value = v);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchQuery.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _applySearch(
+      List<Map<String, dynamic>> items, String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return items;
+
+    return items.where((item) {
+      final title = (item['title'] as String? ?? '').toLowerCase();
+      final authorName = ((item['author'] as Map<String, dynamic>?)?['full_name']
+              as String? ??
+          '')
+          .toLowerCase();
+      return title.contains(q) || authorName.contains(q);
+    }).toList();
   }
 
   Future<void> _load() async {
@@ -333,14 +370,73 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(value: 0, label: Text('Needs Action')),
-                  ButtonSegment(value: 1, label: Text('All Visible')),
-                  ButtonSegment(value: 2, label: Text('My Submissions')),
-                ],
-                selected: {_tab},
-                onSelectionChanged: (s) => setState(() => _tab = s.first),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _searchCtrl,
+                builder: (context, value, _) => TextFormField(
+                  controller: _searchCtrl,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search by title or author',
+                    prefixIcon:
+                        const Icon(Icons.search, color: AppColors.textLight),
+                    suffixIcon: value.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close,
+                                color: AppColors.textLight),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              _searchDebounce?.cancel();
+                              _searchQuery.value = '';
+                            },
+                          ),
+                    fillColor: AppColors.white,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(50),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+              child: SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _tabLabels.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final label = _tabLabels[index];
+                    final selected = _tab == index;
+
+                    return ChoiceChip(
+                      label: Text(label),
+                      selected: selected,
+                      onSelected: (_) => setState(() => _tab = index),
+                      selectedColor: AppColors.tealLight,
+                      backgroundColor: AppColors.white,
+                      side: BorderSide(
+                        color: selected
+                            ? AppColors.infoBlue
+                            : AppColors.textLight.withValues(alpha: 0.25),
+                      ),
+                      labelStyle: TextStyle(
+                        color: selected
+                            ? AppColors.infoBlue
+                            : AppColors.textMid,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                      checkmarkColor: AppColors.infoBlue,
+                    );
+                  },
+                ),
               ),
             ),
             Expanded(
@@ -369,8 +465,15 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
                       : RefreshIndicator(
                           color: AppColors.rose,
                           onRefresh: _load,
-                          child: lists[_tab].isEmpty
-                              ? ListView(
+                          child: ValueListenableBuilder<String>(
+                            valueListenable: _searchQuery,
+                            builder: (context, query, _) {
+                              final currentList = lists[_tab];
+                              final filtered =
+                                  _applySearch(currentList, query);
+
+                              if (currentList.isEmpty) {
+                                return ListView(
                                   padding: const EdgeInsets.all(20),
                                   children: [
                                     const SizedBox(height: 60),
@@ -380,13 +483,31 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
                                       subtitle: emptyMessages[_tab],
                                     ),
                                   ],
-                                )
-                              : ListView.builder(
+                                );
+                              }
+
+                              if (filtered.isEmpty) {
+                                return ListView(
                                   padding: const EdgeInsets.all(20),
-                                  itemCount: lists[_tab].length,
-                                  itemBuilder: (ctx, i) =>
-                                      _item(lists[_tab][i]),
-                                ),
+                                  children: const [
+                                    SizedBox(height: 60),
+                                    TBEmptyState(
+                                      emoji: '🔍',
+                                      title: 'No matches found',
+                                      subtitle:
+                                          'Try a different title or author name.',
+                                    ),
+                                  ],
+                                );
+                              }
+
+                              return ListView.builder(
+                                padding: const EdgeInsets.all(20),
+                                itemCount: filtered.length,
+                                itemBuilder: (ctx, i) => _item(filtered[i]),
+                              );
+                            },
+                          ),
                         ),
             ),
           ],
