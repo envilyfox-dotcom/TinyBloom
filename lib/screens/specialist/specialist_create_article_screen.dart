@@ -349,89 +349,111 @@ class _SpecialistCreateArticleScreenState
                         style: TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 16)),
                     const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: AppColors.textLight.withValues(alpha: 0.2)),
-                      ),
-                      child: Column(
+                    FormField<String>(
+                      validator: (_) => _contentCtrl.text.trim().isEmpty
+                          ? 'Please write the article content'
+                          : null,
+                      builder: (field) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            child: Row(
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: field.hasError
+                                      ? Theme.of(context).colorScheme.error
+                                      : AppColors.textLight
+                                          .withValues(alpha: 0.2)),
+                            ),
+                            child: Column(
                               children: [
-                                _toolbarButton(
-                                  onPressed: () => _wrapSelection('**'),
-                                  child: const Text('B',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 16,
-                                          color: AppColors.textDark)),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      _toolbarButton(
+                                        onPressed: () => _wrapSelection('**'),
+                                        child: const Text('B',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 16,
+                                                color: AppColors.textDark)),
+                                      ),
+                                      _toolbarButton(
+                                        onPressed: () => _wrapSelection('*'),
+                                        child: const Text('I',
+                                            style: TextStyle(
+                                                fontStyle: FontStyle.italic,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                                color: AppColors.textDark)),
+                                      ),
+                                      _toolbarButton(
+                                        onPressed: () => _wrapSelection('++'),
+                                        child: const Text('U',
+                                            style: TextStyle(
+                                                decoration:
+                                                    TextDecoration.underline,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                                color: AppColors.textDark)),
+                                      ),
+                                      const Spacer(),
+                                      _toolbarButton(
+                                        onPressed: _pickEmoji,
+                                        child: const Icon(
+                                            Icons.emoji_emotions_outlined,
+                                            color: AppColors.textMid,
+                                            size: 22),
+                                      ),
+                                      _toolbarButton(
+                                        onPressed:
+                                            _uploadingImage ? null : _pickImage,
+                                        child: _uploadingImage
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: AppColors.teal))
+                                            : const Icon(Icons.image_outlined,
+                                                color: AppColors.textMid,
+                                                size: 22),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                _toolbarButton(
-                                  onPressed: () => _wrapSelection('*'),
-                                  child: const Text('I',
-                                      style: TextStyle(
-                                          fontStyle: FontStyle.italic,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 16,
-                                          color: AppColors.textDark)),
-                                ),
-                                _toolbarButton(
-                                  onPressed: () => _wrapSelection('++'),
-                                  child: const Text('U',
-                                      style: TextStyle(
-                                          decoration:
-                                              TextDecoration.underline,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 16,
-                                          color: AppColors.textDark)),
-                                ),
-                                const Spacer(),
-                                _toolbarButton(
-                                  onPressed: _pickEmoji,
-                                  child: const Icon(
-                                      Icons.emoji_emotions_outlined,
-                                      color: AppColors.textMid,
-                                      size: 22),
-                                ),
-                                _toolbarButton(
-                                  onPressed: _uploadingImage ? null : _pickImage,
-                                  child: _uploadingImage
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppColors.teal))
-                                      : const Icon(Icons.image_outlined,
-                                          color: AppColors.textMid, size: 22),
+                                Divider(
+                                    height: 1,
+                                    color: AppColors.textLight
+                                        .withValues(alpha: 0.2)),
+                                TextFormField(
+                                  controller: _contentCtrl,
+                                  focusNode: _contentFocus,
+                                  maxLines: 8,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Insert your content here...',
+                                    filled: false,
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    contentPadding: EdgeInsets.all(16),
+                                  ),
+                                  onChanged: (v) => field.didChange(v),
                                 ),
                               ],
                             ),
                           ),
-                          Divider(
-                              height: 1,
-                              color: AppColors.textLight.withValues(alpha: 0.2)),
-                          TextFormField(
-                            controller: _contentCtrl,
-                            focusNode: _contentFocus,
-                            maxLines: 8,
-                            decoration: const InputDecoration(
-                              hintText: 'Insert your content here...',
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.all(16),
+                          if (field.hasError)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8, left: 12),
+                              child: Text(field.errorText!,
+                                  style: TextStyle(
+                                      color: Theme.of(context).colorScheme.error,
+                                      fontSize: 12)),
                             ),
-                            validator: (v) => (v == null || v.trim().isEmpty)
-                                ? 'Please write the article content'
-                                : null,
-                          ),
                         ],
                       ),
                     ),
@@ -448,7 +470,7 @@ class _SpecialistCreateArticleScreenState
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                          'Pick as many as apply — categories already used on the Learn tab, plus the relevant trimester(s).',
+                          'Select all that apply.',
                           style: TextStyle(
                               color: AppColors.textLight, fontSize: 12)),
                     ),

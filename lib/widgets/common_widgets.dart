@@ -53,10 +53,12 @@ class TBButton extends StatelessWidget {
           children: [
             if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 6)],
             Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                ),
               ),
             ),
           ],
