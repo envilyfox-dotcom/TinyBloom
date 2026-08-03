@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/text_diff.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/article_content.dart';
 
@@ -1073,6 +1074,51 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
+  // Renders a word-diff op list as a single run of colored spans: unchanged
+  // text plain, removed text struck through in red, added text highlighted
+  // in sage — so only the actual edit stands out instead of two full blocks.
+  Widget _diffSpans(List<DiffOp> ops, {double fontSize = 12}) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          for (final op in ops)
+            TextSpan(
+              text: op.text,
+              style: switch (op.type) {
+                DiffOpType.equal => TextStyle(
+                    color: AppColors.textMid, fontSize: fontSize),
+                DiffOpType.delete => TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: fontSize,
+                    decoration: TextDecoration.lineThrough),
+                DiffOpType.insert => TextStyle(
+                    color: AppColors.roseDeep,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                    backgroundColor: AppColors.sage.withValues(alpha: 0.18)),
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _diffFieldBlock(String label, Widget body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          const SizedBox(height: 4),
+          body,
+        ],
+      ),
+    );
+  }
+
   Widget _editHistoryEntry(Map<String, dynamic> e) {
     const labels = {
       'title': 'Title',
@@ -1083,38 +1129,68 @@ class _SpecialistReviewThreadScreenState
     final createdAt = DateTime.tryParse(e['created_at'] as String? ?? '');
     final changedLabel = changed.map((c) => labels[c] ?? c).join(', ');
 
-    // tags is stored as a Postgres array, so old/new come back as a List —
-    // join it for display instead of falling through to Dart's `[a, b]`.
-    String fmtVal(dynamic v) => v is List ? v.join(', ') : (v?.toString() ?? '');
+    Widget? titleDiff() {
+      if (!changed.contains('title')) return null;
+      final ops = wordDiff(e['old_title']?.toString() ?? '',
+          e['new_title']?.toString() ?? '');
+      return _diffFieldBlock('Title', _diffSpans(ops, fontSize: 13));
+    }
 
-    Widget diffRow(String fieldKey, String label) {
-      if (!changed.contains(fieldKey)) return const SizedBox.shrink();
-      final oldVal = fmtVal(e['old_$fieldKey']);
-      final newVal = fmtVal(e['new_$fieldKey']);
-      return SizedBox(
-        width: double.infinity,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 12)),
-              const SizedBox(height: 2),
-              Text('Before: ${oldVal.isEmpty ? '(empty)' : oldVal}',
-                  style: const TextStyle(
-                      color: AppColors.textLight,
-                      fontSize: 12,
-                      decoration: TextDecoration.lineThrough)),
-              Text('After: ${newVal.isEmpty ? '(empty)' : newVal}',
-                  style:
-                      const TextStyle(color: AppColors.textMid, fontSize: 12)),
+    Widget? contentDiffBlock() {
+      if (!changed.contains('content')) return null;
+      final changes = contentDiff(e['old_content']?.toString() ?? '',
+          e['new_content']?.toString() ?? '');
+      if (changes.isEmpty) return null;
+      return _diffFieldBlock(
+        'Content',
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final c in changes) ...[
+              _diffSpans(c.ops),
+              const SizedBox(height: 8),
             ],
-          ),
+          ],
         ),
       );
     }
+
+    Widget? tagsDiffBlock() {
+      if (!changed.contains('tags')) return null;
+      final oldTags =
+          (e['old_tags'] as List?)?.map((t) => t.toString()).toSet() ?? {};
+      final newTags =
+          (e['new_tags'] as List?)?.map((t) => t.toString()).toSet() ?? {};
+      final removed = oldTags.difference(newTags);
+      final added = newTags.difference(oldTags);
+      if (removed.isEmpty && added.isEmpty) return null;
+      return _diffFieldBlock(
+        'Tags',
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final t in removed)
+              Text(t,
+                  style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                      decoration: TextDecoration.lineThrough)),
+            for (final t in added)
+              Text(t,
+                  style: TextStyle(
+                      color: AppColors.roseDeep,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      backgroundColor: AppColors.sage.withValues(alpha: 0.25))),
+          ],
+        ),
+      );
+    }
+
+    final children = [titleDiff(), contentDiffBlock(), tagsDiffBlock()]
+        .whereType<Widget>()
+        .toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1131,11 +1207,7 @@ class _SpecialistReviewThreadScreenState
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         subtitle: Text(createdAt != null ? _timeAgo(createdAt) : '',
             style: const TextStyle(color: AppColors.textLight, fontSize: 11)),
-        children: [
-          diffRow('title', 'Title'),
-          diffRow('content', 'Content'),
-          diffRow('tags', 'Tags'),
-        ],
+        children: children,
       ),
     );
   }

@@ -107,16 +107,7 @@ class _SpecialistEditProfileScreenState
     return parts.join(', ');
   }
 
-  String _formatSelectedTimes() {
-    if (_selectedTimes.isEmpty) return '';
-    final ordered =
-        defaultConsultationTimes.where(_selectedTimes.contains).toList();
-    if (ordered.isEmpty) {
-      final fallback = _selectedTimes.toList()..sort();
-      return fallback.length == 1 ? fallback.first : fallback.join(', ');
-    }
-    return ordered.length == 1 ? ordered.first : ordered.join(', ');
-  }
+  String _formatSelectedTimes() => formatSelectedTimeRanges(_selectedTimes);
 
   String _availableHoursSummary() {
     final days = _formatSelectedDays();

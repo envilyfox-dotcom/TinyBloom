@@ -12,7 +12,7 @@ import '../mum/consultation/consultation_helpers.dart';
 
 // The Start Session button unlocks this long before the scheduled time,
 // so a specialist can't join (and a patient can't be joined) way too early.
-const Duration _joinWindow = Duration(hours: 1);
+const Duration _joinWindow = Duration(minutes: 10);
 
 // ── Specialist Consultation Tab ─────────────────────────────────────
 // Lists every pending/confirmed consultation for the logged-in
@@ -760,7 +760,7 @@ class _SpecialistConsultationsScreenState
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'Unlocks 1 hour before the consultation',
+                    'Unlocks 10 minutes before the consultation',
                     style: TextStyle(
                         color: AppColors.textLight.withValues(alpha: 0.9),
                         fontSize: 11,

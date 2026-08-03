@@ -14,7 +14,7 @@ import '../mum/consultation/consultation_helpers.dart';
 // The Join Zoom button unlocks this long before the scheduled time, so a
 // specialist can't join way too early — see specialist_consultations_screen.dart
 // for the matching lock on the list view's Start Session button.
-const Duration _joinWindow = Duration(hours: 1);
+const Duration _joinWindow = Duration(minutes: 10);
 
 // ── Specialist Consultation Details ───────────────────────────────────
 class SpecialistConsultationDetailScreen extends StatefulWidget {
@@ -263,7 +263,7 @@ class _SpecialistConsultationDetailScreenState
   @override
   Widget build(BuildContext context) {
     final c = widget.consultation;
-    final status = (c['status'] as String?) ?? 'pending';
+    final status = effectiveConsultationStatus(c);
     final patientName = _patientProfile?['full_name'] as String? ??
         c['patient_name'] as String? ??
         'Patient';
@@ -484,7 +484,7 @@ class _SpecialistConsultationDetailScreenState
                               const SizedBox(height: 6),
                               Center(
                                 child: Text(
-                                  'Unlocks 1 hour before the consultation',
+                                  'Unlocks 10 minutes before the consultation',
                                   style: TextStyle(
                                       color: AppColors.textLight
                                           .withValues(alpha: 0.9),

@@ -224,11 +224,12 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
         !isNextOfKin && (status == 'confirmed' || status == 'pending');
     // Same eligibility as Cancel, plus a cutoff: once the appointment is
     // less than 30 minutes away (or already started), rescheduling is no
-    // longer offered.
+    // longer allowed — the button stays visible but greyed out so it's
+    // clear the option existed and just closed, rather than vanishing.
     final scheduledAt = consultationScheduledDateTime(c);
     final tooCloseToReschedule = scheduledAt != null &&
         scheduledAt.difference(DateTime.now()) <= _minRescheduleNotice;
-    final showReschedule = showCancel && _provider != null && !tooCloseToReschedule;
+    final showReschedule = showCancel && _provider != null;
     // Still 'pending' in the database, but the slot has passed — the
     // specialist never responded in time, so it now reads as cancelled.
     // Distinguished from a deliberate cancel so the mum gets the right
@@ -427,15 +428,37 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                   if (showReschedule) ...[
                     SizedBox(
                       width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _reschedule,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          foregroundColor: AppColors.teal,
-                          side: const BorderSide(color: AppColors.teal),
+                      child: Tooltip(
+                        message: tooCloseToReschedule
+                            ? 'Too close to the appointment time to reschedule.'
+                            : '',
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              tooCloseToReschedule ? null : _reschedule,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            foregroundColor: AppColors.teal,
+                            disabledForegroundColor:
+                                AppColors.teal.withValues(alpha: 0.35),
+                            side: BorderSide(
+                                color: tooCloseToReschedule
+                                    ? AppColors.teal.withValues(alpha: 0.35)
+                                    : AppColors.teal),
+                          ),
+                          icon: const Icon(Icons.event_repeat, size: 18),
+                          label: const Text('Reschedule'),
                         ),
-                        icon: const Icon(Icons.event_repeat, size: 18),
-                        label: const Text('Reschedule'),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        'You can only reschedule up to 30 minutes before your consultation',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: AppColors.textLight.withValues(alpha: 0.9),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                     const SizedBox(height: 12),

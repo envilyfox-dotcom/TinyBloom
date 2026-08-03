@@ -163,7 +163,61 @@ const List<String> defaultConsultationTimes = [
   '4:00 PM',
   '5:00 PM',
   '6:00 PM',
+  '7:00 PM',
+  '8:00 PM',
+  '9:00 PM',
+  '10:00 PM',
 ];
+
+/// Condenses selected times into range-compressed display text, mirroring
+/// how selected weekdays collapse into "Monday - Friday" style ranges, e.g.
+/// {9:00 AM, 10:00 AM, 11:00 AM, 3:00 PM} -> "9:00 AM - 11:00 AM, 3:00 PM".
+String formatSelectedTimeRanges(Set<String> selectedTimes) {
+  if (selectedTimes.isEmpty) return '';
+
+  final selectedIndexes = defaultConsultationTimes
+      .asMap()
+      .entries
+      .where((entry) => selectedTimes.contains(entry.value))
+      .map((entry) => entry.key)
+      .toList();
+
+  if (selectedIndexes.isEmpty) {
+    final fallback = selectedTimes.toList()..sort();
+    return fallback.join(', ');
+  }
+
+  if (selectedIndexes.length == 1) {
+    return defaultConsultationTimes[selectedIndexes.first];
+  }
+
+  final parts = <String>[];
+  int rangeStart = selectedIndexes.first;
+  int rangeEnd = rangeStart;
+
+  void addRange() {
+    if (rangeStart == rangeEnd) {
+      parts.add(defaultConsultationTimes[rangeStart]);
+    } else {
+      parts.add(
+        '${defaultConsultationTimes[rangeStart]} - ${defaultConsultationTimes[rangeEnd]}',
+      );
+    }
+  }
+
+  for (var i = 1; i < selectedIndexes.length; i++) {
+    final current = selectedIndexes[i];
+    if (current == rangeEnd + 1) {
+      rangeEnd = current;
+    } else {
+      addRange();
+      rangeStart = rangeEnd = current;
+    }
+  }
+
+  addRange();
+  return parts.join(', ');
+}
 
 String timeOnly(dynamic value) {
   if (value == null) return '';
