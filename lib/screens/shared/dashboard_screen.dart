@@ -53,6 +53,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'consultations',
       'booking',
       'bookings',
+      // A "Rate Dr {name}" prompt is filed as a consultation notification
+      // (see ensureRatingNotification) so it shows up in the Consultation
+      // section instead of its own separate category.
+      'rating',
+      'ratings',
+      'review',
+      'reviews',
     ].contains(clean)) {
       return 'consultation';
     }
@@ -926,7 +933,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       try {
         final data = await SupabaseService.client
             .from('notifications')
-            .select('id,user_id,title,message,type,is_read,created_at')
+            .select(
+                'id,user_id,title,message,type,is_read,created_at,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id')
             .or('user_id.eq.$userId,user_id.is.null')
             .order('created_at', ascending: false)
             .limit(12);
@@ -1465,6 +1473,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
+    // "Rate Dr {name}" prompts are filed as consultation notifications (see
+    // ensureRatingNotification) so they group under the Consultation
+    // section, but a tap still needs to open the rating card instead of
+    // the generic consultation detail flow.
+    if (notification['rating_provider_id'] != null) {
+      await context.push('/rate-provider', extra: notification);
+      return;
+    }
+
     final hasConsultationId = _extractConsultationId(notification) != null;
 
     if (hasConsultationId ||
@@ -1520,6 +1537,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {}
     try {
       consultations = await SupabaseService.getConsultations();
+    } catch (_) {}
+
+    // Prompt the mum to rate a specialist once their consultation's slot
+    // has passed. Runs here (not just the My Consultations screen) so the
+    // prompt reliably shows up in Active Alerts & Notifications wherever
+    // she actually lands after a session — ensureRatingNotification is
+    // idempotent, so re-running this on every dashboard load/refresh is
+    // harmless.
+    try {
+      final mumId = SupabaseService.currentUser?.id;
+      if (mumId != null) {
+        final completedSpecialistConsultations = consultations
+            .where((c) =>
+                c['consultation_type'] != 'volunteer' &&
+                effectiveConsultationStatus(c) == 'completed')
+            .toList();
+        final specialistIdsToLookUp = completedSpecialistConsultations
+            .map((c) => c['specialist_id'] as String?)
+            .whereType<String>()
+            .toSet();
+        final ratingProviderNames = <String, String>{};
+        await Future.wait(specialistIdsToLookUp.map((id) async {
+          try {
+            final p = await SupabaseService.getProviderProfile(id);
+            final name = (p?['profiles']
+                as Map<String, dynamic>?)?['full_name'] as String?;
+            if (name != null) ratingProviderNames[id] = name;
+          } catch (_) {}
+        }));
+        for (final c in completedSpecialistConsultations) {
+          final specialistId = c['specialist_id'] as String?;
+          if (specialistId == null) continue;
+          SupabaseService.ensureRatingNotification(
+            mumId: mumId,
+            providerId: specialistId,
+            providerType: 'specialist',
+            providerName: ratingProviderNames[specialistId] ?? 'Specialist',
+            sourceType: 'consultation',
+            sourceId: c['id'].toString(),
+          );
+        }
+      }
     } catch (_) {}
 
     List<Map<String, dynamic>> myQuestions = [];

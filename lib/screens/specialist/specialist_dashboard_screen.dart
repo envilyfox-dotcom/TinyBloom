@@ -7,6 +7,7 @@ import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/review_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'specialist_notifications_helpers.dart';
 
@@ -22,7 +23,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _specialistProfile;
   List<Map<String, dynamic>> _consultations = [];
-  List<Map<String, dynamic>> _testimonials = [];
+  List<Map<String, dynamic>> _providerRatings = [];
   List<Map<String, dynamic>> _notifications = [];
   bool _loading = true;
 
@@ -36,7 +37,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     Map<String, dynamic>? profile;
     Map<String, dynamic>? specialistProfile;
     List<Map<String, dynamic>> consultations = [];
-    List<Map<String, dynamic>> testimonials = [];
+    List<Map<String, dynamic>> providerRatings = [];
 
     try {
       profile = await SupabaseService.getProfile();
@@ -79,7 +80,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     } catch (_) {}
 
     try {
-      testimonials = await SupabaseService.getTestimonials();
+      final myId = SupabaseService.currentUser?.id;
+      if (myId != null) {
+        providerRatings = await SupabaseService.getProviderRatings(myId);
+      }
     } catch (_) {}
 
     List<Map<String, dynamic>> reviewQueue = [];
@@ -98,7 +102,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         _profile = profile;
         _specialistProfile = specialistProfile;
         _consultations = consultations;
-        _testimonials = testimonials;
+        _providerRatings = providerRatings;
         _notifications = notifications;
         _loading = false;
       });
@@ -309,64 +313,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     );
   }
 
-  // Build review card
-  Widget _reviewCard(Map<String, dynamic> testimonial) {
-    final authorName = testimonial['author_name'] as String? ?? 'User';
-    final rating = (testimonial['rating'] as num?)?.toInt() ?? 5;
-    final comment = testimonial['comment'] as String? ?? '';
-    final profileImage = testimonial['author_image'] as String?;
-
-    return TBCard(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                  child: Text(authorName.isNotEmpty ? authorName[0] : '?',
-                      style: const TextStyle(
-                          color: AppColors.rose,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(authorName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: List.generate(
-                          5,
-                          (i) => Icon(
-                            i < rating ? Icons.star : Icons.star_outline,
-                            color: AppColors.gold,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(comment,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.textMid, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
 
   Color _notifColor(String category) {
     switch (category) {
@@ -734,23 +680,13 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                   _buildAlertsSection(),
 
                   // User Review
-                  if (_testimonials.isNotEmpty) ...[
-                    const Text('User Review:',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
-                    const SizedBox(height: 12),
-                    ..._testimonials.take(1).map((t) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _reviewCard(t),
-                        )),
-                  ] else
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 20),
-                      child: TBEmptyState(
-                          emoji: '⭐',
-                          title: 'No reviews yet',
-                          subtitle: 'Your patient reviews will show here.'),
-                    ),
+                  providerReviewsSection(
+                    context,
+                    ratings: _providerRatings,
+                    providerId: SupabaseService.currentUser?.id ?? '',
+                    providerName: _profile?['full_name'] as String? ?? 'You',
+                    providerType: 'specialist',
+                  ),
                   const SizedBox(height: 20),
                 ]),
               ),

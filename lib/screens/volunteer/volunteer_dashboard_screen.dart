@@ -8,6 +8,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/service_id.dart';
+import '../../widgets/review_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
 import 'volunteer_services_screen.dart';
@@ -30,6 +31,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   List<Map<String, dynamic>> _upcomingSessions = [];
   List<Map<String, dynamic>> _myServices = [];
   List<Map<String, dynamic>> _pendingRequests = [];
+  List<Map<String, dynamic>> _providerRatings = [];
   int _totalServicesCount = 0;
   int _totalConsultationsCount = 0;
   int _totalOngoingRequestsCount = 0;
@@ -163,6 +165,14 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .toList();
     } catch (_) {}
 
+    List<Map<String, dynamic>> providerRatings = [];
+    try {
+      final myId = SupabaseService.currentUser?.id;
+      if (myId != null) {
+        providerRatings = await SupabaseService.getProviderRatings(myId);
+      }
+    } catch (_) {}
+
     if (mounted) {
       setState(() {
         _profile = profile;
@@ -170,6 +180,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         _upcomingSessions = sessions;
         _myServices = myServices;
         _pendingRequests = requests;
+        _providerRatings = providerRatings;
         _totalServicesCount = totalServicesCount;
         _totalConsultationsCount = totalConsultationsCount;
         _totalOngoingRequestsCount = totalOngoingRequestsCount;
@@ -210,6 +221,15 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                       _buildUpcomingSessions(context),
                       const SizedBox(height: 24),
                       _buildPendingRequests(context),
+                      const SizedBox(height: 24),
+                      providerReviewsSection(
+                        context,
+                        ratings: _providerRatings,
+                        providerId: SupabaseService.currentUser?.id ?? '',
+                        providerName:
+                            _profile?['full_name'] as String? ?? 'You',
+                        providerType: 'volunteer',
+                      ),
                     ],
                   ),
                 ),

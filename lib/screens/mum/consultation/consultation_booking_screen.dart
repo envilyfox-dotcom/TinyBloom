@@ -252,6 +252,19 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     }).toList();
   }
 
+  // A slot that's still technically in the future but only minutes away
+  // doesn't give the specialist any real notice — same cutoff used to grey
+  // out the Reschedule button on the detail screen (see minBookingNotice).
+  // Applies to a first-time booking just as much as a reschedule: e.g. at
+  // 12:50pm the 1pm slot is only 10 minutes out, so it's greyed out and the
+  // closest pickable slot is 2pm.
+  bool _isTooCloseToBook(String normalisedTime) {
+    if (!_isSameDay(_selectedDate, DateTime.now())) return false;
+    final slot = _slotDateTime(_selectedDate, normalisedTime);
+    if (slot == null) return false;
+    return slot.difference(DateTime.now()) <= minBookingNotice;
+  }
+
   Future<void> _selectDate(DateTime date) async {
     if (_isPastDate(date)) return;
 
@@ -372,24 +385,30 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
                 children: _visibleTimeSlots.map((time) {
                   final normalised = _normaliseTime(time);
                   final selected = _selectedTime == normalised;
+                  final tooClose = _isTooCloseToBook(normalised);
 
                   return GestureDetector(
-                    onTap: () => setState(() => _selectedTime = normalised),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.sage
-                            : AppColors.sage.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        normalised,
-                        style: TextStyle(
-                          color: selected ? Colors.white : AppColors.sage,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                    onTap: tooClose
+                        ? null
+                        : () => setState(() => _selectedTime = normalised),
+                    child: Opacity(
+                      opacity: tooClose ? 0.4 : 1,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? AppColors.sage
+                              : AppColors.sage.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          normalised,
+                          style: TextStyle(
+                            color: selected ? Colors.white : AppColors.sage,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),

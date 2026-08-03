@@ -19,11 +19,6 @@ class ConsultationDetailScreen extends StatefulWidget {
       _ConsultationDetailScreenState();
 }
 
-// A reschedule within this window of the consultation's start time is
-// blocked — too close to the appointment for the specialist to realistically
-// review and re-approve a new slot before it (or the original one) begins.
-const Duration _minRescheduleNotice = Duration(minutes: 30);
-
 class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
   Map<String, dynamic>? _provider;
   bool _loading = true;
@@ -228,7 +223,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     // clear the option existed and just closed, rather than vanishing.
     final scheduledAt = consultationScheduledDateTime(c);
     final tooCloseToReschedule = scheduledAt != null &&
-        scheduledAt.difference(DateTime.now()) <= _minRescheduleNotice;
+        scheduledAt.difference(DateTime.now()) <= minBookingNotice;
     final showReschedule = showCancel && _provider != null;
     // Still 'pending' in the database, but the slot has passed — the
     // specialist never responded in time, so it now reads as cancelled.

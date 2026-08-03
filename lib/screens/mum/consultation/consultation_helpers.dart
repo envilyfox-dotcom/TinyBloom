@@ -9,6 +9,14 @@ import '../../../utils/availability_format.dart';
 import '../../../utils/service_id.dart';
 import '../../../widgets/common_widgets.dart';
 
+/// Shared minimum-notice cutoff: once a slot is this close (or closer), the
+/// specialist no longer has reasonable notice. Used to grey out the
+/// Reschedule button once the *current* appointment is this close
+/// (consultation_detail_screen.dart), and to grey out any slot being picked
+/// that's this close — for a first-time booking as well as a reschedule
+/// (consultation_booking_screen.dart).
+const Duration minBookingNotice = Duration(minutes: 30);
+
 /// Pops back to the previous screen when possible; otherwise falls back to
 /// the consultations hub ("My Consultations" / "Book New"). Needed on
 /// screens reachable via a booking confirmation's context.go() redirect,
@@ -574,6 +582,8 @@ Widget providerCard(
           .toList() ??
       const <String>[];
   final photoUrl = profile['profile_picture_url'] as String?;
+  final avgRating = (provider['avg_rating'] as num?)?.toDouble();
+  final ratingCount = (provider['rating_count'] as num?)?.toInt() ?? 0;
   final accent = isSpecialist ? AppColors.teal : AppColors.sage;
   final emoji = isSpecialist ? '👩‍⚕️' : '🤝';
   final label = isSpecialist ? 'Specialist Consultant' : 'Volunteer Consultant';
@@ -629,14 +639,25 @@ Widget providerCard(
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      role,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textMid,
-                        fontSize: 13,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            role,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textMid,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        if (avgRating != null && ratingCount > 0) ...[
+                          const SizedBox(width: 6),
+                          _providerChip(avgRating.toStringAsFixed(1),
+                              AppColors.gold, Icons.star_rounded),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Wrap(

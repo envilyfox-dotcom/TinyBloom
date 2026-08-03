@@ -485,7 +485,8 @@ class SupabaseService {
       int primaryGroupId) async {
     final rows = await client
         .from('group_secondary_map')
-        .select('secondary_group_id, review_groups!secondary_group_id(id, name)')
+        .select(
+            'secondary_group_id, review_groups!secondary_group_id(id, name)')
         .eq('primary_group_id', primaryGroupId);
     return List<Map<String, dynamic>>.from(rows)
         .map((r) => r['review_groups'] as Map<String, dynamic>)
@@ -500,7 +501,8 @@ class SupabaseService {
         .select('specialties(name)')
         .eq('group_id', groupId);
     return List<Map<String, dynamic>>.from(rows)
-        .map((r) => (r['specialties'] as Map<String, dynamic>?)?['name'] as String?)
+        .map((r) =>
+            (r['specialties'] as Map<String, dynamic>?)?['name'] as String?)
         .whereType<String>()
         .toList()
       ..sort();
@@ -512,11 +514,15 @@ class SupabaseService {
   // `trimester` columns are still derived from `tags` under the hood since
   // baby_development_screen/features_screens still filter recommended
   // articles by those columns directly.
-  static const trimesterTags = ['1st Trimester', '2nd Trimester', '3rd Trimester'];
+  static const trimesterTags = [
+    '1st Trimester',
+    '2nd Trimester',
+    '3rd Trimester'
+  ];
 
   static (String, int?) _deriveCategoryAndTrimester(List<String> tags) {
-    final category =
-        tags.firstWhere((t) => !trimesterTags.contains(t), orElse: () => 'General');
+    final category = tags.firstWhere((t) => !trimesterTags.contains(t),
+        orElse: () => 'General');
     int? trimester;
     for (var i = 0; i < trimesterTags.length; i++) {
       if (tags.contains(trimesterTags[i])) {
@@ -785,6 +791,95 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Provider ratings (specialist/volunteer star-only reviews)
+  //
+  // Inserts a "Rate {name}" notification for a completed interaction,
+  // unless the mum already rated it or was already prompted for it —
+  // callers (consultation loading, chat closing) may run this repeatedly
+  // for the same interaction across reloads, so this must stay idempotent.
+  static Future<void> ensureRatingNotification({
+    required String mumId,
+    required String providerId,
+    required String providerType,
+    required String providerName,
+    required String sourceType,
+    required String sourceId,
+  }) async {
+    try {
+      final alreadyRated = await client
+          .from('provider_ratings')
+          .select('id')
+          .eq('mum_id', mumId)
+          .eq('source_type', sourceType)
+          .eq('source_id', sourceId)
+          .maybeSingle();
+      if (alreadyRated != null) return;
+
+      final alreadyPrompted = await client
+          .from('notifications')
+          .select('id')
+          .eq('user_id', mumId)
+          .eq('rating_source_type', sourceType)
+          .eq('rating_source_id', sourceId)
+          .maybeSingle();
+      if (alreadyPrompted != null) return;
+
+      final isSpecialist = providerType == 'specialist';
+      // Filed as a 'consultation' notification (not a distinct 'rating'
+      // type) so it shows up as a normal card inside the Consultation
+      // section of Active Alerts & Notifications, rather than under its
+      // own separate category. The rating_* columns are what let a tap
+      // still route to the rating screen instead of the generic
+      // consultation detail sheet — see _openNotification/
+      // _openDashboardNotification.
+      await client.from('notifications').insert({
+        'user_id': mumId,
+        'type': 'consultation',
+        'title': isSpecialist ? 'Rate Dr $providerName' : 'Rate $providerName',
+        'message': isSpecialist
+            ? 'How was your consultation with Dr. $providerName?'
+            : 'How was your chat with $providerName?',
+        'rating_provider_id': providerId,
+        'rating_provider_type': providerType,
+        'rating_source_type': sourceType,
+        'rating_source_id': sourceId,
+      });
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> getProviderRatings(
+      String providerId) async {
+    final res = await client
+        .from('provider_ratings')
+        .select('*, mum:profiles!mum_id(full_name,profile_picture_url)')
+        .eq('provider_id', providerId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<void> submitProviderRating({
+    required String providerId,
+    required String providerType,
+    required String sourceType,
+    required String sourceId,
+    required int rating,
+    String? notificationId,
+  }) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client.from('provider_ratings').insert({
+      'mum_id': user.id,
+      'provider_id': providerId,
+      'provider_type': providerType,
+      'source_type': sourceType,
+      'source_id': sourceId,
+      'rating': rating,
+    });
+    if (notificationId != null) {
+      await client.from('notifications').delete().eq('id', notificationId);
+    }
+  }
+
   // Consultations
   static Future<List<Map<String, dynamic>>> getConsultations() async {
     final user = currentUser;
@@ -955,10 +1050,28 @@ class SupabaseService {
   // The assigned volunteer ends the conversation — status moves to
   // 'closed' ("Completed" in the UI). The thread and its messages stay
   // visible to both participants afterward, just without a way to reply.
-  static Future<void> closeRequestChat(String requestId) async {
+  // Also prompts the mum to rate this volunteer, since a closed chat is
+  // the one real, trackable "interaction completed" event volunteers have.
+  static Future<void> closeRequestChat(Map<String, dynamic> request) async {
+    final requestId = request['id'].toString();
     await client
         .from('volunteer_requests')
         .update({'status': 'closed'}).eq('id', requestId);
+
+    final mumId = request['patient_id']?.toString();
+    final volunteerId = request['volunteer_id']?.toString();
+    if (mumId == null || volunteerId == null) return;
+    final volunteerProfile = await getProfileById(volunteerId);
+    final volunteerName =
+        volunteerProfile?['full_name'] as String? ?? 'Volunteer';
+    await ensureRatingNotification(
+      mumId: mumId,
+      providerId: volunteerId,
+      providerType: 'volunteer',
+      providerName: volunteerName,
+      sourceType: 'chat',
+      sourceId: requestId,
+    );
   }
 
   // The assigned volunteer asks to start a video call at a proposed date
@@ -1099,6 +1212,24 @@ class SupabaseService {
       for (final r in stale) {
         r['status'] = 'closed';
       }
+      // A stale auto-close is still a real "chat completed" event — prompt
+      // the mum to rate the volunteer just like a manual close does.
+      await Future.wait(stale.map((r) async {
+        final mumId = r['patient_id']?.toString();
+        final volunteerId = r['volunteer_id']?.toString();
+        if (mumId == null || volunteerId == null) return;
+        final volunteerProfile = await getProfileById(volunteerId);
+        final volunteerName =
+            volunteerProfile?['full_name'] as String? ?? 'Volunteer';
+        await ensureRatingNotification(
+          mumId: mumId,
+          providerId: volunteerId,
+          providerType: 'volunteer',
+          providerName: volunteerName,
+          sourceType: 'chat',
+          sourceId: r['id'].toString(),
+        );
+      }));
     } catch (_) {}
   }
 
@@ -1389,6 +1520,35 @@ class SupabaseService {
         .select('*, profiles(full_name, email, profile_picture_url)')
         .eq('is_verified', true);
     return List<Map<String, dynamic>>.from(res);
+  }
+
+  // Average star rating + review count per provider, keyed by provider_id
+  // (specialist_profiles/volunteer_profiles.user_id) — aggregated client-side
+  // since there's no server-side view for it. Used to show a "★ 4.8" badge
+  // next to a provider's specialization in the Select Specialist list.
+  static Future<Map<String, ({double average, int count})>>
+      getProviderRatingSummaries(String providerType) async {
+    try {
+      final res = await client
+          .from('provider_ratings')
+          .select('provider_id, rating')
+          .eq('provider_type', providerType);
+      final sums = <String, num>{};
+      final counts = <String, int>{};
+      for (final row in List<Map<String, dynamic>>.from(res)) {
+        final id = row['provider_id']?.toString();
+        final rating = (row['rating'] as num?)?.toDouble();
+        if (id == null || rating == null) continue;
+        sums[id] = (sums[id] ?? 0) + rating;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+      return {
+        for (final id in counts.keys)
+          id: (average: sums[id]! / counts[id]!, count: counts[id]!),
+      };
+    } catch (_) {
+      return {};
+    }
   }
 
   // The services a volunteer currently has published (excludes ones they've

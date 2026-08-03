@@ -72,9 +72,23 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
       // are not already booked by another user for the same specialist.
       final withAvailability = await attachAvailableTimingsForToday(data);
 
+      // Attach each specialist's average star rating so the card can show
+      // it next to their specialization.
+      final ratingSummaries =
+          await SupabaseService.getProviderRatingSummaries('specialist');
+      final withRatings = withAvailability.map((s) {
+        final summary = ratingSummaries[s['user_id']?.toString()];
+        if (summary == null) return s;
+        return {
+          ...s,
+          'avg_rating': summary.average,
+          'rating_count': summary.count,
+        };
+      }).toList();
+
       if (mounted) {
         setState(() {
-          _specialists = withAvailability;
+          _specialists = withRatings;
           _loading = false;
           _error = null;
         });

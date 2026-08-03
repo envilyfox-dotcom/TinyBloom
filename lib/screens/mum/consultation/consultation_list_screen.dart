@@ -200,6 +200,36 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         providerProfiles[id] = await SupabaseService.getProviderProfile(id);
       }));
 
+      // Prompt the mum to rate a specialist once their consultation's slot
+      // has passed. Next-of-kin only views the linked mum's list here, so
+      // this only fires from the mum's own load to avoid duplicate work.
+      if (!_isNextOfKin) {
+        final mumId = SupabaseService.currentUser?.id;
+        if (mumId != null) {
+          for (final consultation in specialistConsultations) {
+            if (effectiveConsultationStatus(consultation) != 'completed') {
+              continue;
+            }
+            final specialistId = consultation['specialist_id'] as String?;
+            if (specialistId == null) continue;
+            final profile = providerProfiles[specialistId];
+            final profileFields = profile?['profiles'];
+            final specialistName = (profileFields is Map
+                    ? profileFields['full_name'] as String?
+                    : null) ??
+                'Specialist';
+            SupabaseService.ensureRatingNotification(
+              mumId: mumId,
+              providerId: specialistId,
+              providerType: 'specialist',
+              providerName: specialistName,
+              sourceType: 'consultation',
+              sourceId: consultation['id'].toString(),
+            );
+          }
+        }
+      }
+
       final merged = <Map<String, dynamic>>[
         ...specialistConsultations,
         ...questions.map((q) => {...q, '_kind': 'question'}),

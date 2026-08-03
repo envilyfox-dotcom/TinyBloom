@@ -31,6 +31,8 @@ import 'shared/education_screen.dart';
 import 'shared/article_detail_screen.dart';
 import 'shared/specialist_profile_view_screen.dart';
 import 'shared/volunteer_profile_view_screen.dart';
+import 'shared/provider_reviews_screen.dart';
+import 'mum/rating/rate_provider_screen.dart';
 import 'shared/baby_development_screen.dart';
 import 'shared/milestone_journey_screen.dart';
 import 'shared/subscription_screen.dart';
@@ -336,6 +338,20 @@ final router = GoRouter(
         path: '/volunteer/profile-view',
         builder: (context, state) =>
             VolunteerProfileViewScreen(volunteerId: state.extra as String)),
+    GoRoute(
+        path: '/rate-provider',
+        builder: (context, state) => RateProviderScreen(
+            notification: state.extra as Map<String, dynamic>)),
+    GoRoute(
+        path: '/provider/reviews',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return ProviderReviewsScreen(
+            providerId: extra['providerId'] as String,
+            providerName: extra['providerName'] as String,
+            providerType: extra['providerType'] as String,
+          );
+        }),
 
     GoRoute(
         path: '/baby-development',

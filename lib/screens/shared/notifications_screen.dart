@@ -50,6 +50,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'consultations',
       'booking',
       'bookings',
+      // A "Rate Dr {name}" prompt is filed as a consultation notification
+      // (see ensureRatingNotification) so it shows up in the Consultation
+      // section instead of its own separate category.
+      'rating',
+      'ratings',
+      'review',
+      'reviews',
     ].contains(clean)) {
       return 'consultation';
     }
@@ -255,7 +262,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final data = await SupabaseService.client
         .from('notifications')
         .select(
-            'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url')
+            'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id')
         .or('user_id.eq.$userId,user_id.is.null')
         .order('created_at', ascending: false);
 
@@ -2412,6 +2419,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
+    // "Rate Dr {name}" prompts are filed as consultation notifications (see
+    // ensureRatingNotification) so they group under the Consultation
+    // section, but a tap still needs to open the rating card instead of
+    // the generic consultation detail sheet. RateProviderScreen pops `true`
+    // only once the rating is actually submitted (and its notification row
+    // deleted server-side) — reload so the card doesn't linger here until
+    // the next pull-to-refresh.
+    if (item['rating_provider_id'] != null) {
+      final rated = await context.push<bool>('/rate-provider', extra: item);
+      if (rated == true && mounted) await _loadNotifications();
+      return;
+    }
+
     switch (type) {
       case 'emergency':
         await _showEmergencyDetails(item);
@@ -2926,6 +2946,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final displayTitle = _displayTitleForNotification(item);
     final previewLines = _previewLinesForNotification(item);
     final message = (item['message'] ?? '').toString();
+    final ratingSourceId = item['rating_source_id']?.toString();
+    final ratingSourceType = item['rating_source_type']?.toString();
+    final ratingSourceLabel =
+        ratingSourceType == 'consultation' ? 'Appointment ID' : 'Reference ID';
+    // Consultations use the same short SPC-xxxxxx/VOL-xxxxxx id shown on the
+    // consultation detail screens (see appointmentIdLabel) instead of the
+    // raw row id.
+    final ratingSourceDisplayId = ratingSourceId == null
+        ? null
+        : ratingSourceType == 'consultation'
+            ? appointmentIdLabel(
+                ratingSourceId, item['rating_provider_type']?.toString())
+            : ratingSourceId;
 
     return GestureDetector(
       onTap: () => _openNotification(item),
@@ -3005,6 +3038,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
                     ),
                   ),
+                  if (ratingSourceId != null && ratingSourceId.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '$ratingSourceLabel: $ratingSourceDisplayId',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textLight,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   if (message.isNotEmpty &&
                       !(type == 'session' &&
                           sourceTable == 'volunteer_services')) ...[

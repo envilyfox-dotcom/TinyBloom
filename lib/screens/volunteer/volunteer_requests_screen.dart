@@ -540,7 +540,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   Future<void> _closeChat() async {
     setState(() => _closing = true);
     try {
-      await SupabaseService.closeRequestChat(widget.request['id'].toString());
+      await SupabaseService.closeRequestChat(widget.request);
       widget.request['status'] = 'closed';
       if (mounted) {
         setState(() {});
