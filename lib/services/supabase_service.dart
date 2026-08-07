@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/app_theme.dart';
+import '../utils/singapore_time.dart';
 
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
@@ -168,9 +169,13 @@ class SupabaseService {
   static int pregnancyWeekFromProfile(Map<String, dynamic>? data) {
     if (data == null) return 0;
     if (data['due_date'] != null) {
-      final dueDate = DateTime.tryParse(data['due_date']);
+      // `due_date` is a `date` column — wall clock, so it's re-tagged into
+      // the Singapore frame rather than shifted, and compared against the
+      // Singapore "now" so the week never turns over on the device's
+      // midnight instead of Singapore's.
+      final dueDate = sgtDateFrom(data['due_date']);
       if (dueDate != null) {
-        final daysUntilDue = dueDate.difference(DateTime.now()).inDays;
+        final daysUntilDue = dueDate.difference(sgtNow()).inDays;
         return ((280 - daysUntilDue) / 7).floor().clamp(1, 40);
       }
     }
@@ -200,9 +205,11 @@ class SupabaseService {
       final data = await getPregnancyProfile();
       if (data == null) return 0;
       if (data['due_date'] != null) {
-        final due = DateTime.parse(data['due_date']);
-        final daysUntilDue = due.difference(DateTime.now()).inDays;
-        return ((280 - daysUntilDue) / 7).floor().clamp(1, 40);
+        final due = sgtDateFrom(data['due_date']);
+        if (due != null) {
+          final daysUntilDue = due.difference(sgtNow()).inDays;
+          return ((280 - daysUntilDue) / 7).floor().clamp(1, 40);
+        }
       }
       if (data['weeks_pregnant'] != null) {
         return (data['weeks_pregnant'] as int).clamp(1, 40);
@@ -214,12 +221,10 @@ class SupabaseService {
   static Future<void> savePregnancyProfile(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
-    final conception = data['due_date'] != null
-        ? DateTime.tryParse(data['due_date'])
-            ?.subtract(const Duration(days: 280))
-        : null;
+    final conception =
+        sgtDateFrom(data['due_date'])?.subtract(const Duration(days: 280));
     final week = conception != null
-        ? DateTime.now().difference(conception).inDays ~/ 7
+        ? sgtNow().difference(conception).inDays ~/ 7
         : null;
     await client.from('pregnancy_profiles').upsert(
       {
@@ -248,12 +253,15 @@ class SupabaseService {
   static Future<void> updateDueDate(DateTime dueDate) async {
     final user = currentUser;
     if (user == null) return;
-    final conception = dueDate.subtract(const Duration(days: 280));
-    final week = DateTime.now().difference(conception).inDays ~/ 7;
+    // dueDate comes from a date picker, so its fields are already the wall
+    // clock the user chose — re-tag rather than shift.
+    final conception =
+        asSgtWallClock(dueDate).subtract(const Duration(days: 280));
+    final week = sgtNow().difference(conception).inDays ~/ 7;
     await client.from('pregnancy_profiles').upsert(
       {
         'user_id': user.id,
-        'due_date': dueDate.toIso8601String().split('T').first,
+        'due_date': dateOnly(dueDate),
         'current_week': week.clamp(1, 42),
       },
       onConflict: 'user_id',
@@ -322,8 +330,7 @@ class SupabaseService {
     await client.from('pregnancy_logs').insert({
       ...data,
       'user_id': user.id,
-      'log_date':
-          data['log_date'] ?? DateTime.now().toIso8601String().split('T').first,
+      'log_date': data['log_date'] ?? sgtToday(),
     });
   }
 
@@ -944,7 +951,7 @@ class SupabaseService {
         ...data,
         'patient_id': user.id,
         'status': 'pending',
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': dbNow(),
       });
     } on PostgrestException catch (e) {
       // 23505 = unique_violation. A DB-level constraint (see
@@ -1086,8 +1093,8 @@ class SupabaseService {
     await client.from('volunteer_requests').update({
       'call_status': 'requested',
       'call_requested_by': user.id,
-      'call_requested_at': DateTime.now().toIso8601String(),
-      'scheduled_date': scheduledDate.toIso8601String().split('T').first,
+      'call_requested_at': dbNow(),
+      'scheduled_date': dateOnly(scheduledDate),
       'scheduled_time': scheduledTime,
     }).eq('id', requestId);
   }
@@ -1107,7 +1114,7 @@ class SupabaseService {
     final user = currentUser;
     if (user == null) return {};
     final cutoff = DateTime.now().subtract(const Duration(hours: 48));
-    final dateStr = date.toIso8601String().split('T').first;
+    final dateStr = dateOnly(date);
     try {
       final rows = await client
           .from('volunteer_requests')
@@ -1290,7 +1297,7 @@ class SupabaseService {
             'meeting_link': null,
             'previous_scheduled_date': previousScheduledDate,
             'previous_scheduled_time': previousScheduledTime,
-            'rescheduled_at': DateTime.now().toIso8601String(),
+            'rescheduled_at': dbNow(),
           })
           .eq('id', id)
           .select();
@@ -1346,7 +1353,7 @@ class SupabaseService {
       'create-zoom-meeting-service',
       body: {
         'title': title,
-        'date': date.toIso8601String().split('T').first,
+        'date': dateOnly(date),
         'start_time': startTime,
         'end_time': endTime,
       },
@@ -1419,11 +1426,11 @@ class SupabaseService {
             .timeout(const Duration(seconds: 6));
         final dueDateStr = pp?['due_date'] as String?;
         if (dueDateStr != null) {
-          final due = DateTime.tryParse(dueDateStr);
+          final due = sgtDateFrom(dueDateStr);
           if (due != null) {
             final conception = due.subtract(const Duration(days: 280));
-            week = (DateTime.now().difference(conception).inDays ~/ 7)
-                .clamp(1, 42);
+            week =
+                (sgtNow().difference(conception).inDays ~/ 7).clamp(1, 42);
             weekStartDate = conception.add(Duration(days: week * 7));
           }
         }
@@ -1807,7 +1814,7 @@ class SupabaseService {
     } catch (_) {}
 
     try {
-      final today = DateTime.now().toIso8601String().split('T').first;
+      final today = sgtToday();
       final res = await client
           .from('daily_reminder_sends')
           .select(

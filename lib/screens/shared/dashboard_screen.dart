@@ -8,6 +8,7 @@ import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
+import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/quick_chat_volunteer.dart';
 import '../mum/consultation/consultation_helpers.dart';
@@ -193,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'user_id': userId,
           'source_table': sourceTable,
           'source_id': sourceId,
-          'read_at': DateTime.now().toIso8601String(),
+          'read_at': dbNow(),
         },
         onConflict: 'user_id,source_table,source_id',
       );
@@ -225,10 +226,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final dueDateStr = pregnancyProfile['due_date']?.toString();
     if (dueDateStr != null && dueDateStr.isNotEmpty) {
-      final dueDate = DateTime.tryParse(dueDateStr);
+      // `due_date` is a `date` column, so it's wall clock and must be
+      // re-tagged rather than shifted before comparing against sgtNow().
+      final dueDate = sgtDateFrom(dueDateStr);
       if (dueDate != null) {
         final pregnancyStart = dueDate.subtract(const Duration(days: 280));
-        final week = DateTime.now().difference(pregnancyStart).inDays ~/ 7;
+        final week = sgtNow().difference(pregnancyStart).inDays ~/ 7;
         return week.clamp(1, 42);
       }
     }
@@ -247,7 +250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _dashboardMilestoneNotification(
       Map<String, dynamic>? pregnancyProfile) {
     final week = _pregnancyWeekFromProfile(pregnancyProfile);
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final today = sgtToday();
 
     if (week <= 0) {
       return {
@@ -258,7 +261,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             'Add your due date or pregnancy week to see weekly baby milestones.',
         'type': 'milestone',
         'is_read': true,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': dbNow(),
         'source_table': 'generated_milestone',
       };
     }
@@ -277,13 +280,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : 'Your baby is about the size of $size $emoji and weighs around $weight this week.',
       'type': 'milestone',
       'is_read': true,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': dbNow(),
       'source_table': 'generated_milestone',
     };
   }
 
   List<Map<String, dynamic>> _dashboardEmergencyNotifications() {
-    final now = DateTime.now().toIso8601String();
+    final now = dbNow();
     return [
       {
         'id': 'dashboard-emergency-support-fallback',
@@ -329,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _healthLogCreatedAt(Map<String, dynamic> item) {
     return (item['logged_at'] ??
             item['created_at'] ??
-            DateTime.now().toIso8601String())
+            dbNow())
         .toString();
   }
 
@@ -452,7 +455,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'is_read': false,
         'created_at': (item['created_at'] ??
                 item['log_date'] ??
-                DateTime.now().toIso8601String())
+                dbNow())
             .toString(),
         'source_table': 'pregnancy_logs',
         'severity': 'Urgent',
@@ -517,9 +520,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _formatDashboardConsultationDate(Map<String, dynamic> item) {
     final scheduledAt = item['scheduled_at']?.toString();
     if (scheduledAt != null && scheduledAt.isNotEmpty) {
-      final parsed = DateTime.tryParse(scheduledAt);
+      final parsed = sgtFrom(scheduledAt);
       if (parsed != null) {
-        return DateFormat('d MMM yyyy, h:mm a').format(parsed.toLocal());
+        return DateFormat('d MMM yyyy, h:mm a').format(parsed);
       }
     }
 
@@ -546,9 +549,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final parsedTime =
           DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      final endsAt = DateTime(
+      final endsAt = sgtWallClock(
           date.year, date.month, date.day, parsedTime.hour, parsedTime.minute);
-      return DateTime.now().isAfter(endsAt);
+      return sgtNow().isAfter(endsAt);
     } catch (_) {
       return false;
     }
@@ -568,15 +571,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ].contains(clean);
   }
 
+  // Returns Singapore wall clock. `scheduled_at` is a timestamptz (an
+  // instant) and gets converted; `scheduled_date`/`scheduled_time` are
+  // already wall clock and only get re-tagged into the Singapore frame.
   DateTime? _dashboardConsultationScheduledAt(Map<String, dynamic> item) {
     final rawScheduledAt = item['scheduled_at']?.toString();
     if (rawScheduledAt != null && rawScheduledAt.isNotEmpty) {
-      final parsed = DateTime.tryParse(rawScheduledAt);
-      if (parsed != null) return parsed.toLocal();
+      final parsed = sgtFrom(rawScheduledAt);
+      if (parsed != null) return parsed;
     }
 
-    final rawDate = item['scheduled_date']?.toString();
-    final parsedDate = rawDate != null ? DateTime.tryParse(rawDate) : null;
+    final parsedDate = sgtDateFrom(item['scheduled_date']);
     if (parsedDate == null) return null;
 
     final timeStr = item['scheduled_time']?.toString();
@@ -671,7 +676,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .limit(8);
 
     final rows = <Map<String, dynamic>>[];
-    final now = DateTime.now();
+    final now = sgtNow();
 
     for (final item in List<Map<String, dynamic>>.from(data)) {
       final status = (item['status'] ?? 'booked').toString();
@@ -760,7 +765,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .neq('status', 'closed')
         .order('scheduled_date');
 
-    final now = DateTime.now();
+    final now = sgtNow();
     final upcoming = List<Map<String, dynamic>>.from(data).where((item) {
       final date = DateTime.tryParse(item['scheduled_date']?.toString() ?? '');
       if (date == null) return false;
@@ -1109,7 +1114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               : action,
           'type': 'emergency',
           'is_read': true,
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': dbNow(),
           'source_table': 'emergency_rules',
         };
       }));
@@ -1644,10 +1649,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Prefer due_date — recalculates week automatically over time.
     final dueDateStr = _pregnancyProfile!['due_date'] as String?;
     if (dueDateStr != null) {
-      final dueDate = DateTime.tryParse(dueDateStr);
+      final dueDate = sgtDateFrom(dueDateStr);
       if (dueDate != null) {
         final conception = dueDate.subtract(const Duration(days: 280));
-        final week = DateTime.now().difference(conception).inDays ~/ 7;
+        final week = sgtNow().difference(conception).inDays ~/ 7;
         return week.clamp(1, 42);
       }
     }
@@ -1661,9 +1666,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _pickAndSaveDueDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 140)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 300)),
+      initialDate: sgtNow().add(const Duration(days: 140)),
+      firstDate: sgtNow(),
+      lastDate: sgtNow().add(const Duration(days: 300)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
             colorScheme: const ColorScheme.light(primary: AppColors.rose)),
@@ -1689,7 +1694,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _babyWeight(int week) => pregnancyWeekData[week]?['weight'];
 
   String get _greeting {
-    final hour = DateTime.now().hour;
+    final hour = sgtNow().hour;
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
@@ -1762,7 +1767,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(height: 2),
                                 Text(
                                     DateFormat('EEEE, d MMMM')
-                                        .format(DateTime.now()),
+                                        .format(sgtNow()),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -2326,9 +2331,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final date =
         scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
     if (date == null) return 'Upcoming Appointment';
-    final today = DateTime.now();
-    final diff = DateTime(date.year, date.month, date.day)
-        .difference(DateTime(today.year, today.month, today.day))
+    final today = sgtNow();
+    final diff = sgtWallClock(date.year, date.month, date.day)
+        .difference(sgtWallClock(today.year, today.month, today.day))
         .inDays;
     if (diff == 0) return 'Appointment Today';
     if (diff == 1) return 'Appointment Tomorrow';

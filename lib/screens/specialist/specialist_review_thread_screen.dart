@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../utils/singapore_time.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -14,7 +15,7 @@ String _timeAgo(DateTime date) {
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
   if (diff.inHours < 24) return '${diff.inHours}h ago';
   if (diff.inDays < 7) return '${diff.inDays}d ago';
-  return DateFormat('d MMM').format(date);
+  return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
 // A single item in the merged "Checks" timeline — either an approval/reject/
@@ -779,7 +780,7 @@ class _SpecialistReviewThreadScreenState
               // TESTING: matches the interval '0 minutes' override in
               // testing_instant_publish_buffer.sql. Revert to
               // Duration(hours: 24) alongside that migration.
-              'Goes live ${bufferStartedAt.add(Duration.zero).toLocal()}',
+              'Goes live ${DateFormat('d MMM yyyy, h:mm a').format(toSingaporeTime(bufferStartedAt.add(Duration.zero)))}',
               style: const TextStyle(color: AppColors.textLight, fontSize: 12),
             ),
           ],

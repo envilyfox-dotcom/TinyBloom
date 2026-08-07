@@ -310,7 +310,7 @@ final router = GoRouter(
 
           if (extra is Map<String, dynamic>) {
             final auth = context.read<AuthProvider>();
-            if (auth.isSpecialist) {
+            if (auth.isSpecialist || auth.isVolunteer) {
               return SpecialistConsultationDetailScreen(consultation: extra);
             }
             return ConsultationDetailScreen(consultation: extra);
@@ -476,7 +476,7 @@ class _ConsultationDetailLoaderScreenState
 
         final auth = context.read<AuthProvider>();
 
-        if (auth.isSpecialist) {
+        if (auth.isSpecialist || auth.isVolunteer) {
           return SpecialistConsultationDetailScreen(
             consultation: consultation,
           );

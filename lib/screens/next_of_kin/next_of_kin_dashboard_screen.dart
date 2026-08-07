@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/singapore_time.dart';
 import '../../utils/checklist_data.dart';
 import '../../utils/next_of_kin_alert_read_state.dart';
 import '../../utils/next_of_kin_alerts_data.dart';
@@ -153,7 +154,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   }
 
   String get _greeting {
-    final hour = DateTime.now().hour;
+    final hour = sgtNow().hour;
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
@@ -748,9 +749,9 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     final date =
         scheduledDate != null ? DateTime.tryParse(scheduledDate) : null;
     if (date == null) return 'Upcoming Appointment';
-    final today = DateTime.now();
-    final diff = DateTime(date.year, date.month, date.day)
-        .difference(DateTime(today.year, today.month, today.day))
+    final today = sgtNow();
+    final diff = sgtWallClock(date.year, date.month, date.day)
+        .difference(sgtWallClock(today.year, today.month, today.day))
         .inDays;
     if (diff == 0) return 'Appointment Today';
     if (diff == 1) return 'Appointment Tomorrow';

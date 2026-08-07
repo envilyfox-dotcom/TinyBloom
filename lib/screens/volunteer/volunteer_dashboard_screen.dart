@@ -9,6 +9,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/service_id.dart';
 import '../../widgets/review_widgets.dart';
+import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
 import 'volunteer_services_screen.dart';
@@ -74,7 +75,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .eq('call_status', 'accepted')
           .neq('status', 'closed')
           .order('scheduled_date');
-      final now = DateTime.now();
+      final now = sgtNow();
       final upcoming = List<Map<String, dynamic>>.from(data).where((r) {
         final date = DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
         if (date == null) return false;
@@ -239,7 +240,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   }
 
   String get _greeting {
-    final hour = DateTime.now().hour;
+    final hour = sgtNow().hour;
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
@@ -268,7 +269,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                           .headlineMedium
                           ?.copyWith(fontSize: 20)),
                   const SizedBox(height: 2),
-                  Text(DateFormat('EEEE, d MMMM').format(DateTime.now()),
+                  Text(DateFormat('EEEE, d MMMM').format(sgtNow()),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/singapore_time.dart';
 import '../../utils/next_of_kin_relationship.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -585,7 +586,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
         'reviewer_name': _nameCtrl.text.trim(),
         'content': _feedbackCtrl.text.trim(),
         'rating': _rating,
-        'review_date': DateTime.now().toIso8601String().split('T')[0],
+        'review_date': sgtToday(),
         'is_published': false,
       });
 

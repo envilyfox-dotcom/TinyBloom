@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../services/auth_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/singapore_time.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 
@@ -223,7 +224,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     // clear the option existed and just closed, rather than vanishing.
     final scheduledAt = consultationScheduledDateTime(c);
     final tooCloseToReschedule = scheduledAt != null &&
-        scheduledAt.difference(DateTime.now()) <= minBookingNotice;
+        scheduledAt.difference(sgtNow()) <= minBookingNotice;
     final showReschedule = showCancel && _provider != null;
     // Still 'pending' in the database, but the slot has passed — the
     // specialist never responded in time, so it now reads as cancelled.

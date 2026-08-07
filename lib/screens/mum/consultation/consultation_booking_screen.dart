@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/singapore_time.dart';
 import 'consultation_helpers.dart';
 
 // ── Consultation Booking ──────────────────────────────────────────
@@ -52,9 +53,9 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   @override
   void initState() {
     super.initState();
-    final today = DateTime.now();
-    _selectedDate = DateTime(today.year, today.month, today.day);
-    _month = DateTime(today.year, today.month);
+    final today = sgtNow();
+    _selectedDate = sgtWallClock(today.year, today.month, today.day);
+    _month = sgtWallClock(today.year, today.month, 1);
     _purposeCtrl.text = widget.consultation?['purpose'] as String? ?? '';
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -85,10 +86,10 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   }
 
   bool _isPastDate(DateTime date) {
-    final today = DateTime.now();
-    final todayOnly = DateTime(today.year, today.month, today.day);
-    final dateOnly = DateTime(date.year, date.month, date.day);
-    return dateOnly.isBefore(todayOnly);
+    final today = sgtNow();
+    final todayStart = sgtWallClock(today.year, today.month, today.day);
+    final dateStart = sgtWallClock(date.year, date.month, date.day);
+    return dateStart.isBefore(todayStart);
   }
 
   String _normaliseTime(String? value) {
@@ -147,7 +148,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     for (final format in formats) {
       try {
         final parsed = format.parseStrict(clean);
-        return DateTime(
+        return sgtWallClock(
           date.year,
           date.month,
           date.day,
@@ -232,7 +233,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     if (_isPastDate(_selectedDate)) return [];
     if (!_isProviderAvailableOnDate(_selectedDate)) return [];
 
-    final now = DateTime.now();
+    final now = sgtNow();
 
     return _providerTimeSlots.where((time) {
       final normalised = _normaliseTime(time);
@@ -259,17 +260,18 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   // 12:50pm the 1pm slot is only 10 minutes out, so it's greyed out and the
   // closest pickable slot is 2pm.
   bool _isTooCloseToBook(String normalisedTime) {
-    if (!_isSameDay(_selectedDate, DateTime.now())) return false;
+    final now = sgtNow();
+    if (!_isSameDay(_selectedDate, now)) return false;
     final slot = _slotDateTime(_selectedDate, normalisedTime);
     if (slot == null) return false;
-    return slot.difference(DateTime.now()) <= minBookingNotice;
+    return slot.difference(now) <= minBookingNotice;
   }
 
   Future<void> _selectDate(DateTime date) async {
     if (_isPastDate(date)) return;
 
     setState(() {
-      _selectedDate = DateTime(date.year, date.month, date.day);
+      _selectedDate = sgtWallClock(date.year, date.month, date.day);
       _selectedTime = null;
     });
 
@@ -463,16 +465,15 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   }
 
   Widget _buildCalendar() {
-    final firstDayOfMonth = DateTime(_month.year, _month.month, 1);
-    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+    final firstDayOfMonth = sgtWallClock(_month.year, _month.month, 1);
+    final daysInMonth = sgtWallClock(_month.year, _month.month + 1, 0).day;
     final leadingBlanks = firstDayOfMonth.weekday % 7;
     final totalCells = leadingBlanks + daysInMonth;
-    final today = DateTime.now();
-    final todayOnly = DateTime(today.year, today.month, today.day);
+    final today = sgtNow();
+    final todayOnly = sgtWallClock(today.year, today.month, today.day);
 
-    final previousMonthDisabled =
-        DateTime(_month.year, _month.month, 1).isBefore(
-      DateTime(today.year, today.month, 1),
+    final previousMonthDisabled = firstDayOfMonth.isBefore(
+      sgtWallClock(today.year, today.month, 1),
     );
 
     return Container(
@@ -511,7 +512,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
                         ? null
                         : () {
                             setState(() {
-                              _month = DateTime(_month.year, _month.month - 1);
+                              _month =
+                                  sgtWallClock(_month.year, _month.month - 1, 1);
                             });
                           },
                   ),
@@ -519,7 +521,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
                     icon: const Icon(Icons.chevron_right),
                     onPressed: () {
                       setState(() {
-                        _month = DateTime(_month.year, _month.month + 1);
+                        _month =
+                            sgtWallClock(_month.year, _month.month + 1, 1);
                       });
                     },
                   ),
@@ -556,7 +559,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   }
 
   Widget _dayCell(int day, DateTime todayOnly) {
-    final date = DateTime(_month.year, _month.month, day);
+    final date = sgtWallClock(_month.year, _month.month, day);
     final isPast = date.isBefore(todayOnly);
     final isAvailable = _isProviderAvailableOnDate(date);
     final isSelected = _isSameDay(_selectedDate, date);

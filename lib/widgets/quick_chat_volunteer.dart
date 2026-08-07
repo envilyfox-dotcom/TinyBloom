@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../services/supabase_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/singapore_time.dart';
 import 'common_widgets.dart';
 
 // ── "Quick Chat with Volunteer" dashboard preview ─────────────────────
@@ -226,10 +227,10 @@ String quickChatTimeText(Map<String, dynamic> q) {
   ]);
 
   if (raw.isEmpty) return '';
-  final parsed = DateTime.tryParse(raw);
+  final parsed = sgtFrom(raw);
   if (parsed == null) return '';
 
-  return DateFormat('d MMM, h:mm a').format(parsed.toLocal());
+  return DateFormat('d MMM, h:mm a').format(parsed);
 }
 
 String quickChatPreviewText(Map<String, dynamic> q) {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../services/auth_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/singapore_time.dart';
 import 'package:intl/intl.dart';
 
 class MumOnboardingScreen extends StatefulWidget {
@@ -121,8 +122,10 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
 
   int get _pregnancyWeek {
     if (_dueDate == null) return 0;
-    final conception = _dueDate!.subtract(const Duration(days: 280));
-    return DateTime.now().difference(conception).inDays ~/ 7;
+    // _dueDate is a picked date, so its fields are already wall clock.
+    final conception =
+        asSgtWallClock(_dueDate!).subtract(const Duration(days: 280));
+    return sgtNow().difference(conception).inDays ~/ 7;
   }
 
   bool _validateStep() {
@@ -211,7 +214,7 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
       await SupabaseService.savePregnancyProfile({
         'age': int.tryParse(_ageCtrl.text),
         'pregnancy_status': _pregnancyStatus.isEmpty ? null : _pregnancyStatus,
-        'due_date': _dueDate?.toIso8601String().split('T').first,
+        'due_date': _dueDate == null ? null : dateOnly(_dueDate!),
         'pregnancy_week': _dueDate != null ? _pregnancyWeek : null,
         'height_cm': double.tryParse(_heightCtrl.text),
         'weight_kg': double.tryParse(_weightCtrl.text),
@@ -618,9 +621,9 @@ class _StepYourPregnancy extends StatelessWidget {
                 final picked = await showDatePicker(
                   context: context,
                   initialDate:
-                      dueDate ?? DateTime.now().add(const Duration(days: 140)),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 300)),
+                      dueDate ?? sgtNow().add(const Duration(days: 140)),
+                  firstDate: sgtNow(),
+                  lastDate: sgtNow().add(const Duration(days: 300)),
                   builder: (ctx, child) => Theme(
                     data: Theme.of(ctx).copyWith(
                       colorScheme: const ColorScheme.light(
@@ -630,7 +633,7 @@ class _StepYourPregnancy extends StatelessWidget {
                     child: child!,
                   ),
                 );
-                if (picked != null) onDatePicked(picked);
+                if (picked != null) onDatePicked(asSgtWallClock(picked));
               },
               child: Container(
                 padding:

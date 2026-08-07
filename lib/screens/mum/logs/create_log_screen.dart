@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/singapore_time.dart';
 import 'logs_shared.dart';
 
 // ── Create / Edit Log ─────────────────────────────────────────────
@@ -15,7 +16,9 @@ class CreateLogScreen extends StatefulWidget {
 }
 
 class _CreateLogScreenState extends State<CreateLogScreen> {
-  DateTime _date = DateTime.now();
+  // Singapore wall clock — a log defaults to "today in Singapore", not
+  // today on whatever timezone the device happens to be set to.
+  DateTime _date = sgtNow();
   bool _loading = false;
   bool _optionsLoading = true;
 
@@ -40,7 +43,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       _selectedMood = log['mood'] ?? '';
       _selectedSymptoms.addAll(asStringList(log['symptoms']));
       _selectedMilestones.addAll(asStringList(log['milestones']));
-      if (log['log_date'] != null) _date = DateTime.parse(log['log_date']);
+      final existingDate = sgtDateFrom(log['log_date']);
+      if (existingDate != null) _date = existingDate;
     }
     _loadOptions();
   }
@@ -82,9 +86,12 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
+      // All three stay in the same frame as _date, or showDatePicker's
+      // "initialDate within range" assertion can trip on a device whose
+      // clock is behind Singapore.
       initialDate: _date,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now(),
+      firstDate: sgtNow().subtract(const Duration(days: 365)),
+      lastDate: sgtNow(),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(primary: AppColors.rose),
@@ -92,7 +99,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked != null) setState(() => _date = asSgtWallClock(picked));
   }
 
   Future<void> _save() async {
@@ -110,7 +117,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       'symptoms': _selectedSymptoms.isEmpty ? null : _selectedSymptoms.toList(),
       'milestones':
           _selectedMilestones.isEmpty ? null : _selectedMilestones.toList(),
-      'log_date': DateFormat('yyyy-MM-dd').format(_date),
+      'log_date': dateOnly(_date),
     };
 
     try {

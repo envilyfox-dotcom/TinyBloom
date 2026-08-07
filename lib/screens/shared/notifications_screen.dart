@@ -8,6 +8,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../utils/service_id.dart';
+import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -147,7 +148,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final dueDate = DateTime.tryParse(dueDateStr);
       if (dueDate != null) {
         final pregnancyStart = dueDate.subtract(const Duration(days: 280));
-        final week = DateTime.now().difference(pregnancyStart).inDays ~/ 7;
+        final week = sgtNow().difference(pregnancyStart).inDays ~/ 7;
         return week.clamp(1, 42);
       }
     }
@@ -237,7 +238,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           'user_id': userId,
           'source_table': sourceTable,
           'source_id': sourceId,
-          'read_at': DateTime.now().toIso8601String(),
+          'read_at': dbNow(),
         },
         onConflict: 'user_id,source_table,source_id',
       );
@@ -310,9 +311,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _formatConsultationDate(Map<String, dynamic> item) {
     final scheduledAt = item['scheduled_at']?.toString();
     if (scheduledAt != null && scheduledAt.isNotEmpty) {
-      final parsed = DateTime.tryParse(scheduledAt);
+      final parsed = sgtFrom(scheduledAt);
       if (parsed != null) {
-        return DateFormat('d MMM yyyy, h:mm a').format(parsed.toLocal());
+        return DateFormat('d MMM yyyy, h:mm a').format(parsed);
       }
     }
 
@@ -464,7 +465,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('created_at', ascending: false)
         .limit(12);
 
-    final now = DateTime.now();
+    final now = sgtNow();
     final kept = <Map<String, dynamic>>[];
 
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
@@ -583,7 +584,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .neq('status', 'closed')
         .order('scheduled_date');
 
-    final now = DateTime.now();
+    final now = sgtNow();
     final kept = <Map<String, dynamic>>[];
 
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
@@ -663,11 +664,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return rows;
   }
 
+  // Returns Singapore wall clock, so callers can compare it against
+  // sgtNow(). `scheduled_at` is a timestamptz (an instant) and gets
+  // converted; `scheduled_date`/`scheduled_time` are already wall clock and
+  // only get re-tagged into the SGT frame.
   DateTime? _consultationReminderDateTime(Map<String, dynamic> item) {
     final scheduledAt = item['scheduled_at']?.toString().trim();
     if (scheduledAt != null && scheduledAt.isNotEmpty) {
-      final parsed = DateTime.tryParse(scheduledAt);
-      if (parsed != null) return parsed.toLocal();
+      final parsed = sgtFrom(scheduledAt);
+      if (parsed != null) return parsed;
     }
 
     final date = item['scheduled_date']?.toString().trim();
@@ -691,7 +696,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     for (final candidate in candidates) {
       final parsed = DateTime.tryParse(candidate);
-      if (parsed != null) return parsed.toLocal();
+      if (parsed != null) return asSgtWallClock(parsed);
     }
 
     try {
@@ -699,7 +704,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         final parsedDate = DateTime.tryParse(date);
         if (parsedDate != null) {
           final parsedTime = DateFormat.jm().parseLoose(cleanedTime);
-          return DateTime(
+          return sgtWallClock(
             parsedDate.year,
             parsedDate.month,
             parsedDate.day,
@@ -710,7 +715,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     } catch (_) {}
 
-    return DateTime.tryParse(date)?.toLocal();
+    final fallback = DateTime.tryParse(date);
+    return fallback == null ? null : asSgtWallClock(fallback);
   }
 
   // Non-null only for the two upcoming-consultation card sources
@@ -841,9 +847,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final parsedTime =
           DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      final endsAt = DateTime(
+      final endsAt = sgtWallClock(
           date.year, date.month, date.day, parsedTime.hour, parsedTime.minute);
-      return DateTime.now().isAfter(endsAt);
+      return sgtNow().isAfter(endsAt);
     } catch (_) {
       return false;
     }
@@ -917,7 +923,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<Map<String, dynamic>> _fallbackMilestoneRows(
       Map<String, dynamic>? pregnancyProfile) {
     final week = _currentPregnancyWeek(pregnancyProfile);
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final today = sgtToday();
 
     if (week <= 0) {
       return [
@@ -929,7 +935,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               'Add your due date or pregnancy week in your profile to see weekly baby milestones.',
           'type': 'milestone',
           'is_read': true,
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': dbNow(),
           'source_table': 'generated_milestone',
           'full_content':
               'To show weekly milestones, TinyBloom needs your due date or current pregnancy week. Update your pregnancy profile so the app can calculate the correct week and show the right baby development information.',
@@ -952,7 +958,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             : 'Your baby is about the size of $size $emoji and weighs around $weight this week.',
         'type': 'milestone',
         'is_read': true,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': dbNow(),
         'source_table': 'generated_milestone',
         'week': week,
         'baby_size': size,
@@ -996,7 +1002,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             : description,
         'type': 'milestone',
         'is_read': true,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': dbNow(),
         'source_table': 'baby_development',
         'week': item['week'],
         'baby_size': size,
@@ -1012,7 +1018,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   List<Map<String, dynamic>> _fallbackEmergencyRows() {
-    final now = DateTime.now().toIso8601String();
+    final now = dbNow();
     return [
       {
         'id': 'emergency-support-fallback',
@@ -1062,7 +1068,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             action.isEmpty ? 'Tap to view emergency support guidance.' : action,
         'type': 'emergency',
         'is_read': true,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': dbNow(),
         'source_table': 'emergency_rules',
         'condition': condition,
         'severity': severity,
@@ -1106,7 +1112,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _healthLogCreatedAt(Map<String, dynamic> item) {
     return (item['logged_at'] ??
             item['created_at'] ??
-            DateTime.now().toIso8601String())
+            dbNow())
         .toString();
   }
 
@@ -1246,7 +1252,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'is_read': false,
         'created_at': (item['created_at'] ??
                 item['log_date'] ??
-                DateTime.now().toIso8601String())
+                dbNow())
             .toString(),
         'source_table': 'pregnancy_logs',
         'severity': 'Urgent',
@@ -2541,7 +2547,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final date = DateTime.tryParse(createdAt.toString());
     if (date == null) return '';
 
-    final diff = DateTime.now().difference(date.toLocal());
+    final diff = DateTime.now().difference(date);
 
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
@@ -2549,7 +2555,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (diff.inDays == 1) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
 
-    return DateFormat('d MMM').format(date);
+    return DateFormat('d MMM').format(toSingaporeTime(date));
   }
 
   @override

@@ -71,7 +71,7 @@ class _ProviderReviewsScreenState extends State<ProviderReviewsScreen> {
                     itemCount: _ratings.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) =>
-                        providerReviewCard(_ratings[index]),
+                        providerReviewCard(context, _ratings[index]),
                   ),
       ),
     );

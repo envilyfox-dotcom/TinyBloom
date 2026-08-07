@@ -7,6 +7,7 @@ import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../utils/singapore_time.dart';
 import '../../widgets/review_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'specialist_notifications_helpers.dart';
@@ -121,10 +122,10 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       final date = DateTime.parse(scheduled.toString());
       final timeStr = c['scheduled_time'] as String?;
       if (timeStr == null || timeStr.isEmpty) {
-        return DateTime(date.year, date.month, date.day);
+        return sgtWallClock(date.year, date.month, date.day);
       }
       return slotDateTime(date, timeStr) ??
-          DateTime(date.year, date.month, date.day);
+          sgtWallClock(date.year, date.month, date.day);
     } catch (_) {
       return null;
     }
@@ -137,7 +138,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     final status = (c['status'] as String? ?? '').toLowerCase();
     if (status != 'pending') return false;
     final scheduled = _scheduledDateTime(c);
-    return scheduled != null && scheduled.isBefore(DateTime.now());
+    return scheduled != null && scheduled.isBefore(sgtNow());
   }
 
   List<Map<String, dynamic>> _sortedByTime(List<Map<String, dynamic>> list) {
@@ -155,15 +156,15 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
 
   // Filter consultations for today
   List<Map<String, dynamic>> get _todayConsultations {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final now = sgtNow();
+    final today = sgtWallClock(now.year, now.month, now.day);
 
     final filtered = _consultations.where((c) {
       final scheduled = c['scheduled_date'];
       if (scheduled == null) return false;
       try {
         final date = DateTime.parse(scheduled);
-        final consultationDate = DateTime(date.year, date.month, date.day);
+        final consultationDate = sgtWallClock(date.year, date.month, date.day);
         final status = (c['status'] as String? ?? '').toLowerCase();
         return consultationDate == today &&
             (status == 'pending' || status == 'confirmed') &&
@@ -178,15 +179,15 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
 
   // Filter consultations for upcoming (after today)
   List<Map<String, dynamic>> get _upcomingConsultations {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final now = sgtNow();
+    final today = sgtWallClock(now.year, now.month, now.day);
 
     final filtered = _consultations.where((c) {
       final scheduled = c['scheduled_date'];
       if (scheduled == null) return false;
       try {
         final date = DateTime.parse(scheduled);
-        final consultationDate = DateTime(date.year, date.month, date.day);
+        final consultationDate = sgtWallClock(date.year, date.month, date.day);
         final status = (c['status'] as String? ?? '').toLowerCase();
         return consultationDate.isAfter(today) &&
             (status == 'pending' || status == 'confirmed');
@@ -565,7 +566,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                               const SizedBox(height: 2),
                               Text(
                                   DateFormat('EEEE, d MMMM yyyy')
-                                      .format(DateTime.now()),
+                                      .format(sgtNow()),
                                   style: const TextStyle(
                                       color: AppColors.textLight,
                                       fontSize: 11)),

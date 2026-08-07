@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
@@ -46,7 +47,7 @@ class _SpecialistConsultationsScreenState
   Timer? _searchDebounce;
   String _selectedTag = 'All Available';
   Timer? _tickTimer;
-  final ValueNotifier<DateTime> _now = ValueNotifier(DateTime.now());
+  final ValueNotifier<DateTime> _now = ValueNotifier(sgtNow());
 
   @override
   void initState() {
@@ -58,7 +59,7 @@ class _SpecialistConsultationsScreenState
     // consultation list listens to _now, so the tick doesn't rebuild the
     // whole screen.
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) _now.value = DateTime.now();
+      if (mounted) _now.value = sgtNow();
     });
   }
 
@@ -171,10 +172,10 @@ class _SpecialistConsultationsScreenState
       final date = DateTime.parse(scheduled.toString());
       final timeStr = c['scheduled_time'] as String?;
       if (timeStr == null || timeStr.isEmpty) {
-        return DateTime(date.year, date.month, date.day);
+        return sgtWallClock(date.year, date.month, date.day);
       }
       return slotDateTime(date, timeStr) ??
-          DateTime(date.year, date.month, date.day);
+          sgtWallClock(date.year, date.month, date.day);
     } catch (_) {
       return null;
     }
@@ -190,7 +191,7 @@ class _SpecialistConsultationsScreenState
     if (status == 'cancelled') return 'cancelled';
 
     final scheduled = _scheduledDateTime(consultation);
-    final isPast = scheduled != null && scheduled.isBefore(DateTime.now());
+    final isPast = scheduled != null && scheduled.isBefore(sgtNow());
     if (status == 'pending' && isPast) return 'expired';
     if (status == 'confirmed' && isPast) return 'completed';
     return status;
@@ -205,7 +206,7 @@ class _SpecialistConsultationsScreenState
   bool _canStartSession(Map<String, dynamic> consultation) {
     final scheduled = _scheduledDateTime(consultation);
     if (scheduled == null) return true;
-    return !DateTime.now().isBefore(scheduled.subtract(_joinWindow));
+    return !sgtNow().isBefore(scheduled.subtract(_joinWindow));
   }
 
   Future<void> _startSession(Map<String, dynamic> consultation) async {

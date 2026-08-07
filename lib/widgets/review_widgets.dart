@@ -10,7 +10,7 @@ import 'common_widgets.dart';
 // Shared "User Review" building blocks for the specialist and volunteer
 // dashboards — same design for both, only the underlying provider_ratings
 // data differs. Star-only: no comment is ever collected, so none is shown.
-Widget providerReviewCard(Map<String, dynamic> rating) {
+Widget providerReviewCard(BuildContext context, Map<String, dynamic> rating) {
   final mum = rating['mum'] as Map<String, dynamic>?;
   final reviewerName = (mum?['full_name'] as String?) ?? 'A mum';
   final photoUrl = mum?['profile_picture_url'] as String?;
@@ -26,64 +26,69 @@ Widget providerReviewCard(Map<String, dynamic> rating) {
       : sourceType == 'consultation'
           ? 'From Appointment: ${appointmentIdLabel(sourceId, rating['provider_type'] as String?)}'
           : 'From Chat: $sourceId';
+  // Only consultation-sourced ratings map to a completed appointment we can
+  // open — quick-chat ratings have no consultations row to jump to.
+  final canOpenConsultation = sourceType == 'consultation' && sourceId != null;
 
   return TBCard(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-            backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                ? NetworkImage(photoUrl)
-                : null,
-            child: photoUrl != null && photoUrl.isNotEmpty
-                ? null
-                : Text(reviewerName.isNotEmpty ? reviewerName[0] : '?',
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    onTap: canOpenConsultation
+        ? () => context.push('/consultation/detail/$sourceId')
+        : null,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+          backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+              ? NetworkImage(photoUrl)
+              : null,
+          child: photoUrl != null && photoUrl.isNotEmpty
+              ? null
+              : Text(reviewerName.isNotEmpty ? reviewerName[0] : '?',
+                  style: const TextStyle(
+                      color: AppColors.rose,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(reviewerName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 13)),
+              if (createdAt != null) ...[
+                const SizedBox(height: 2),
+                Text(timeAgoLabel(createdAt),
                     style: const TextStyle(
-                        color: AppColors.rose,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(reviewerName,
+                        color: AppColors.textLight, fontSize: 11)),
+              ],
+              if (sourceLabel != null) ...[
+                const SizedBox(height: 2),
+                Text(sourceLabel,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
-                if (createdAt != null) ...[
-                  const SizedBox(height: 2),
-                  Text(timeAgoLabel(createdAt),
-                      style: const TextStyle(
-                          color: AppColors.textLight, fontSize: 11)),
-                ],
-                if (sourceLabel != null) ...[
-                  const SizedBox(height: 2),
-                  Text(sourceLabel,
-                      style: const TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600)),
-                ],
-                const SizedBox(height: 4),
-                Row(
-                  children: List.generate(
-                    5,
-                    (i) => Icon(
-                      i < stars ? Icons.star : Icons.star_outline,
-                      color: AppColors.gold,
-                      size: 14,
-                    ),
+                        color: AppColors.textLight,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ],
+              const SizedBox(height: 4),
+              Row(
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    i < stars ? Icons.star : Icons.star_outline,
+                    color: AppColors.gold,
+                    size: 14,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -127,7 +132,7 @@ Widget providerReviewsSection(
       else
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
-          child: providerReviewCard(ratings.first),
+          child: providerReviewCard(context, ratings.first),
         ),
     ],
   );

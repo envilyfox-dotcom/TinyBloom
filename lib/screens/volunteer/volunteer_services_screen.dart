@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/singapore_time.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/service_id.dart';
 
@@ -63,7 +64,9 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     if (match == null) return null;
     try {
       final parsed = DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      return DateTime(date.year, date.month, date.day, parsed.hour, parsed.minute);
+      // Singapore wall clock, to match the sgtNow() this is compared against.
+      return sgtWallClock(
+          date.year, date.month, date.day, parsed.hour, parsed.minute);
     } catch (_) {
       return null;
     }
@@ -93,7 +96,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
   // 12 July, once it's past 3PM that day) is automatically marked done —
   // no manual toggle needed.
   Future<void> _autoMarkExpired(List<Map<String, dynamic>> services) async {
-    final now = DateTime.now();
+    final now = sgtNow();
     for (final service in services) {
       if ((service['status'] as String? ?? 'available') != 'available') {
         continue;
@@ -106,7 +109,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
       if (date == null) continue;
       final endsAt = _parseFreeFormEndTime(date, timing) ??
           (_timingEndHour.containsKey(timing)
-              ? DateTime(date.year, date.month, date.day,
+              ? sgtWallClock(date.year, date.month, date.day,
                   _timingEndHour[timing]!)
               : null);
       if (endsAt == null) continue;
@@ -567,7 +570,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     final avail = widget.service?['availability'] as String?;
     if (avail != null && avail.contains(' | ')) {
       final parts = avail.split(' | ');
-      _availDate = DateTime.tryParse(parts[0]);
+      _availDate = sgtDateFrom(parts[0]);
       if (parts.length > 1) {
         final match = RegExp(
                 r'^(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])$')
@@ -639,9 +642,9 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _availDate ?? DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: _availDate ?? sgtNow().add(const Duration(days: 1)),
+      firstDate: sgtNow(),
+      lastDate: sgtNow().add(const Duration(days: 365)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(primary: AppColors.rose),
@@ -649,7 +652,9 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _availDate = picked);
+    if (picked != null) {
+      setState(() => _availDate = asSgtWallClock(picked));
+    }
   }
 
   // Scroll-wheel time picker (replaces the old keyboard-entry showTimePicker)
@@ -833,7 +838,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     try {
       final availability = _startTime == null || _endTime == null
           ? ''
-          : '${DateFormat('yyyy-MM-dd').format(_availDate ?? DateTime.now())} | '
+          : '${dateOnly(_availDate ?? sgtNow())} | '
               '${_formatTime(_startTime!)} - ${_formatTime(_endTime!)}';
       if (widget.mode == ServiceMode.create) {
         // A real, joinable Zoom meeting is minted for this slot instead of

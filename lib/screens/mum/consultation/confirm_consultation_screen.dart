@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
+import '../../../utils/singapore_time.dart';
 import 'consultation_helpers.dart';
 
 // ── Confirm Consultation ──────────────────────────────────────────
@@ -46,7 +47,7 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
       if (_isReschedule) {
         await SupabaseService.rescheduleConsultation(
           widget.consultationId!,
-          scheduledDate: widget.date.toIso8601String().split('T').first,
+          scheduledDate: dateOnly(widget.date),
           scheduledTime: widget.time.split('-').first.trim(),
           previousScheduledDate: widget.previousScheduledDate,
           previousScheduledTime: widget.previousScheduledTime,
@@ -58,7 +59,7 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
         await SupabaseService.bookConsultation({
           'specialist_id': widget.provider['user_id'],
           'consultation_type': widget.type,
-          'scheduled_date': widget.date.toIso8601String().split('T').first,
+          'scheduled_date': dateOnly(widget.date),
           'scheduled_time': widget.time.split('-').first.trim(),
           'purpose': widget.purpose.isEmpty ? null : widget.purpose,
           'platform': 'Zoom Meeting',

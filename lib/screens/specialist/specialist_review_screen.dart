@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../utils/singapore_time.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +16,7 @@ String _timeAgo(DateTime date) {
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
   if (diff.inHours < 24) return '${diff.inHours}h ago';
   if (diff.inDays < 7) return '${diff.inDays}d ago';
-  return DateFormat('d MMM').format(date);
+  return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
 // ── Review tab (Specialists) ─────────────────────────────────────────────

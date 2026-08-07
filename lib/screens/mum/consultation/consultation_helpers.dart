@@ -7,6 +7,7 @@ import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../utils/availability_format.dart';
 import '../../../utils/service_id.dart';
+import '../../../utils/singapore_time.dart';
 import '../../../widgets/common_widgets.dart';
 
 /// Shared minimum-notice cutoff: once a slot is this close (or closer), the
@@ -276,6 +277,12 @@ String _normaliseTime(String value) {
 
 /// Combines a [date] with a time-of-day string (e.g. "9:00 AM", "9am",
 /// "09:00") into a concrete [DateTime], or null if [time] can't be parsed.
+///
+/// Both inputs are wall-clock values — `scheduled_date` is a `date` column
+/// and `scheduled_time` is free text — so the result is tagged as Singapore
+/// wall clock. Compare it against [sgtNow], never a bare `DateTime.now()`,
+/// or the two sit in different frames and the comparison is off by the
+/// device's UTC offset.
 DateTime? slotDateTime(DateTime date, String time) {
   final clean = timeOnly(time).toUpperCase().replaceAll('.', '').trim();
 
@@ -289,7 +296,7 @@ DateTime? slotDateTime(DateTime date, String time) {
   for (final format in formats) {
     try {
       final parsed = format.parseStrict(clean);
-      return DateTime(
+      return sgtWallClock(
         date.year,
         date.month,
         date.day,
@@ -310,10 +317,10 @@ DateTime? consultationScheduledDateTime(Map<String, dynamic> c) {
     final date = DateTime.parse(scheduled.toString());
     final timeStr = c['scheduled_time'] as String?;
     if (timeStr == null || timeStr.isEmpty) {
-      return DateTime(date.year, date.month, date.day);
+      return sgtWallClock(date.year, date.month, date.day);
     }
     return slotDateTime(date, timeStr) ??
-        DateTime(date.year, date.month, date.day);
+        sgtWallClock(date.year, date.month, date.day);
   } catch (_) {
     return null;
   }
@@ -333,7 +340,7 @@ String effectiveConsultationStatus(Map<String, dynamic> c) {
   if (status == 'expired') return 'cancelled';
   if (status != 'confirmed' && status != 'pending') return status;
   final scheduled = consultationScheduledDateTime(c);
-  if (scheduled == null || !scheduled.isBefore(DateTime.now())) return status;
+  if (scheduled == null || !scheduled.isBefore(sgtNow())) return status;
   return status == 'confirmed' ? 'completed' : 'cancelled';
 }
 
@@ -465,7 +472,7 @@ List<String> availableTimesOnly(dynamic value) {
 }
 
 List<String> futureTimesForDate(List<String> times, DateTime date) {
-  final now = DateTime.now();
+  final now = sgtNow();
 
   // If selected date is not today, all standard unbooked slots can be shown.
   if (!_isSameDay(date, now)) return times;
@@ -482,7 +489,7 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
   final ids = providerUserIds.where((id) => id.isNotEmpty).toSet();
   if (ids.isEmpty) return {};
 
-  final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final today = sgtToday();
 
   try {
     final rows = await SupabaseService.client
@@ -519,7 +526,7 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
 /// `available_today`, while excluding slots that have already passed or been booked.
 Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
     List<Map<String, dynamic>> providers) async {
-  final today = DateTime.now();
+  final today = sgtNow();
   final providerIds = providers
       .map((p) => p['user_id']?.toString())
       .whereType<String>()

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/service_id.dart';
+import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import '../mum/forum/forum_shared.dart';
 
@@ -561,7 +562,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   // stopped a volunteer from ending up double-booked at the same time —
   // so requesting one now means proposing a specific slot instead.
   Future<(DateTime, String)?> _pickCallSlot() async {
-    DateTime selectedDate = DateTime.now();
+    // Singapore wall clock — this date is written to scheduled_date, so it
+    // has to mean "today in Singapore" regardless of the device's timezone.
+    DateTime selectedDate = sgtNow();
     String? selectedTime;
     // Slots this volunteer has already proposed to some mum (still
     // pending, not yet 48h stale) aren't offered again, so the same time
@@ -608,15 +611,16 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       final picked = await showDatePicker(
                         context: ctx,
                         initialDate: selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 90)),
+                        firstDate: sgtNow(),
+                        lastDate: sgtNow().add(const Duration(days: 90)),
                       );
                       if (picked != null) {
+                        final pickedSgt = asSgtWallClock(picked);
                         final newHeld =
                             await SupabaseService.getHeldCallTimesForDate(
-                                picked);
+                                pickedSgt);
                         setSheetState(() {
-                          selectedDate = picked;
+                          selectedDate = pickedSgt;
                           selectedTime = null;
                           heldTimes = newHeld;
                         });
@@ -691,8 +695,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       await SupabaseService.requestVideoCall(
           widget.request['id'].toString(), slot.$1, slot.$2);
       widget.request['call_status'] = 'requested';
-      widget.request['scheduled_date'] =
-          slot.$1.toIso8601String().split('T').first;
+      widget.request['scheduled_date'] = dateOnly(slot.$1);
       widget.request['scheduled_time'] = slot.$2;
       if (mounted) {
         setState(() {});

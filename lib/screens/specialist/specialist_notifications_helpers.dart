@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
 // ── Specialist Alerts & Notifications ───────────────────────────────
@@ -13,7 +14,7 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
   required List<Map<String, dynamic>> reviewQueue,
   required String userId,
 }) {
-  final now = DateTime.now();
+  final now = sgtNow();
   final items = <Map<String, dynamic>>[];
 
   DateTime? scheduledDateTime(Map<String, dynamic> c) {
@@ -23,10 +24,10 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
       final date = DateTime.parse(scheduled.toString());
       final timeStr = c['scheduled_time'] as String?;
       if (timeStr == null || timeStr.isEmpty) {
-        return DateTime(date.year, date.month, date.day);
+        return sgtWallClock(date.year, date.month, date.day);
       }
       return slotDateTime(date, timeStr) ??
-          DateTime(date.year, date.month, date.day);
+          sgtWallClock(date.year, date.month, date.day);
     } catch (_) {
       return null;
     }
@@ -95,7 +96,10 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
           'category': 'consultation',
           'title': 'Consultation about to start',
           'message': 'Consultation $apptId at $timeLabel is about to start',
-          'created_at': now.toIso8601String(),
+          // `now` is Singapore wall clock, for comparing against slot times.
+          // This field is sorted against real `created_at` instants from the
+          // database, so it has to be a true instant instead.
+          'created_at': dbNow(),
           'consultation': c,
         });
       }
@@ -145,5 +149,5 @@ String timeAgoLabel(DateTime date) {
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
   if (diff.inHours < 24) return '${diff.inHours}h ago';
   if (diff.inDays < 7) return '${diff.inDays}d ago';
-  return DateFormat('d MMM').format(date);
+  return DateFormat('d MMM').format(toSingaporeTime(date));
 }

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
+import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import 'article_open_helper.dart';
 
@@ -70,8 +71,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
       if (data != null && mounted) {
         // Calculate week from due date if available
         if (data['due_date'] != null) {
-          final due = DateTime.parse(data['due_date']);
-          final now = DateTime.now();
+          final due = sgtDateFrom(data['due_date'])!;
+          final now = sgtNow();
           final daysUntilDue = due.difference(now).inDays;
           final week = ((280 - daysUntilDue) / 7).floor().clamp(1, 40);
           setState(() {
