@@ -4,7 +4,6 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'forum_shared.dart';
 
-// ── Post Detail (comments) ────────────────────────────────────────
 class PostDetailScreen extends StatefulWidget {
   final Map<String, dynamic> post;
   const PostDetailScreen({super.key, required this.post});
@@ -244,8 +243,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           fontWeight: FontWeight.w600)),
                   const SizedBox(width: 6),
                   const Text('•',
-                      style: TextStyle(
-                          color: AppColors.textLight, fontSize: 11)),
+                      style:
+                          TextStyle(color: AppColors.textLight, fontSize: 11)),
                   const SizedBox(width: 6),
                 ],
                 Text(createdAt != null ? timeAgo(createdAt) : '',

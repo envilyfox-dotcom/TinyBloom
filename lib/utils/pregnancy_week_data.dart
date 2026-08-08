@@ -1,7 +1,3 @@
-// Shared week-by-week pregnancy data: size, weight, length and a
-// development highlight for each week (1-40). Single source of truth used
-// by both the Dashboard (pregnancy card, active alerts) and the Baby
-// Development screen, so they never disagree with each other.
 const pregnancyWeekData = {
   1: {
     'size': 'a poppy seed',
@@ -85,8 +81,7 @@ const pregnancyWeekData = {
     'emoji': '🍋',
     'weight': '14g',
     'length': '5.4 cm',
-    'highlight':
-        'Reflexes are developing. You may see movement on ultrasound.'
+    'highlight': 'Reflexes are developing. You may see movement on ultrasound.'
   },
   13: {
     'size': 'a peach',
@@ -206,8 +201,7 @@ const pregnancyWeekData = {
     'emoji': '🎃',
     'weight': '1.15kg',
     'length': '38.6 cm',
-    'highlight':
-        'Baby\'s head is growing to accommodate the developing brain.'
+    'highlight': 'Baby\'s head is growing to accommodate the developing brain.'
   },
   30: {
     'size': 'a cabbage',
@@ -280,15 +274,13 @@ const pregnancyWeekData = {
     'emoji': '🍉',
     'weight': '3.3kg',
     'length': '50.7 cm',
-    'highlight':
-        'Baby\'s brain and lungs continue maturing right up to birth.'
+    'highlight': 'Baby\'s brain and lungs continue maturing right up to birth.'
   },
   40: {
     'size': 'a small pumpkin',
     'emoji': '🎃',
     'weight': '3.4kg',
     'length': '51.2 cm',
-    'highlight':
-        'Full term! Baby could arrive any day. You\'ve done amazingly.'
+    'highlight': 'Full term! Baby could arrive any day. You\'ve done amazingly.'
   },
 };

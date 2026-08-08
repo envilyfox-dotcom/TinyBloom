@@ -3,7 +3,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── FAQ Screen ────────────────────────────────────────────────────
 class FaqScreen extends StatefulWidget {
   const FaqScreen({super.key});
   @override
@@ -51,7 +50,6 @@ class _FaqScreenState extends State<FaqScreen> {
           ? const TBLoading()
           : Column(
               children: [
-                // Category chips
                 SizedBox(
                   height: 52,
                   child: ListView(
@@ -78,7 +76,8 @@ class _FaqScreenState extends State<FaqScreen> {
                                 side: BorderSide(
                                     color: _selectedCat == cat
                                         ? AppColors.teal
-                                        : AppColors.textLight.withValues(alpha: 0.3)),
+                                        : AppColors.textLight
+                                            .withValues(alpha: 0.3)),
                               ),
                             ))
                         .toList(),

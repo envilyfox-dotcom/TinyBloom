@@ -7,15 +7,12 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
 import 'consultation_helpers.dart';
 
-// ── Confirm Consultation ──────────────────────────────────────────
 class ConfirmConsultationScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
   final DateTime date;
   final String time;
   final String purpose;
-  // Non-null when confirming a new slot for an existing consultation
-  // instead of creating a brand new one.
   final String? consultationId;
   final String? previousScheduledDate;
   final String? previousScheduledTime;
@@ -53,9 +50,6 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
           previousScheduledTime: widget.previousScheduledTime,
         );
       } else {
-        // No meeting_link yet: a real Zoom meeting is only created once the
-        // specialist approves the booking (see SupabaseService.approveConsultation),
-        // so there's never a link on show that doesn't actually exist.
         await SupabaseService.bookConsultation({
           'specialist_id': widget.provider['user_id'],
           'consultation_type': widget.type,
@@ -91,11 +85,6 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
         : '/consultation/specialists';
   }
 
-  // Once a booking is confirmed, going "back" (app bar arrow or hardware
-  // back) must not return to the date/time form underneath -- that screen
-  // still holds the now-booked date/time selected, and re-pressing "Confirm
-  // Booking" there would submit a second booking for the same slot. Instead
-  // send the user to the same place the "Done" button goes.
   void _leave() {
     if (_submitted) {
       context.go(_listingRoute);

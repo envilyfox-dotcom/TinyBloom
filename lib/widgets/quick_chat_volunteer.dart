@@ -7,14 +7,6 @@ import '../utils/app_theme.dart';
 import '../utils/singapore_time.dart';
 import 'common_widgets.dart';
 
-// ── "Quick Chat with Volunteer" dashboard preview ─────────────────────
-// Shared between the mum's and next-of-kin's dashboards, both of which
-// preview the signed-in user's own volunteer_requests rows (open Q&A
-// board questions) the same way. Pulled out here so the two dashboards
-// can never drift on how a volunteer's name/photo/status/preview text
-// gets parsed out of a request row — the shape of that data varies a lot
-// depending on how it was joined/enriched by the caller.
-
 String firstNonEmptyText(List<dynamic> values) {
   for (final value in values) {
     final text = value?.toString().trim() ?? '';
@@ -191,9 +183,6 @@ String quickChatStatusText(Map<String, dynamic> q) {
   return _titleCase(status.replaceAll('_', ' '));
 }
 
-// True once a chat has ended — the volunteer closed it, or it auto-closed
-// after 48h of no activity. Used to hide finished chats from list views
-// that should only surface ones still worth checking back on.
 bool quickChatIsEnded(Map<String, dynamic> q) {
   final status = (q['status'] ?? '').toString().trim().toLowerCase();
   return status == 'closed' || status == 'completed' || status == 'resolved';
@@ -246,8 +235,6 @@ String quickChatPreviewText(Map<String, dynamic> q) {
   ]);
 }
 
-// Resolves a volunteer's display name/photo, falling back gracefully when
-// the provider profile lookup comes back empty.
 Future<Map<String, String?>> loadQuickChatProviderDisplay(
   String? providerId, {
   required String fallbackName,
@@ -305,8 +292,6 @@ Future<Map<String, String?>> loadQuickChatProviderDisplay(
   return {'name': fallbackName, 'photo_url': null};
 }
 
-// Fills in volunteer name/photo where missing and sorts by most recent
-// activity (reply, update, or creation — whichever is freshest).
 Future<List<Map<String, dynamic>>> enrichQuickChatQuestions(
   List<Map<String, dynamic>> questions,
 ) async {
@@ -367,9 +352,6 @@ Future<List<Map<String, dynamic>>> enrichQuickChatQuestions(
   return enriched;
 }
 
-// The preview card itself. `onReload` is called after returning from the
-// question's detail thread, so the caller's list picks up anything that
-// changed (a new reply, a status change) while it was open.
 class QuickChatPreviewCard extends StatelessWidget {
   final Map<String, dynamic> question;
   final Future<void> Function() onReload;
@@ -518,7 +500,6 @@ class QuickChatPreviewCard extends StatelessWidget {
   }
 }
 
-// The full section: header + "View All" + up to 3 preview cards.
 class QuickChatVolunteerSection extends StatelessWidget {
   final List<Map<String, dynamic>> questions;
   final Future<void> Function() onReload;

@@ -10,8 +10,6 @@ import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 import '../forum/forum_shared.dart';
 
-// ── My Question — view (and, while pending, amend) a question the mum
-// posted to the open volunteer Q&A board.
 class VolunteerQuestionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> request;
   const VolunteerQuestionDetailScreen({super.key, required this.request});
@@ -41,19 +39,9 @@ class _VolunteerQuestionDetailScreenState
   DateTime? get _scheduledDate =>
       DateTime.tryParse(widget.request['scheduled_date']?.toString() ?? '');
   String? get _scheduledTime => widget.request['scheduled_time'] as String?;
-  // Amending the original question is only sensible before anyone's
-  // claimed it — once a volunteer is chatting (or the chat's closed),
-  // changing the question out from under the conversation would be
-  // confusing, and RLS blocks it server-side too.
   bool get _canEdit => widget.request['status'] == 'pending';
   String? get _myId => SupabaseService.currentUser?.id;
-  // A volunteer has claimed this thread once volunteer_id is set — only
-  // then is there anyone on the other end for a follow-up to reach.
   bool get _hasVolunteer => widget.request['volunteer_id'] != null;
-  // The Zoom meeting is created the instant the mum accepts, but the
-  // volunteer still explicitly shares it into the thread — this is true
-  // once that share message has actually gone out, not just once the
-  // link exists.
   bool get _linkSharedInThread {
     final link = _meetingLink;
     if (link == null || link.isEmpty) return false;
@@ -78,9 +66,6 @@ class _VolunteerQuestionDetailScreenState
 
   Future<void> _loadThread() async {
     try {
-      // Re-fetch the request itself (not just messages) so this screen
-      // picks up status/volunteer_id changes made elsewhere — the
-      // volunteer closing the chat, or the 48h auto-close kicking in.
       final fresh = await SupabaseService.client
           .from('volunteer_requests')
           .select()
@@ -155,15 +140,10 @@ class _VolunteerQuestionDetailScreenState
   Future<void> _acceptVideoCall() async {
     setState(() => _respondingToCall = true);
     try {
-      // Also creates a real Zoom meeting behind the scenes — the volunteer
-      // just has to send it, not build one themselves.
-      final link =
-          await SupabaseService.acceptVideoCall(widget.request['id'].toString());
+      final link = await SupabaseService.acceptVideoCall(
+          widget.request['id'].toString());
       widget.request['call_status'] = 'accepted';
       widget.request['meeting_link'] = link;
-      // Posted as a real chat message (not just the "waiting" banner,
-      // which disappears once the volunteer sends the link) so the
-      // agreed date/time stays visible in the thread for both sides.
       if (_scheduledDate != null && _scheduledTime != null) {
         await SupabaseService.sendRequestMessage(
             widget.request['id'].toString(),
@@ -198,9 +178,6 @@ class _VolunteerQuestionDetailScreenState
     }
   }
 
-  // The volunteer's stored meeting_link keeps the whole pasted invite
-  // (join link, meeting ID, passcode) rather than just a bare URL, so
-  // pull out just the http(s) link to actually launch on tap.
   static final _urlPattern = RegExp(r'https?://\S+');
 
   Future<void> _openMeetingLink(String link) async {
@@ -276,9 +253,6 @@ class _VolunteerQuestionDetailScreenState
             ),
           );
         }
-        // Once a link's been sent, the "Join Call" button attached to
-        // that message in the thread (see _messageTile) is enough — no
-        // need for a second, persistent one down here too.
         return const SizedBox.shrink();
       default:
         return const SizedBox.shrink();

@@ -5,7 +5,6 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 
-// ── Volunteers List ───────────────────────────────────────────────
 class VolunteersListScreen extends StatefulWidget {
   const VolunteersListScreen({super.key});
   @override
@@ -27,12 +26,8 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
     try {
       final data = await SupabaseService.getVolunteers();
 
-      // Show only timings from 9 AM - 6 PM that have not passed today and
-      // are not already booked by another user for the same volunteer.
       final withAvailability = await attachAvailableTimingsForToday(data);
 
-      // "Services Provided" shows what the volunteer actually published
-      // under Manage Services, not a generic fixed list.
       final withServices = await Future.wait(withAvailability.map((v) async {
         final userId = v['user_id'] as String?;
         final services = userId != null

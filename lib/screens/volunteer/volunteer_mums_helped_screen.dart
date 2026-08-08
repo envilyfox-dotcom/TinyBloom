@@ -32,7 +32,6 @@ class _VolunteerMumsHelpedScreenState extends State<VolunteerMumsHelpedScreen> {
           .eq('status', 'completed');
       final rows = List<Map<String, dynamic>>.from(data);
 
-      // Group by mum: session count + most recent completed session date.
       final byMum = <String, Map<String, dynamic>>{};
       for (final row in rows) {
         final patientId = row['patient_id'] as String?;

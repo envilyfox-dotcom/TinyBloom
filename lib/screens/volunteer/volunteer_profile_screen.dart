@@ -44,7 +44,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     }
   }
 
-  // ── Sign Out ──────────────────────────────────────────────────
   void _logout(BuildContext context) {
     showDialog(
       context: context,
@@ -96,7 +95,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        // ← goes to home (not pop) because Profile is a tab, not a pushed screen
         leading: IconButton(
           icon: const Icon(Icons.chevron_left,
               color: AppColors.textDark, size: 28),
@@ -115,15 +113,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Column(
                   children: [
-                    // ── Title ────────────────────────────────────
                     Text('Account Details',
                         style: GoogleFonts.poppins(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textDark)),
                     const SizedBox(height: 20),
-
-                    // ── Avatar ───────────────────────────────────
                     CircleAvatar(
                       radius: 52,
                       backgroundColor: AppColors.rose.withValues(alpha: 0.2),
@@ -136,8 +131,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           : null,
                     ),
                     const SizedBox(height: 24),
-
-                    // ── Info card ──────────────────────────────────
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
@@ -167,8 +160,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           if (certification.isNotEmpty)
                             _infoRow('Certification/License:', certification),
                           const SizedBox(height: 16),
-
-                          // ── Edit ───────────────────────────────
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
@@ -192,15 +183,12 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // ── Sign Out ──────────────────────────────────
                     _optionTile(
                       icon: Icons.logout,
                       label: 'Sign Out',
                       color: Colors.red.shade300,
                       onTap: () => _logout(context),
                     ),
-
                     const SizedBox(height: 20),
                   ],
                 ),

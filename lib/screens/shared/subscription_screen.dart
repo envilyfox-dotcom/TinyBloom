@@ -6,7 +6,6 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// ── Subscription Screen ───────────────────────────────────────────
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
 
@@ -14,7 +13,6 @@ class SubscriptionScreen extends StatefulWidget {
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-// Plan metadata shared by the upgrade tiles and the Change Plan sheet.
 const subscriptionPlans = {
   'premium_monthly': {'label': 'Premium Monthly', 'price': '\$9.90/month'},
   'premium_yearly': {

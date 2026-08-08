@@ -5,11 +5,6 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:shimmer/shimmer.dart';
 import '../utils/app_theme.dart';
 
-// Neither the markdown package nor raw `<u>` HTML tags support underline —
-// CommonMark's raw-HTML rule leaves `<u>`/`</u>` untouched as literal text
-// instead of parsing them — so Create Article's underline button emits this
-// `++text++` marker instead, and every screen that displays article content
-// needs this syntax registered to render it.
 class _UnderlineSyntax extends md.DelimiterSyntax {
   _UnderlineSyntax()
       : super(
@@ -21,12 +16,6 @@ class _UnderlineSyntax extends md.DelimiterSyntax {
         );
 }
 
-// Inline elements (unlike block elements) resolve their TextStyle from
-// [MarkdownStyleSheet.styles], which only has slots for a fixed set of known
-// tags — 'u' isn't one of them, so [visitText] never sees the underline
-// decoration merged in. Overriding [visitElementAfterWithContext] instead
-// replaces the already-built (plain) inline child with one carrying the
-// parent's inherited style plus underline.
 class _UnderlineBuilder extends MarkdownElementBuilder {
   @override
   Widget visitElementAfterWithContext(
@@ -35,9 +24,6 @@ class _UnderlineBuilder extends MarkdownElementBuilder {
     TextStyle? preferredStyle,
     TextStyle? parentStyle,
   ) {
-    // Text.rich (not a plain Text) so the parent paragraph's merge step,
-    // which only flattens children whose textSpan is a TextSpan, folds this
-    // back into the same RichText run as its surrounding text.
     return Text.rich(TextSpan(
         text: element.textContent,
         style: (parentStyle ?? preferredStyle ?? const TextStyle())
@@ -45,12 +31,6 @@ class _UnderlineBuilder extends MarkdownElementBuilder {
   }
 }
 
-// Inline images (from Create Article's image button) render with no size
-// hint from markdown, so the default renderer pops the image in the instant
-// it finishes downloading and the layout jumps. A shimmer skeleton at a
-// placeholder height shows progress until then; the loaded image is scaled
-// to the article's full width at its own natural aspect ratio (BoxFit.fitWidth)
-// rather than a fixed box, so nothing gets cropped.
 class _ImageBuilder extends MarkdownElementBuilder {
   @override
   Widget? visitElementAfterWithContext(
@@ -92,10 +72,6 @@ class _ImageBuilder extends MarkdownElementBuilder {
   }
 }
 
-// ── Article Content ───────────────────────────────────────────────
-// Renders article body text written with Create Article's formatting
-// toolbar (bold/italic/underline/emoji/inline images) consistently
-// wherever it's displayed.
 class ArticleContent extends StatelessWidget {
   final String data;
   final TextStyle? style;

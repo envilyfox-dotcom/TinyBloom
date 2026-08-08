@@ -7,9 +7,6 @@ import '../screens/specialist/specialist_notifications_helpers.dart'
 import '../utils/app_theme.dart';
 import 'common_widgets.dart';
 
-// Shared "User Review" building blocks for the specialist and volunteer
-// dashboards — same design for both, only the underlying provider_ratings
-// data differs. Star-only: no comment is ever collected, so none is shown.
 Widget providerReviewCard(BuildContext context, Map<String, dynamic> rating) {
   final mum = rating['mum'] as Map<String, dynamic>?;
   final reviewerName = (mum?['full_name'] as String?) ?? 'A mum';
@@ -18,16 +15,11 @@ Widget providerReviewCard(BuildContext context, Map<String, dynamic> rating) {
   final createdAt = DateTime.tryParse(rating['created_at']?.toString() ?? '');
   final sourceType = rating['source_type'] as String?;
   final sourceId = rating['source_id']?.toString();
-  // Consultations get the same short SPC-xxxxxx/VOL-xxxxxx id shown
-  // elsewhere for the same appointment; chat-sourced ratings (volunteer
-  // quick chat) aren't consultations table rows, so they keep the raw id.
   final sourceLabel = sourceId == null
       ? null
       : sourceType == 'consultation'
           ? 'From Appointment: ${appointmentIdLabel(sourceId, rating['provider_type'] as String?)}'
           : 'From Chat: $sourceId';
-  // Only consultation-sourced ratings map to a completed appointment we can
-  // open — quick-chat ratings have no consultations row to jump to.
   final canOpenConsultation = sourceType == 'consultation' && sourceId != null;
 
   return TBCard(

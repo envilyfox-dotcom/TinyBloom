@@ -11,29 +11,6 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/quick_chat_volunteer.dart';
 
-// ── Notifications Centre (Next of Kin) ────────────────────────────────
-// Restyled to match the mum's NotificationsScreen (header with urgent
-// badge, title, active-alert count, "Mark all as read", horizontal filter
-// chips, notification-card look with a bulleted detail panel for
-// emergencies). Data is scoped to the linked mum rather than the mum's
-// own multi-table system: milestones + consultations, emergency alerts
-// derived from the linked mum's pregnancy_logs (the same danger-symptom
-// scan the mum's own centre runs on her logs), daily reminders written
-// for the next-of-kin's role, and a "volunteer replied" alert when a
-// volunteer claims/replies to a question the next-of-kin posted via Ask a
-// Volunteer (volunteer_requests.volunteer_id being set is their first
-// reply — see claimAndReplyToRequest in supabase_service.dart). Reminders
-// are "sent" server-side (see
-// supabase/migrations/add_next_of_kin_daily_reminders.sql).
-//
-// Read tracking: alerts never disappear once seen (unlike the old
-// dismiss-on-tap behaviour) — they stay in the list but stop being
-// highlighted as unread, same as the mum's own centre. There's no
-// backend read-receipt table for these derived alerts, so read state is
-// stored locally per device (utils/next_of_kin_alert_read_state.dart) and
-// shared with the dashboard's notification-bell badge, which uses the
-// same alert-source builder (utils/next_of_kin_alerts_data.dart) so the
-// two screens always agree on what's unread.
 class NextOfKinAlertsScreen extends StatefulWidget {
   const NextOfKinAlertsScreen({super.key});
   @override
@@ -42,7 +19,6 @@ class NextOfKinAlertsScreen extends StatefulWidget {
 
 class _AlertItem {
   final String key;
-  // 'emergency' | 'milestone' | 'consultation' | 'reminder' | 'volunteer_reply'
   final String type;
   final IconData icon;
   final Color color;
@@ -76,9 +52,6 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
   Map<String, String> _providerNames = {};
   bool _loading = true;
   String _selectedFilter = 'All';
-  // Snapshot of what was already read BEFORE this visit, so alerts that
-  // are new this session still render as unread while being viewed —
-  // freshly-seen alerts only stop highlighting on the *next* visit.
   Set<String> _readAlertKeys = {};
 
   static const _filters = [
@@ -147,10 +120,6 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
     } catch (_) {}
 
     final week = (linkedMum?['current_week'] as int?) ?? 0;
-    // Prefer the real, server-derived week-start date (a pure function of
-    // due_date) over the local "first seen on this device" fallback, so
-    // the milestone's timestamp doesn't reset to "just now" on every
-    // fresh install/device.
     final weekStartDate = DateTime.tryParse(
         (linkedMum?['current_week_start_date'] ?? '').toString());
     final milestoneTimestamp = week <= 0
@@ -170,9 +139,6 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
         _loading = false;
       });
 
-      // Now that this visit's alerts have been shown (as unread, using the
-      // pre-visit snapshot above), persist them as read for next time —
-      // this is what clears the dashboard's bell badge.
       final currentKeys = _allAlerts.map((a) => a.key).toSet();
       await markAlertKeysRead(currentKeys);
     }
@@ -322,7 +288,6 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
       milestoneTimestamp: _milestoneTimestamp,
     );
     final items = [for (final s in sources) _alertItemFromSource(s)];
-    // Latest activity first, regardless of type.
     items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return items;
   }
@@ -337,9 +302,8 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
 
   int get _unreadCount => _allAlerts.where((a) => !_isRead(a)).length;
 
-  int get _urgentCount => _allAlerts
-      .where((a) => a.type == 'emergency' && !_isRead(a))
-      .length;
+  int get _urgentCount =>
+      _allAlerts.where((a) => a.type == 'emergency' && !_isRead(a)).length;
 
   Future<void> _markAllAsRead() async {
     final keys = _allAlerts.map((a) => a.key).toSet();
@@ -349,10 +313,6 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
     }
   }
 
-  // A plain received-at timestamp rather than a purely relative label —
-  // "Just now" for the first minute, then the actual date and time, so
-  // two alerts received minutes apart are never both stuck reading
-  // "Just now" indefinitely.
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
     if (diff.inMinutes < 1) return 'Just now';

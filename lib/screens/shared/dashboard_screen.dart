@@ -54,9 +54,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'consultations',
       'booking',
       'bookings',
-      // A "Rate Dr {name}" prompt is filed as a consultation notification
-      // (see ensureRatingNotification) so it shows up in the Consultation
-      // section instead of its own separate category.
       'rating',
       'ratings',
       'review',
@@ -226,8 +223,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final dueDateStr = pregnancyProfile['due_date']?.toString();
     if (dueDateStr != null && dueDateStr.isNotEmpty) {
-      // `due_date` is a `date` column, so it's wall clock and must be
-      // re-tagged rather than shifted before comparing against sgtNow().
       final dueDate = sgtDateFrom(dueDateStr);
       if (dueDate != null) {
         final pregnancyStart = dueDate.subtract(const Duration(days: 280));
@@ -330,10 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _healthLogCreatedAt(Map<String, dynamic> item) {
-    return (item['logged_at'] ??
-            item['created_at'] ??
-            dbNow())
-        .toString();
+    return (item['logged_at'] ?? item['created_at'] ?? dbNow()).toString();
   }
 
   String _cleanHealthText(List<String> symptoms, String notes) {
@@ -453,10 +445,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'message': matches.first,
         'type': 'emergency',
         'is_read': false,
-        'created_at': (item['created_at'] ??
-                item['log_date'] ??
-                dbNow())
-            .toString(),
+        'created_at':
+            (item['created_at'] ?? item['log_date'] ?? dbNow()).toString(),
         'source_table': 'pregnancy_logs',
         'severity': 'Urgent',
         'condition': 'Abnormal pregnancy log detected',
@@ -466,9 +456,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
   }
 
-  // Only the most recent health_log/pregnancy_log is considered "current" —
-  // once a mum logs a newer entry, an older danger symptom counts as over,
-  // even if it's never individually dismissed.
   Future<List<Map<String, dynamic>>> _loadDashboardHealthLogEmergencyAlerts(
       String userId) async {
     final alerts = <Map<String, dynamic>>[];
@@ -502,8 +489,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'Failed to scan pregnancy_logs for dashboard emergency alerts: $e');
     }
 
-    // Even the most recent log's alert stops surfacing once it's a week old
-    // — it's still the "current" log, but no longer worth flagging as urgent.
     final cutoff = DateTime.now().subtract(const Duration(days: 7));
     return alerts.where((alert) {
       final createdAt = DateTime.tryParse(alert['created_at'].toString());
@@ -571,9 +556,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ].contains(clean);
   }
 
-  // Returns Singapore wall clock. `scheduled_at` is a timestamptz (an
-  // instant) and gets converted; `scheduled_date`/`scheduled_time` are
-  // already wall clock and only get re-tagged into the Singapore frame.
   DateTime? _dashboardConsultationScheduledAt(Map<String, dynamic> item) {
     final rawScheduledAt = item['scheduled_at']?.toString();
     if (rawScheduledAt != null && rawScheduledAt.isNotEmpty) {
@@ -681,9 +663,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final item in List<Map<String, dynamic>>.from(data)) {
       final status = (item['status'] ?? 'booked').toString();
 
-      // Drop consultations that are over — cancelled/completed/etc, or past
-      // their scheduled slot by more than 2 hours — so Active Alerts shows
-      // current/upcoming bookings, not an ever-growing history.
       if (!_isUpcomingConsultationStatus(status)) continue;
       final scheduledAt = _dashboardConsultationScheduledAt(item);
       if (scheduledAt != null &&
@@ -748,13 +727,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return rows;
   }
 
-  // Once a volunteer accepts a video call from an "Ask a Volunteer" thread
-  // (see acceptVideoCall/sendMeetingLink), the volunteer's own dashboard
-  // already reminds them via "Upcoming Consultations" — this is the mum-side
-  // equivalent so she also sees a reminder here, not just inside the thread
-  // itself. A same-day call whose slot has already passed isn't "upcoming"
-  // either, even though its date still matches today — mirrors the exact
-  // filter volunteer_dashboard_screen.dart uses on its side.
   Future<List<Map<String, dynamic>>> _loadDashboardVolunteerCallReminders(
       String userId) async {
     final data = await SupabaseService.client
@@ -852,11 +824,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final rows = <Map<String, dynamic>>[];
 
     for (final item in List<Map<String, dynamic>>.from(data)) {
-      // volunteer_services.status only flips to 'done' when the volunteer
-      // opens their own Services screen — if they never do, a mum would
-      // otherwise keep seeing an already-ended service as "available"
-      // indefinitely. This double-checks the actual availability window
-      // regardless of the stored status.
       if (_volunteerServiceHasEnded(
           (item['availability'] ?? '').toString().trim())) {
         continue;
@@ -977,8 +944,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           };
         }));
       } catch (e) {
-        // Active alerts are optional. If this table is blocked by RLS, keep the
-        // dashboard usable with normal notifications and generated cards.
         debugPrint('Failed to load dashboard active alerts: $e');
       }
 
@@ -1060,8 +1025,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final premiumOnly = item['is_premium_only'] == true;
         if (!isPremiumUser && premiumOnly) return false;
 
-        // Only surface as a notification for a week — the article itself
-        // stays in the Learn tab library regardless.
         final published = DateTime.tryParse(
             (item['published_at'] ?? item['created_at'] ?? '').toString());
         return published == null || published.isAfter(articleCutoff);
@@ -1155,8 +1118,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
 
     visible.sort((a, b) {
-      // Emergency alerts always float to the top; everything else is
-      // strictly newest-first.
       final aEmergency =
           _normaliseNotificationType(a['type']) == 'emergency' ? 0 : 1;
       final bEmergency =
@@ -1340,10 +1301,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     await context.push('/notifications');
 
-    // Refresh dashboard after returning from Notifications Centre.
-    // This is important because Mark All As Read is done on the
-    // Notifications Centre page, while the dashboard keeps its own list
-    // in memory until we reload it.
     if (mounted) {
       await _load();
     }
@@ -1409,8 +1366,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (!mounted) return;
 
-    // Use the ID route instead of relying only on state.extra.
-    // This forces the detail screen to load the exact consultation from Supabase.
     await context.push('/consultation/detail/$consultationId');
 
     if (mounted) {
@@ -1425,14 +1380,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         notification['source_table']?.toString() ?? 'notifications';
     final type = _normaliseNotificationType(notification['type']);
 
-    // Volunteer call reminders stay visible until the call itself passes —
-    // the loader's own "upcoming" filter drops it then — instead of
-    // disappearing the first time it's tapped. It's a standing reminder to
-    // join on the day, not a one-off alert meant to be dismissed.
     final isPersistentReminder = sourceTable == 'volunteer_call_reminder';
 
-    // Remove the card from the dashboard immediately after the user opens it.
-    // This keeps Active Alerts & Notifications clear once the item is read.
     if (id != null && !isPersistentReminder) {
       setState(() {
         _notifications = _notifications.where((n) {
@@ -1442,8 +1391,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }).toList();
       });
 
-      // Always save a read receipt so the dashboard stays cleared after
-      // app restart. This also handles global notifications where user_id is NULL.
       await _saveNotificationReadReceipt(notification);
 
       if (sourceTable == 'notifications') {
@@ -1451,8 +1398,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final userId = SupabaseService.currentUser?.id;
           final itemUserId = notification['user_id']?.toString();
 
-          // Only update user-owned notification rows. Global notification rows
-          // are cleared per user through notification_read_receipts.
           if (userId != null && itemUserId == userId) {
             await SupabaseService.client
                 .from('notifications')
@@ -1478,10 +1423,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    // "Rate Dr {name}" prompts are filed as consultation notifications (see
-    // ensureRatingNotification) so they group under the Consultation
-    // section, but a tap still needs to open the rating card instead of
-    // the generic consultation detail flow.
     if (notification['rating_provider_id'] != null) {
       await context.push('/rate-provider', extra: notification);
       return;
@@ -1501,8 +1442,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    // For non-consultation dashboard preview cards, open the full
-    // Notifications Centre so the correct detail sheet can be shown there.
     await _openNotificationsCentre();
   }
 
@@ -1510,9 +1449,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _load();
-    // Picks up new notifications (e.g. a volunteer publishing a service)
-    // without the mum having to manually pull-to-refresh — mirrors
-    // volunteer_services_screen.dart's own auto-refresh timer.
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
@@ -1530,7 +1466,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       profile = await SupabaseService.getProfile();
     } catch (_) {}
-    // Fall back to JWT metadata for name display.
     if (profile == null) {
       final meta = SupabaseService.currentUser?.userMetadata;
       if (meta != null) {
@@ -1544,12 +1479,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       consultations = await SupabaseService.getConsultations();
     } catch (_) {}
 
-    // Prompt the mum to rate a specialist once their consultation's slot
-    // has passed. Runs here (not just the My Consultations screen) so the
-    // prompt reliably shows up in Active Alerts & Notifications wherever
-    // she actually lands after a session — ensureRatingNotification is
-    // idempotent, so re-running this on every dashboard load/refresh is
-    // harmless.
     try {
       final mumId = SupabaseService.currentUser?.id;
       if (mumId != null) {
@@ -1566,8 +1495,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await Future.wait(specialistIdsToLookUp.map((id) async {
           try {
             final p = await SupabaseService.getProviderProfile(id);
-            final name = (p?['profiles']
-                as Map<String, dynamic>?)?['full_name'] as String?;
+            final name = (p?['profiles'] as Map<String, dynamic>?)?['full_name']
+                as String?;
             if (name != null) ratingProviderNames[id] = name;
           } catch (_) {}
         }));
@@ -1589,8 +1518,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<Map<String, dynamic>> myQuestions = [];
     try {
       final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
-      // A chat with no activity in 48h is done — flip it to closed here
-      // too, not just when someone happens to open its own thread screen.
       await SupabaseService.autoCloseStaleRequests(rawQuestions);
       myQuestions = await enrichQuickChatQuestions(
         List<Map<String, dynamic>>.from(rawQuestions),
@@ -1599,10 +1526,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('Failed to load quick chat volunteer questions: $e');
     }
 
-    // Load latest notifications and active alerts for the dashboard preview.
-    // Guarded with a timeout + catch — this used to be an unprotected await,
-    // so if it ever threw or a sub-query hung, _load() never reached the
-    // setState below and the dashboard spun on "loading" forever.
     try {
       notifications = await _loadDashboardNotifications(profile, pp)
           .timeout(const Duration(seconds: 10));
@@ -1610,8 +1533,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       debugPrint('Failed to load dashboard notifications: $e');
     }
 
-    // Look up provider names for whichever consultations the Active Alerts
-    // card will actually show, so it can read "2:00 PM - Nur Aisyah".
     final activeSpecialistIds = consultations
         .where((c) {
           final status = (c['status'] as String? ?? '').toLowerCase();
@@ -1646,7 +1567,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int get _currentWeek {
     if (_pregnancyProfile == null) return 0;
-    // Prefer due_date — recalculates week automatically over time.
     final dueDateStr = _pregnancyProfile!['due_date'] as String?;
     if (dueDateStr != null) {
       final dueDate = sgtDateFrom(dueDateStr);
@@ -1656,7 +1576,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return week.clamp(1, 42);
       }
     }
-    // Fallback: use the stored week snapshot.
     final stored = _pregnancyProfile!['current_week'] ??
         _pregnancyProfile!['pregnancy_week'];
     if (stored != null) return (stored as num).toInt().clamp(1, 42);
@@ -1683,8 +1602,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Single source of truth lives in pregnancyWeekData (shared with the Baby
-  // Development screen) so the two screens never disagree on a given week.
   String _babySize(int week) {
     final data = pregnancyWeekData[week];
     if (data == null) return 'growing strong 🌸';
@@ -1705,15 +1622,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String? get _photoUrl => _profile?['profile_picture_url'] as String?;
 
-  // Notification-bell badge count. _notifications is broader than "unread
-  // notifications" — it's the dashboard's own "Active Alerts" preview
-  // list, which deliberately keeps showing consultation cards until the
-  // user taps one (see _openDashboardNotification), even though the full
-  // Notifications Centre (notifications_screen.dart) always treats
-  // consultation rows as already-read and never counts them toward its
-  // own "$unreadCount unread notification(s)" text. Excluding
-  // consultations here keeps the bell in agreement with that count
-  // instead of the (larger) Active Alerts preview count.
   int get _notificationBellCount => _notifications
       .where((n) => _normaliseNotificationType(n['type']) != 'consultation')
       .length;
@@ -1733,7 +1641,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: AppColors.rose,
         child: CustomScrollView(
           slivers: [
-            // App bar
             SliverAppBar(
               expandedHeight: (isPremium || isMum) ? 172 : 160,
               floating: false,
@@ -1766,8 +1673,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ?.copyWith(fontSize: 20)),
                                 const SizedBox(height: 2),
                                 Text(
-                                    DateFormat('EEEE, d MMMM')
-                                        .format(sgtNow()),
+                                    DateFormat('EEEE, d MMMM').format(sgtNow()),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1781,8 +1687,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             count: _notificationBellCount,
                             onTap: () async {
                               if (!_canNav()) return;
-                              // Reload on return so the badge reflects
-                              // whatever got marked read during the visit.
                               await context.push('/notifications');
                               if (mounted) _load();
                             },
@@ -1824,28 +1728,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
-
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Mum-specific: pregnancy week card
                     if (isMum) ...[
                       _buildPregnancyCard(context),
                       const SizedBox(height: 20),
                     ],
-
-                    // Active alerts: milestones + upcoming consultations
                     _buildActiveAlerts(),
-
-                    // Mum-specific: her posted volunteer questions
                     if (isMum && _myQuestions.isNotEmpty) ...[
                       _buildMyQuestions(),
                     ],
-
-                    // Upcoming features
                     const TBSectionTitle(
                       title: 'Explore',
                       action: '',
@@ -1863,8 +1759,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Named milestones for a handful of well-known weeks, falling back to the
-  // existing per-week development highlight for everything else.
   String _milestoneLabel(int week) {
     const named = {
       4: 'Pregnancy confirmed',
@@ -1888,7 +1782,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '3rd Trimester';
   }
 
-  // Progress through the *current* trimester, not the whole pregnancy.
   double get _trimesterProgress {
     final week = _currentWeek;
     if (week <= 12) return week / 12;
@@ -1896,7 +1789,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return (week - 27) / 13;
   }
 
-  // "Week X of Y" within the current trimester, for the caption under the bar.
   (int, int) get _trimesterWeekOverview {
     final week = _currentWeek;
     if (week <= 12) return (week, 12);
@@ -1904,8 +1796,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return (week - 27, 13);
   }
 
-  // Tappable — leads to Baby Development. (The "New Milestone" alert leads
-  // to the Milestone Journey screen instead.)
   Widget _buildPregnancyCard(BuildContext context) {
     final week = _currentWeek;
     final hasDate = week > 0;
@@ -2068,10 +1958,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildActiveAlerts() {
     final cards = <Widget>[];
 
-    // Only show unread dashboard notifications loaded from the database or
-    // generated alert sources. Do not recreate fallback milestone/consultation
-    // cards here, because that makes the dashboard look unread again after
-    // the user taps Mark all as read.
     for (final n in _notifications.take(3)) {
       final type = _normaliseNotificationType(n['type']);
 
@@ -2217,8 +2103,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.only(bottom: 10),
       child: TBCard(
         onTap: onTap,
-        // Smaller padding prevents the alert row from being a few pixels too wide
-        // on smaller Android screens.
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -48,11 +48,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (_isMum) _loadAge();
   }
 
-  // pregnancy_profiles.age isn't part of the `profiles` row this screen is
-  // seeded with, so it's fetched separately — this is also what lets a mum
-  // fill in an age that never got captured during onboarding (e.g. an
-  // older onboarding flow that didn't require it), which otherwise has no
-  // way to be corrected since onboarding only ever runs once per account.
   Future<void> _loadAge() async {
     try {
       final pp = await SupabaseService.getPregnancyProfile();

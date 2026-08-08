@@ -19,10 +19,6 @@ String _timeAgo(DateTime date) {
   return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
-// ── Review tab (Specialists) ─────────────────────────────────────────────
-// Replaces the community Forum tab for specialists. Shows the peer-review
-// queue for their specialty group(s) plus their own submissions.
-// See Article_System_specialist.md §3-5.
 class SpecialistReviewScreen extends StatefulWidget {
   const SpecialistReviewScreen({super.key});
   @override
@@ -77,10 +73,10 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
 
     return items.where((item) {
       final title = (item['title'] as String? ?? '').toLowerCase();
-      final authorName = ((item['author'] as Map<String, dynamic>?)?['full_name']
-              as String? ??
-          '')
-          .toLowerCase();
+      final authorName =
+          ((item['author'] as Map<String, dynamic>?)?['full_name'] as String? ??
+                  '')
+              .toLowerCase();
       return title.contains(q) || authorName.contains(q);
     }).toList();
   }
@@ -110,11 +106,6 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
     }
   }
 
-  // Backs the "?" info button. A doctor's specialization is fixed at
-  // registration and can't be changed from the app, so their primary/
-  // secondary group standing never changes for the life of the session —
-  // cache it after the first fetch instead of re-hitting the network (and
-  // racing the info button) every time this screen remounts.
   Future<void> _loadGroupInfo() async {
     final userId = SupabaseService.currentUser?.id;
     if (userId != null && SpecialistGroupCache.isValidFor(userId)) {
@@ -144,7 +135,8 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
       };
       final specialtiesByGroup = <int, List<String>>{};
       await Future.wait(groupIds.map((id) async {
-        specialtiesByGroup[id] = await SupabaseService.getSpecialtiesForGroup(id);
+        specialtiesByGroup[id] =
+            await SupabaseService.getSpecialtiesForGroup(id);
       }));
 
       final name = profile?['full_name'] as String?;
@@ -172,7 +164,6 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
         });
       }
     } catch (_) {
-      // Non-critical — the info button just won't have data to show.
       if (mounted) setState(() => _groupInfoLoading = false);
     }
   }
@@ -352,9 +343,6 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Review')),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      // The body's TBLoading (below) stays up until group info is ready too,
-      // so this and the rest of the page always appear together in one
-      // shot — no separate spinner-in-a-button loading state of its own.
       floatingActionButton: _groupInfoLoading
           ? null
           : FloatingActionButton(
@@ -428,9 +416,8 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
                             : AppColors.textLight.withValues(alpha: 0.25),
                       ),
                       labelStyle: TextStyle(
-                        color: selected
-                            ? AppColors.infoBlue
-                            : AppColors.textMid,
+                        color:
+                            selected ? AppColors.infoBlue : AppColors.textMid,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -470,8 +457,7 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
                             valueListenable: _searchQuery,
                             builder: (context, query, _) {
                               final currentList = lists[_tab];
-                              final filtered =
-                                  _applySearch(currentList, query);
+                              final filtered = _applySearch(currentList, query);
 
                               if (currentList.isEmpty) {
                                 return ListView(
@@ -518,11 +504,6 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
   }
 }
 
-// ── Group info dialog ────────────────────────────────────────────────────
-// Explains, in plain terms, which review groups this specialist belongs to
-// and what each grants them — primary group membership allows both approval
-// slots, secondary group membership allows only the second. See
-// Article_System_specialist.md §2-3.
 class _GroupInfoDialog extends StatelessWidget {
   final String? name;
   final String? specialization;
@@ -637,7 +618,8 @@ class _GroupInfoDialog extends StatelessWidget {
                       if (primaryGroup != null)
                         _GroupDropdown(
                           group: primaryGroup!,
-                          specialties: groupSpecialties[primaryGroup!['id']] ?? [],
+                          specialties:
+                              groupSpecialties[primaryGroup!['id']] ?? [],
                           color: AppColors.sage,
                         )
                       else
@@ -725,8 +707,6 @@ class _GroupInfoDialog extends StatelessWidget {
   }
 }
 
-// A group name that expands, on tap of its chevron, into the list of member
-// specialties for that review group — see Article_System_specialist.md §2.
 class _GroupDropdown extends StatefulWidget {
   final Map<String, dynamic> group;
   final List<String> specialties;

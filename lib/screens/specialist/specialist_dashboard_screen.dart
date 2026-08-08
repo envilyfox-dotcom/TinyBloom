@@ -110,11 +110,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
-  // Combines scheduled_date + scheduled_time into a single DateTime so
-  // consultations can be sorted soonest-first. scheduled_time is stored as
-  // "9:00 AM"-style text, not 24-hour time, so this defers to slotDateTime
-  // (shared with the booking screens) rather than DateTime.parse, which
-  // can't handle the AM/PM format and would silently fail for every row.
   DateTime? _scheduledDateTime(Map<String, dynamic> c) {
     final scheduled = c['scheduled_date'];
     if (scheduled == null) return null;
@@ -131,9 +126,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
-  // A pending consultation whose scheduled time has already passed is
-  // "Expired" (see the Consultation tab) — it shouldn't still show up here
-  // where the specialist could approve something that's already over.
   bool _isExpiredPending(Map<String, dynamic> c) {
     final status = (c['status'] as String? ?? '').toLowerCase();
     if (status != 'pending') return false;
@@ -154,7 +146,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     return sorted;
   }
 
-  // Filter consultations for today
   List<Map<String, dynamic>> get _todayConsultations {
     final now = sgtNow();
     final today = sgtWallClock(now.year, now.month, now.day);
@@ -177,7 +168,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     return _sortedByTime(filtered);
   }
 
-  // Filter consultations for upcoming (after today)
   List<Map<String, dynamic>> get _upcomingConsultations {
     final now = sgtNow();
     final today = sgtWallClock(now.year, now.month, now.day);
@@ -208,7 +198,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       (_specialistProfile?['specialization'] as String? ??
           'Healthcare Specialist');
 
-  // Build consultation card
   Widget _consultationCard(Map<String, dynamic> consultation,
       {bool showDate = false}) {
     final patientName = consultation['patient_name'] as String? ??
@@ -313,7 +302,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       ),
     );
   }
-
 
   Color _notifColor(String category) {
     switch (category) {
@@ -531,7 +519,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         color: AppColors.rose,
         child: CustomScrollView(
           slivers: [
-            // App bar
             SliverAppBar(
               expandedHeight: 140,
               floating: false,
@@ -575,15 +562,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                           Row(
                             children: [
                               TBNotificationBell(
-                                // No persisted "read" state for specialist
-                                // notifications (see
-                                // specialist_notifications_helpers.dart) —
-                                // every item currently in the feed counts,
-                                // and it naturally clears once the
-                                // consultation/article no longer needs
-                                // action. Reload on return so the badge
-                                // reflects anything that resolved while
-                                // the centre was open.
                                 count: _notifications.length,
                                 onTap: () async {
                                   await context
@@ -627,7 +605,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
               padding: const EdgeInsets.all(20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  // Today's Appointments
                   Row(
                     children: [
                       const Expanded(
@@ -651,8 +628,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                           child: _consultationCard(c),
                         )),
                   const SizedBox(height: 20),
-
-                  // Upcoming Appointments
                   Row(
                     children: [
                       const Expanded(
@@ -676,11 +651,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                           child: _consultationCard(c, showDate: true),
                         )),
                   const SizedBox(height: 20),
-
-                  // Alerts & Notifications
                   _buildAlertsSection(),
-
-                  // User Review
                   providerReviewsSection(
                     context,
                     ratings: _providerRatings,

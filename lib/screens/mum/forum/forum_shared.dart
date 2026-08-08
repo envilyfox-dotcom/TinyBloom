@@ -10,7 +10,6 @@ String timeAgo(DateTime date) {
   return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
-// Small role label shown under a forum post/comment author's name.
 String forumRoleLabel(String? role) {
   switch (role) {
     case 'free_user':

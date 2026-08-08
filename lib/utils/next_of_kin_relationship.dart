@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 
-// Shared between the Link to Pregnant User screen (choosing a relationship
-// when first linking) and the profile screen's "Connected To" card
-// (editing it afterward), so the two never drift apart.
 const nextOfKinRelationshipOptions = [
   'Husband / Partner',
   'Mother',
@@ -14,9 +11,6 @@ const nextOfKinRelationshipOptions = [
   'Other',
 ];
 
-// Shows a small dialog to edit the relationship on the caller's existing
-// next_of_kin_profiles link. Returns the new relationship on success (so
-// the caller can update its own state), or null if cancelled.
 Future<String?> editNextOfKinRelationship(
   BuildContext context, {
   required String? currentRelationship,
@@ -38,15 +32,13 @@ Future<String?> editNextOfKinRelationship(
               items: nextOfKinRelationshipOptions
                   .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                   .toList(),
-              onChanged: saving
-                  ? null
-                  : (v) => setDialogState(() => selected = v),
+              onChanged:
+                  saving ? null : (v) => setDialogState(() => selected = v),
             ),
             actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             actions: [
               TextButton(
-                onPressed:
-                    saving ? null : () => Navigator.pop(dialogContext),
+                onPressed: saving ? null : () => Navigator.pop(dialogContext),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
@@ -75,8 +67,7 @@ Future<String?> editNextOfKinRelationship(
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child:
-                            CircularProgressIndicator(strokeWidth: 2))
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Save'),
               ),
             ],

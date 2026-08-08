@@ -4,9 +4,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── Milestone Journey ─────────────────────────────────────────────
-// Curated "big moments" timeline (as opposed to BabyDevelopmentScreen's
-// week-by-week data), grouped by trimester.
 const _milestoneJourney = [
   {
     'week': 4,
@@ -164,7 +161,6 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // The most recently reached milestone week, so far.
     int? currentMilestoneWeek;
     for (final m in _milestoneJourney) {
       if ((m['week'] as int) <= _currentWeek) {

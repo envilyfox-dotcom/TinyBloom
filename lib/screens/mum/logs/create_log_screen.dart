@@ -6,7 +6,6 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
 import 'logs_shared.dart';
 
-// ── Create / Edit Log ─────────────────────────────────────────────
 class CreateLogScreen extends StatefulWidget {
   final Map<String, dynamic>? existing;
   const CreateLogScreen({super.key, this.existing});
@@ -16,8 +15,6 @@ class CreateLogScreen extends StatefulWidget {
 }
 
 class _CreateLogScreenState extends State<CreateLogScreen> {
-  // Singapore wall clock — a log defaults to "today in Singapore", not
-  // today on whatever timezone the device happens to be set to.
   DateTime _date = sgtNow();
   bool _loading = false;
   bool _optionsLoading = true;
@@ -75,8 +72,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   void _addOther(TextEditingController ctrl, Set<String> selectedItems) {
     final text = ctrl.text.trim();
     if (text.isEmpty) return;
-    final exists = selectedItems
-        .any((s) => s.toLowerCase() == text.toLowerCase());
+    final exists =
+        selectedItems.any((s) => s.toLowerCase() == text.toLowerCase());
     setState(() {
       if (!exists) selectedItems.add(text);
       ctrl.clear();
@@ -86,9 +83,6 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      // All three stay in the same frame as _date, or showDatePicker's
-      // "initialDate within range" assertion can trip on a device whose
-      // clock is behind Singapore.
       initialDate: _date,
       firstDate: sgtNow().subtract(const Duration(days: 365)),
       lastDate: sgtNow(),
@@ -104,8 +98,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
 
   Future<void> _save() async {
     if (_selectedMood.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a mood.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Please select a mood.')));
       return;
     }
 

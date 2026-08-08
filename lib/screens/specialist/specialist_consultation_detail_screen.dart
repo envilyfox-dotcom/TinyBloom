@@ -12,12 +12,8 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
-// The Join Zoom button unlocks this long before the scheduled time, so a
-// specialist can't join way too early — see specialist_consultations_screen.dart
-// for the matching lock on the list view's Start Session button.
 const Duration _joinWindow = Duration(minutes: 10);
 
-// ── Specialist Consultation Details ───────────────────────────────────
 class SpecialistConsultationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> consultation;
   const SpecialistConsultationDetailScreen(
@@ -48,8 +44,6 @@ class _SpecialistConsultationDetailScreenState
     return normalised == 'confirmed' || normalised == 'approved';
   }
 
-  // Fails open (allows joining) if the schedule can't be determined, rather
-  // than locking the specialist out of a confirmed session.
   bool _isWithinJoinWindow() {
     final scheduled = _scheduledDateTime();
     if (scheduled == null) return true;
@@ -94,10 +88,6 @@ class _SpecialistConsultationDetailScreenState
   void initState() {
     super.initState();
     _load();
-    // Re-evaluates the Join Zoom lock/unlock against the current time
-    // without needing a manual refresh, so the join window opens on its
-    // own while this page is open. Only the action-button area listens to
-    // _now, so the tick doesn't rebuild the whole screen.
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) _now.value = sgtNow();
     });
@@ -110,10 +100,6 @@ class _SpecialistConsultationDetailScreenState
     super.dispose();
   }
 
-  // A pending consultation whose scheduled time has already passed is
-  // expired — persist that the moment it's opened, same as cancelling
-  // persists "cancelled", so the Approve button disappears for good
-  // instead of just being hidden client-side.
   DateTime? _scheduledDateTime() {
     final scheduled = widget.consultation['scheduled_date'];
     if (scheduled == null) return null;
@@ -143,10 +129,7 @@ class _SpecialistConsultationDetailScreenState
       if (id == null) return;
       await SupabaseService.updateConsultationStatus(id, 'expired');
       widget.consultation['status'] = 'expired';
-    } catch (_) {
-      // If this fails (e.g. RLS/network), just leave it as pending — the
-      // Consultation tab still displays it as Expired client-side.
-    }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -220,15 +203,11 @@ class _SpecialistConsultationDetailScreenState
     }
   }
 
-  // Approving creates a real, joinable Zoom meeting (via Zoom's Server-to-
-  // Server OAuth API, see supabase/functions/create-zoom-meeting) and
-  // confirms the consultation in the same step, rather than confirming
-  // against a meeting link that doesn't exist yet.
   Future<void> _approve() async {
     setState(() => _approving = true);
     try {
-      final link = await SupabaseService.approveConsultation(
-          widget.consultation['id']);
+      final link =
+          await SupabaseService.approveConsultation(widget.consultation['id']);
       if (mounted) {
         widget.consultation['status'] = 'confirmed';
         widget.consultation['meeting_link'] = link;

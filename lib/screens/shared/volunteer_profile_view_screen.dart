@@ -5,8 +5,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// Read-only volunteer profile — same shape as SpecialistProfileViewScreen,
-// opened by tapping a volunteer's name on a session notification.
 class VolunteerProfileViewScreen extends StatefulWidget {
   final String volunteerId;
   const VolunteerProfileViewScreen({super.key, required this.volunteerId});
@@ -126,7 +124,6 @@ class _VolunteerProfileViewScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Header
             Center(
               child: Column(
                 children: [
@@ -193,8 +190,6 @@ class _VolunteerProfileViewScreenState
               ),
             ),
             const SizedBox(height: 20),
-
-            // Credentials Section
             if (affiliation.isNotEmpty || certification.isNotEmpty) ...[
               SizedBox(
                 width: double.infinity,
@@ -227,8 +222,6 @@ class _VolunteerProfileViewScreenState
               ),
               const SizedBox(height: 12),
             ],
-
-            // Helps With
             if (helpsWith.isNotEmpty) ...[
               TBCard(
                 child: Padding(
@@ -271,8 +264,6 @@ class _VolunteerProfileViewScreenState
               ),
               const SizedBox(height: 12),
             ],
-
-            // Available Days
             if (availableToday.isNotEmpty)
               TBCard(
                 child: Padding(

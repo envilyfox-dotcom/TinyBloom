@@ -5,17 +5,6 @@ import '../../utils/app_theme.dart';
 import '../../utils/checklist_data.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── Support Checklist (Next of Kin) ───────────────────────────────────
-// Backed by Supabase (checklist_templates + checklist_items — see
-// supabase/migrations/add_checklist_tables.sql). On first load the user's
-// checklist_items are materialised from checklist_templates. Ticking a box
-// saves immediately; adding/editing/deleting items is staged locally while
-// in edit mode and only pushed to Supabase when Save is tapped (Cancel
-// discards the staged changes without touching the database).
-//
-// "Current trimester" is a user-set toggle here (not auto-detected from
-// the mum's week) — the dashboard preview reads the same stored selection
-// via getCurrentChecklistPhaseIndex() in utils/checklist_data.dart.
 class NextOfKinChecklistScreen extends StatefulWidget {
   const NextOfKinChecklistScreen({super.key});
   @override
@@ -56,7 +45,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
       setState(() {
         _linkedMum = mum;
         _phases = phasesFromRows(rows);
-        _selectedPhaseIndex = phaseIndex.clamp(0, _phases.isEmpty ? 0 : _phases.length - 1);
+        _selectedPhaseIndex =
+            phaseIndex.clamp(0, _phases.isEmpty ? 0 : _phases.length - 1);
         _loading = false;
       });
     }
@@ -167,8 +157,7 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
         content: TextField(controller: ctrl, autofocus: true, maxLines: 3),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
               child: const Text('Save')),
@@ -195,8 +184,7 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
               child: const Text('Add')),
@@ -280,8 +268,7 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                     ?.copyWith(fontSize: 20)),
             const SizedBox(height: 4),
             Text('$totalDone of $totalItems tasks completed',
-                style:
-                    const TextStyle(color: AppColors.textMid, fontSize: 13)),
+                style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
             const SizedBox(height: 12),
             LinearProgressIndicator(
               value: overallProgress,
@@ -339,7 +326,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
     );
   }
 
-  Widget _phaseSection(ChecklistPhase phase, {required bool initiallyExpanded}) {
+  Widget _phaseSection(ChecklistPhase phase,
+      {required bool initiallyExpanded}) {
     final done = phaseDone(phase);
     final total = phaseTotal(phase);
     return Padding(
@@ -350,7 +338,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             initiallyExpanded: initiallyExpanded,
-            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            tilePadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             iconColor: AppColors.rose,
             collapsedIconColor: AppColors.textLight,
@@ -364,7 +353,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                           fontWeight: FontWeight.w700, fontSize: 15)),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: done == total
                         ? AppColors.sage.withValues(alpha: 0.15)
@@ -373,7 +363,9 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                   ),
                   child: Text('$done/$total',
                       style: TextStyle(
-                          color: done == total ? AppColors.sage : AppColors.roseDeep,
+                          color: done == total
+                              ? AppColors.sage
+                              : AppColors.roseDeep,
                           fontSize: 12,
                           fontWeight: FontWeight.w700)),
                 ),
@@ -393,7 +385,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                             letterSpacing: 0.5)),
                   ),
                 ),
-                for (final item in category.items) _checklistTile(category, item),
+                for (final item in category.items)
+                  _checklistTile(category, item),
                 if (_editing)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10, top: 2),
@@ -445,8 +438,9 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
                       fontSize: 13,
                       height: 1.3,
                       color: done ? AppColors.textLight : AppColors.textDark,
-                      decoration:
-                          done ? TextDecoration.lineThrough : TextDecoration.none)),
+                      decoration: done
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none)),
             ),
           ),
           if (_editing)

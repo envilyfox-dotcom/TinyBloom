@@ -33,10 +33,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
     _load();
-    // Picks up services added/edited elsewhere (e.g. from another device)
-    // without the volunteer having to manually pull-to-refresh.
-    _refreshTimer =
-        Timer.periodic(const Duration(seconds: 15), (_) => _load());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
   @override
@@ -47,8 +44,6 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     super.dispose();
   }
 
-  // Legacy fixed timing slots, kept only so services published before
-  // free-form times were introduced still auto-expire correctly.
   static const _timingEndHour = {
     'Morning (9AM - 12PM)': 12,
     'Afternoon (12PM - 3PM)': 15,
@@ -56,15 +51,12 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     'Night (6PM - 9PM)': 21,
   };
 
-  // Free-form times are stored as "h:mm a - h:mm a" (e.g. "3:30 PM - 5:00 PM").
-  // Returns the end-of-range time, or null if the string doesn't match.
   static DateTime? _parseFreeFormEndTime(DateTime date, String timing) {
     final match =
         RegExp(r'-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*$').firstMatch(timing);
     if (match == null) return null;
     try {
       final parsed = DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      // Singapore wall clock, to match the sgtNow() this is compared against.
       return sgtWallClock(
           date.year, date.month, date.day, parsed.hour, parsed.minute);
     } catch (_) {
@@ -92,9 +84,6 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     }
   }
 
-  // A service whose availability slot has fully passed (e.g. "12PM - 3PM" on
-  // 12 July, once it's past 3PM that day) is automatically marked done —
-  // no manual toggle needed.
   Future<void> _autoMarkExpired(List<Map<String, dynamic>> services) async {
     final now = sgtNow();
     for (final service in services) {
@@ -109,16 +98,15 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
       if (date == null) continue;
       final endsAt = _parseFreeFormEndTime(date, timing) ??
           (_timingEndHour.containsKey(timing)
-              ? sgtWallClock(date.year, date.month, date.day,
-                  _timingEndHour[timing]!)
+              ? sgtWallClock(
+                  date.year, date.month, date.day, _timingEndHour[timing]!)
               : null);
       if (endsAt == null) continue;
       if (now.isAfter(endsAt)) {
         try {
           await SupabaseService.client
               .from('volunteer_services')
-              .update({'status': 'done'})
-              .eq('id', service['id']);
+              .update({'status': 'done'}).eq('id', service['id']);
           service['status'] = 'done';
         } catch (_) {}
       }
@@ -149,9 +137,6 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
           .from('volunteer_services')
           .delete()
           .eq('id', service['id']);
-      // Broadcast (user_id: null) so every mum's Notifications Centre picks
-      // it up under the Services filter — this listing has no per-mum
-      // relationship to notify individually (see volunteer_services schema).
       try {
         final volunteerProfile = await SupabaseService.getProfile();
         final volunteerName =
@@ -161,18 +146,14 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
         await SupabaseService.client.from('notifications').insert({
           'user_id': null,
           'title': 'Service cancelled',
-          'message':
-              '"${service['title']}" is no longer available.',
+          'message': '"${service['title']}" is no longer available.',
           'type': 'services',
           'volunteer_name':
               volunteerName?.isNotEmpty == true ? volunteerName : null,
-          'volunteer_photo_url': volunteerPhotoUrl?.isNotEmpty == true
-              ? volunteerPhotoUrl
-              : null,
+          'volunteer_photo_url':
+              volunteerPhotoUrl?.isNotEmpty == true ? volunteerPhotoUrl : null,
         });
-      } catch (_) {
-        // Best-effort — the delete itself already succeeded.
-      }
+      } catch (_) {}
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -234,7 +215,8 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.rose))
           : Column(
               children: [
                 Padding(
@@ -262,8 +244,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
                             ),
                       filled: true,
                       fillColor: AppColors.white,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(
@@ -276,8 +257,8 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
                                   AppColors.textLight.withValues(alpha: 0.3))),
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: AppColors.rose, width: 1.5)),
+                          borderSide: const BorderSide(
+                              color: AppColors.rose, width: 1.5)),
                     ),
                   ),
                 ),
@@ -300,8 +281,6 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
   }
 
   void _onEdit(Map<String, dynamic> service) async {
-    // A completed service is locked — no editing, no meeting join — but its
-    // details stay fully viewable, same as a closed chat on the Requests page.
     final isDone = (service['status'] as String? ?? 'available') == 'done';
     final result = await Navigator.push(
       context,
@@ -311,9 +290,6 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
             service: service),
       ),
     );
-    // The Edit screen's own top-right delete action pops with 'deleted'
-    // once the user confirms, instead of performing the delete itself —
-    // the actual Supabase call and notification broadcast live here.
     if (result == 'deleted') {
       await _deleteService(service);
     } else {
@@ -397,7 +373,8 @@ class _ServiceCard extends StatelessWidget {
     final availability = service['availability'] as String? ?? '';
     final consultationMethod = service['consultation_method'] as String? ?? '';
     final serviceId = formatServiceId(service['service_number']);
-    final hasZoomLink = (service['zoom_link'] as String? ?? '').trim().isNotEmpty;
+    final hasZoomLink =
+        (service['zoom_link'] as String? ?? '').trim().isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -445,7 +422,8 @@ class _ServiceCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.label_outline, size: 13, color: AppColors.textLight),
+                const Icon(Icons.label_outline,
+                    size: 13, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(category,
                     style: GoogleFonts.poppins(
@@ -512,8 +490,9 @@ class _ServiceCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed:
-                      (isDone || !hasZoomLink) ? null : () => _joinCall(context),
+                  onPressed: (isDone || !hasZoomLink)
+                      ? null
+                      : () => _joinCall(context),
                   icon: const Icon(Icons.videocam_outlined, size: 16),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.teal,
@@ -533,8 +512,6 @@ class _ServiceCard extends StatelessWidget {
     );
   }
 }
-
-// ── Service Form (New / Edit / Delete) ───────────────────────────────────────
 
 enum ServiceMode { create, edit, delete, view }
 
@@ -597,8 +574,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     return DateFormat('h:mm a').format(dt);
   }
 
-  // True if `availability` (stored as "yyyy-MM-dd | h:mm a - h:mm a") falls
-  // on `date` and its time range overlaps [startMinutes, endMinutes).
   bool _availabilityOverlaps(
       String availability, DateTime date, int startMinutes, int endMinutes) {
     if (!availability.contains(' | ')) return false;
@@ -657,8 +632,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     }
   }
 
-  // Scroll-wheel time picker (replaces the old keyboard-entry showTimePicker)
-  // shared by both Start Time and End Time.
   Future<TimeOfDay?> _showScrollTimePicker(TimeOfDay initial) {
     TimeOfDay selected = initial;
     return showModalBottomSheet<TimeOfDay>(
@@ -709,9 +682,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     if (picked == null || !mounted) return;
     setState(() {
       _startTime = picked;
-      // A previously-picked end time that's no longer after the new start
-      // time is no longer valid — clear it so an invalid combination can't
-      // silently persist.
       if (_endTime != null &&
           (_endTime!.hour * 60 + _endTime!.minute) <=
               (picked.hour * 60 + picked.minute)) {
@@ -725,8 +695,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
 
   Future<void> _pickEndTime() async {
     if (_startTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please select a start time first.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a start time first.')));
       return;
     }
     final picked =
@@ -768,15 +738,12 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     }
   }
 
-  // Pushes the read-only delete-confirmation screen; on confirmation, pops
-  // this Edit screen with 'deleted' so the caller (_onEdit) performs the
-  // actual Supabase delete instead of duplicating that logic here.
   Future<void> _onDelete() async {
     final confirmed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ServiceFormScreen(mode: ServiceMode.delete, service: widget.service),
+        builder: (_) => ServiceFormScreen(
+            mode: ServiceMode.delete, service: widget.service),
       ),
     );
     if (confirmed == true && mounted) {
@@ -830,9 +797,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           }
           return;
         }
-      } catch (_) {
-        // Best-effort — don't block publishing if the conflict check itself fails.
-      }
+      } catch (_) {}
     }
     setState(() => _saving = true);
     try {
@@ -841,9 +806,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           : '${dateOnly(_availDate ?? sgtNow())} | '
               '${_formatTime(_startTime!)} - ${_formatTime(_endTime!)}';
       if (widget.mode == ServiceMode.create) {
-        // A real, joinable Zoom meeting is minted for this slot instead of
-        // asking the volunteer to paste one in — see
-        // SupabaseService.createServiceZoomMeeting.
         final zoomLink = await SupabaseService.createServiceZoomMeeting(
           title: _titleCtrl.text.trim(),
           date: _availDate!,
@@ -871,10 +833,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           'zoom_link': _zoomCtrl.text.trim(),
         }).eq('id', widget.service!['id']);
 
-        // Broadcast (user_id: null) so every mum's Notifications Centre
-        // picks it up under the Services filter on any saved edit — this
-        // listing has no per-mum relationship to notify individually (see
-        // volunteer_services schema).
         try {
           final volunteerProfile = await SupabaseService.getProfile();
           final volunteerName =
@@ -895,11 +853,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                 ? volunteerPhotoUrl
                 : null,
           });
-        } catch (_) {
-          // Best-effort — the update itself already succeeded.
-        }
+        } catch (_) {}
       }
-      // delete is handled by the parent via pop(true)
       if (mounted) {
         Navigator.pop(
             context, widget.mode == ServiceMode.delete ? true : false);
@@ -973,8 +928,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                   readOnly: isReadOnly, minLines: 4, maxLines: 8),
               const SizedBox(height: 12),
               Text('Availability Date',
-                  style:
-                      GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
+                  style: GoogleFonts.poppins(
+                      color: AppColors.textMid, fontSize: 12)),
               const SizedBox(height: 4),
               GestureDetector(
                 onTap: isReadOnly ? null : _pickDate,
@@ -1039,9 +994,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               _zoomLinkSection(),
               const SizedBox(height: 20),
               if (isView)
-                // Completed services are read-only — a single Close button,
-                // no Cancel/Save pair, same pattern as a closed chat on the
-                // Requests page (info stays fully visible, nothing editable).
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -1108,8 +1060,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                                     strokeWidth: 2, color: Colors.white))
                             : Text(_primaryLabel,
                                 style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13)),
+                                    fontWeight: FontWeight.w600, fontSize: 13)),
                       ),
                     ),
                   ],
@@ -1121,10 +1072,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     );
   }
 
-  // Create mode: no link exists yet — it's minted from the chosen slot the
-  // moment the volunteer hits Publish (see SupabaseService.createServiceZoomMeeting).
-  // Edit/delete mode: show the real link that was generated at publish
-  // time, read-only — there's nothing to type in any more.
   Widget _zoomLinkSection() {
     if (widget.mode == ServiceMode.create) {
       return Container(
@@ -1136,12 +1083,14 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.videocam_outlined, size: 16, color: AppColors.teal),
+            const Icon(Icons.videocam_outlined,
+                size: 16, color: AppColors.teal),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'A Zoom link will be created automatically for this slot when you publish.',
-                style: GoogleFonts.poppins(color: AppColors.textDark, fontSize: 12),
+                style: GoogleFonts.poppins(
+                    color: AppColors.textDark, fontSize: 12),
               ),
             ),
           ],
@@ -1162,13 +1111,16 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
           decoration: BoxDecoration(
             color: AppColors.background,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.textLight.withValues(alpha: 0.3)),
+            border:
+                Border.all(color: AppColors.textLight.withValues(alpha: 0.3)),
           ),
           child: Text(
             zoomLink.isEmpty ? 'No Zoom link on this listing yet.' : zoomLink,
             style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: zoomLink.isEmpty ? AppColors.textLight : AppColors.textDark),
+                color: zoomLink.isEmpty
+                    ? AppColors.textLight
+                    : AppColors.textDark),
           ),
         ),
       ],
@@ -1194,15 +1146,16 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
             fillColor: AppColors.white,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+                borderSide: BorderSide(
+                    color: AppColors.textLight.withValues(alpha: 0.3))),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    BorderSide(color: AppColors.textLight.withValues(alpha: 0.3))),
+                borderSide: BorderSide(
+                    color: AppColors.textLight.withValues(alpha: 0.3))),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.rose, width: 1.5)),
+                borderSide:
+                    const BorderSide(color: AppColors.rose, width: 1.5)),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),

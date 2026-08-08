@@ -4,8 +4,6 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/review_widgets.dart';
 
-// Full "View All" reviews list for a specialist or volunteer — same layout
-// for both, newest review first. Star-only, no comment (none is collected).
 class ProviderReviewsScreen extends StatefulWidget {
   final String providerId;
   final String providerName;

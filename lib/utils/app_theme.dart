@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  // Primary palette — matches TinyBloom website
   static const Color rose = Color(0xFFC97B75);
   static const Color roseDeep = Color(0xFFB05A53);
   static const Color blush = Color(0xFFF9EDE8);
@@ -13,12 +12,10 @@ class AppColors {
   static const Color gold = Color(0xFFD4A847);
   static const Color infoBlue = Color(0xFF4A85C9);
 
-  // Text
   static const Color textDark = Color(0xFF3D2B27);
   static const Color textMid = Color(0xFF5C4F4A);
   static const Color textLight = Color(0xFF9B8B86);
 
-  // Background
   static const Color background = Color(0xFFFAF5F2);
   static const Color white = Color(0xFFFFFFFF);
   static const Color cardBg = Color(0xFFFFFFFF);
@@ -39,15 +36,15 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       textTheme: GoogleFonts.dmSansTextTheme().copyWith(
         displayLarge: GoogleFonts.playfairDisplay(
-          color: AppColors.textDark, fontWeight: FontWeight.w700),
+            color: AppColors.textDark, fontWeight: FontWeight.w700),
         displayMedium: GoogleFonts.playfairDisplay(
-          color: AppColors.textDark, fontWeight: FontWeight.w700),
+            color: AppColors.textDark, fontWeight: FontWeight.w700),
         headlineLarge: GoogleFonts.playfairDisplay(
-          color: AppColors.textDark, fontWeight: FontWeight.w700),
+            color: AppColors.textDark, fontWeight: FontWeight.w700),
         headlineMedium: GoogleFonts.playfairDisplay(
-          color: AppColors.textDark, fontWeight: FontWeight.w600),
+            color: AppColors.textDark, fontWeight: FontWeight.w600),
         titleLarge: GoogleFonts.dmSans(
-          color: AppColors.textDark, fontWeight: FontWeight.w700),
+            color: AppColors.textDark, fontWeight: FontWeight.w700),
         bodyLarge: GoogleFonts.dmSans(color: AppColors.textMid),
         bodyMedium: GoogleFonts.dmSans(color: AppColors.textMid),
       ),
@@ -67,11 +64,11 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.rose,
           foregroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-          textStyle: GoogleFonts.dmSans(
-            fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle:
+              GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
           elevation: 0,
         ),
       ),
@@ -79,11 +76,11 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.rose,
           side: const BorderSide(color: AppColors.rose, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          textStyle: GoogleFonts.dmSans(
-            fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle:
+              GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -91,11 +88,13 @@ class AppTheme {
         fillColor: AppColors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.textLight.withValues(alpha: 0.3)),
+          borderSide:
+              BorderSide(color: AppColors.textLight.withValues(alpha: 0.3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.textLight.withValues(alpha: 0.3)),
+          borderSide:
+              BorderSide(color: AppColors.textLight.withValues(alpha: 0.3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -103,16 +102,14 @@ class AppTheme {
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        hintStyle: GoogleFonts.dmSans(
-          color: AppColors.textLight, fontSize: 14),
+        hintStyle: GoogleFonts.dmSans(color: AppColors.textLight, fontSize: 14),
         labelStyle: GoogleFonts.dmSans(
-          color: AppColors.textMid, fontWeight: FontWeight.w600),
+            color: AppColors.textMid, fontWeight: FontWeight.w600),
       ),
       cardTheme: CardThemeData(
         color: AppColors.white,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: EdgeInsets.zero,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(

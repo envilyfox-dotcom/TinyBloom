@@ -530,7 +530,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 }
-// ── Feedback Sheet with Star Rating ──────────────────────────────
 
 class _FeedbackSheet extends StatefulWidget {
   const _FeedbackSheet();

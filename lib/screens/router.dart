@@ -85,10 +85,7 @@ final router = GoRouter(
     return null;
   },
   routes: [
-    // ── Splash ────────────────────────────────────────────────────
     GoRoute(path: '/splash', builder: (_, __) => const _SplashScreen()),
-
-    // ── Auth ──────────────────────────────────────────────────────
     GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
     GoRoute(
         path: '/forgot-password',
@@ -100,8 +97,6 @@ final router = GoRouter(
           if (auth.isSpecialist) return const SpecialistOnboardingScreen();
           return const MumOnboardingScreen();
         }),
-
-    // ── Shell (bottom nav) ────────────────────────────────────────
     ShellRoute(
       builder: (context, state, child) {
         final location = state.matchedLocation;
@@ -112,7 +107,6 @@ final router = GoRouter(
         final isNextOfKin = auth.isNextOfKin;
 
         if (isVolunteer) {
-          // Home(0) | Services(1) | Consultation(2) | Request(3) | Profile(4)
           if (location.startsWith('/volunteer/services')) {
             idx = 1;
           } else if (location.startsWith('/volunteer/sessions'))
@@ -121,7 +115,6 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/volunteer/profile')) idx = 4;
         } else if (isNextOfKin) {
-          // Home(0) | Logs(1) | Articles(2) | Forum(3) | Checklist(4) | Profile(5)
           if (location.startsWith('/logs')) {
             idx = 1;
           } else if (location.startsWith('/education'))
@@ -140,7 +133,6 @@ final router = GoRouter(
             idx = 3;
           else if (location.startsWith('/profile')) idx = 4;
         } else {
-          // Specialist: Home(0) | Consultation(1) | Learn(2) | Review(3) | Profile(4)
           if (location.startsWith('/specialist/consultations')) {
             idx = 1;
           } else if (location.startsWith('/education'))
@@ -153,7 +145,6 @@ final router = GoRouter(
         return AppShell(selectedIndex: idx, child: child);
       },
       routes: [
-        // ── Shared home (role-based) ───────────────────────────
         GoRoute(
             path: '/home',
             builder: (context, __) {
@@ -163,8 +154,6 @@ final router = GoRouter(
               if (auth.isNextOfKin) return const NextOfKinDashboardScreen();
               return const SpecialistDashboardScreen();
             }),
-
-        // ── Mum / Specialist tabs ──────────────────────────────
         GoRoute(
             path: '/profile',
             builder: (context, __) {
@@ -192,13 +181,10 @@ final router = GoRouter(
         GoRoute(
             path: '/specialist/review',
             builder: (_, __) => const SpecialistReviewScreen()),
-
-        // ── Volunteer main tabs (INSIDE ShellRoute so back works) ──
         GoRoute(
           path: '/volunteer/services',
           builder: (_, __) => const VolunteerServicesScreen(),
           routes: [
-            // Sub-screens pushed on top — back arrow works automatically
             GoRoute(
               path: 'new',
               builder: (_, __) =>
@@ -231,8 +217,6 @@ final router = GoRouter(
         ),
       ],
     ),
-
-    // ── Detail screens (no shell) — unchanged from your original ──
     GoRoute(path: '/logs/create', builder: (_, __) => const CreateLogScreen()),
     GoRoute(
         path: '/logs/:id',
@@ -248,7 +232,6 @@ final router = GoRouter(
             EditProfileScreen(profile: state.extra as Map<String, dynamic>?)),
     GoRoute(path: '/faq', builder: (_, __) => const FaqScreen()),
     GoRoute(path: '/chatbot', builder: (_, __) => const ChatbotScreen()),
-
     GoRoute(
         path: '/consultation',
         builder: (_, state) => ConsultationListScreen(
@@ -269,7 +252,6 @@ final router = GoRouter(
         path: '/ask-volunteer/detail',
         builder: (context, state) => VolunteerQuestionDetailScreen(
             request: state.extra as Map<String, dynamic>)),
-
     GoRoute(
         path: '/consultation/book',
         builder: (context, state) {
@@ -352,7 +334,6 @@ final router = GoRouter(
             providerType: extra['providerType'] as String,
           );
         }),
-
     GoRoute(
         path: '/baby-development',
         builder: (_, state) {
@@ -376,7 +357,6 @@ final router = GoRouter(
         path: '/specialist/review/thread',
         builder: (context, state) =>
             SpecialistReviewThreadScreen(contentId: state.extra as String)),
-
     GoRoute(
         path: '/specialist/edit-profile',
         builder: (context, state) => SpecialistEditProfileScreen(

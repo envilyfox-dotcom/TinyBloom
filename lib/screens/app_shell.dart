@@ -7,19 +7,18 @@ class AppShell extends StatelessWidget {
   final Widget child;
   final int selectedIndex;
 
-  const AppShell({
-    super.key, required this.child, required this.selectedIndex});
+  const AppShell({super.key, required this.child, required this.selectedIndex});
 
-  // Mum tabs (unchanged)
-  static const _tabs = [
-    '/home', '/logs', '/education', '/forum', '/profile'];
+  static const _tabs = ['/home', '/logs', '/education', '/forum', '/profile'];
 
-  // Specialist tabs — Home | Consultation | Learn | Forum | Profile
-  // (used only as a fallback; specialists use _tabsSpecialist below)
   static const _tabsNonMum = [
-    '/home', '/specialist/consultations', '/education', '/forum', '/profile'];
+    '/home',
+    '/specialist/consultations',
+    '/education',
+    '/forum',
+    '/profile'
+  ];
 
-  // Specialist tabs — Home | Consultation | Learn | Review | Profile
   static const _tabsSpecialist = [
     '/home',
     '/specialist/consultations',
@@ -28,14 +27,22 @@ class AppShell extends StatelessWidget {
     '/profile'
   ];
 
-  // Volunteer tabs — Home | Services | Consultation | Request | Profile
   static const _tabsVolunteer = [
-    '/home', '/volunteer/services', '/volunteer/sessions', '/volunteer/requests', '/volunteer/profile'];
+    '/home',
+    '/volunteer/services',
+    '/volunteer/sessions',
+    '/volunteer/requests',
+    '/volunteer/profile'
+  ];
 
-  // Next-of-kin tabs — Home | Logs | Articles | Forum | Checklist | Profile
   static const _tabsNextOfKin = [
-    '/home', '/logs', '/education', '/forum',
-    '/next-of-kin/checklist', '/profile'];
+    '/home',
+    '/logs',
+    '/education',
+    '/forum',
+    '/next-of-kin/checklist',
+    '/profile'
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +52,6 @@ class AppShell extends StatelessWidget {
     final isNextOfKin = auth.isNextOfKin;
     final isSpecialist = auth.isSpecialist;
 
-    // ── Next-of-kin bottom nav ─────────────────────────────────────
     if (isNextOfKin) {
       return Scaffold(
         body: child,
@@ -91,7 +97,6 @@ class AppShell extends StatelessWidget {
       );
     }
 
-    // ── Volunteer bottom nav ──────────────────────────────────────
     if (isVolunteer) {
       return Scaffold(
         body: child,
@@ -130,7 +135,6 @@ class AppShell extends StatelessWidget {
       );
     }
 
-    // ── Mum / Specialist bottom nav ────────────────────────────────
     final items = [
       const BottomNavigationBarItem(
           icon: Icon(Icons.home_outlined),

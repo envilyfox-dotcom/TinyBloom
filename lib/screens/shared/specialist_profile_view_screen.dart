@@ -5,9 +5,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// Read-only specialist profile — same layout as SpecialistProfileScreen
-// (their own "My Profile" tab) minus the Edit Profile / Sign Out actions,
-// opened by tapping a specialist's avatar on an article or its author strip.
 class SpecialistProfileViewScreen extends StatefulWidget {
   final String specialistId;
   const SpecialistProfileViewScreen({super.key, required this.specialistId});
@@ -142,7 +139,6 @@ class _SpecialistProfileViewScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Header
             Center(
               child: Column(
                 children: [
@@ -205,8 +201,6 @@ class _SpecialistProfileViewScreenState
               ),
             ),
             const SizedBox(height: 20),
-
-            // Credentials Section
             if (licenseNumber.isNotEmpty ||
                 qualification.isNotEmpty ||
                 hospital.isNotEmpty ||
@@ -252,8 +246,6 @@ class _SpecialistProfileViewScreenState
               ),
               const SizedBox(height: 12),
             ],
-
-            // Description
             if (bio.isNotEmpty) ...[
               TBCard(
                 child: Padding(
@@ -284,8 +276,6 @@ class _SpecialistProfileViewScreenState
               ),
               const SizedBox(height: 12),
             ],
-
-            // Available Hours
             TBCard(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -324,8 +314,6 @@ class _SpecialistProfileViewScreenState
               ),
             ),
             const SizedBox(height: 12),
-
-            // Activity
             Center(
               child: SizedBox(
                 width: 270,

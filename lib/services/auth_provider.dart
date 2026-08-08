@@ -32,14 +32,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _init() {
-    // Synchronous check — no waiting for a stream event.
     _user = SupabaseService.currentUser;
 
-    // Load profile then release the loading gate, with a hard 5s cap.
     Future.microtask(() async {
       if (_user != null) {
         try {
-          await _loadProfile().timeout(const Duration(seconds: 5), onTimeout: () {});
+          await _loadProfile()
+              .timeout(const Duration(seconds: 5), onTimeout: () {});
         } catch (_) {}
       }
       _applyMetaFallback();
@@ -47,12 +46,12 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     });
 
-    // Keep listening for sign-in / sign-out events after initial load.
     SupabaseService.client.auth.onAuthStateChange.listen((data) async {
       _user = data.session?.user;
       if (_user != null) {
         try {
-          await _loadProfile().timeout(const Duration(seconds: 5), onTimeout: () {});
+          await _loadProfile()
+              .timeout(const Duration(seconds: 5), onTimeout: () {});
         } catch (_) {}
         _applyMetaFallback();
       } else {
@@ -79,7 +78,6 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {
       _profile = null;
     }
-    // Fall back to JWT metadata so isMum works even if profiles table is inaccessible.
     if (_profile == null && _user != null) {
       final meta = _user!.userMetadata;
       if (meta != null) {

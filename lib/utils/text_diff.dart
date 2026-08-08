@@ -1,5 +1,3 @@
-// Word/paragraph-level diffing for the article edit-history feed — lets the
-// UI show only what changed in an edit instead of the full before/after text.
 import 'dart:typed_data';
 
 enum DiffOpType { equal, delete, insert }
@@ -27,9 +25,6 @@ List<String> _tokenizeParagraphs(String text) => text
     .where((p) => p.isNotEmpty)
     .toList();
 
-// LCS-based diff, generic over any token list (words or whole paragraphs).
-// Falls back to a wholesale replace when the token grid would be too large
-// to diff cell-by-cell, so one huge unbroken block of text can't hang the UI.
 List<DiffOp> _diffTokens(List<String> a, List<String> b) {
   final n = a.length, m = b.length;
   if (n == 0 && m == 0) return const [];
@@ -76,8 +71,6 @@ List<DiffOp> _diffTokens(List<String> a, List<String> b) {
   return ops;
 }
 
-// Merges consecutive same-type ops so rendering doesn't split a run of
-// unchanged/changed words into one TextSpan per token.
 List<DiffOp> _collapse(List<DiffOp> ops) {
   final out = <DiffOp>[];
   for (final op in ops) {

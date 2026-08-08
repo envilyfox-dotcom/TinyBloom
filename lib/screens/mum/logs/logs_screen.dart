@@ -28,8 +28,6 @@ class _LogsScreenState extends State<LogsScreen> {
     _load();
   }
 
-  // Next-of-kin accounts see their linked mum's logs, read-only — everyone
-  // else sees (and can manage) their own.
   Future<void> _load() async {
     try {
       if (_isNextOfKin) {

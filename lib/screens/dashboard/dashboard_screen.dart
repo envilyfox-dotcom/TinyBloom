@@ -46,7 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       profile = await SupabaseService.getProfile();
     } catch (_) {}
-    // Fall back to JWT metadata for name display.
     if (profile == null) {
       final meta = SupabaseService.currentUser?.userMetadata;
       if (meta != null) {
@@ -60,8 +59,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       consultations = await SupabaseService.getConsultations();
     } catch (_) {}
 
-    // Look up provider names for whichever consultations the Active Alerts
-    // card will actually show, so it can read "2:00 PM - Nur Aisyah".
     final activeSpecialistIds = consultations
         .where((c) {
           final status = (c['status'] as String? ?? '').toLowerCase();
@@ -94,7 +91,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int get _currentWeek {
     if (_pregnancyProfile == null) return 0;
-    // Prefer due_date — recalculates week automatically over time.
     final dueDateStr = _pregnancyProfile!['due_date'] as String?;
     if (dueDateStr != null) {
       final dueDate = DateTime.tryParse(dueDateStr);
@@ -104,7 +100,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return week.clamp(1, 42);
       }
     }
-    // Fallback: use the stored week snapshot.
     final stored = _pregnancyProfile!['current_week'] ??
         _pregnancyProfile!['pregnancy_week'];
     if (stored != null) return (stored as num).toInt().clamp(1, 42);
@@ -131,8 +126,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Single source of truth lives in pregnancyWeekData (shared with the Baby
-  // Development screen) so the two screens never disagree on a given week.
   String _babySize(int week) {
     final data = pregnancyWeekData[week];
     if (data == null) return 'growing strong 🌸';
@@ -166,7 +159,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: AppColors.rose,
         child: CustomScrollView(
           slivers: [
-            // App bar
             SliverAppBar(
               expandedHeight: 160,
               floating: false,
@@ -242,22 +234,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
-
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Mum-specific: pregnancy week card
                     if (isMum) ...[
                       _buildPregnancyCard(context),
                       const SizedBox(height: 20),
                     ],
-
-                    // Active alerts: milestones + upcoming consultations
                     _buildActiveAlerts(),
-
                     const TBSectionTitle(
                       title: 'Explore',
                       action: '',
@@ -275,8 +262,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Named milestones for a handful of well-known weeks, falling back to the
-  // existing per-week development highlight for everything else.
   String _milestoneLabel(int week) {
     const named = {
       4: 'Pregnancy confirmed',
@@ -300,7 +285,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '3rd Trimester';
   }
 
-  // Progress through the *current* trimester, not the whole pregnancy.
   double get _trimesterProgress {
     final week = _currentWeek;
     if (week <= 12) return week / 12;
@@ -308,7 +292,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return (week - 27) / 13;
   }
 
-  // "Week X of Y" within the current trimester, for the caption under the bar.
   (int, int) get _trimesterWeekOverview {
     final week = _currentWeek;
     if (week <= 12) return (week, 12);
@@ -316,8 +299,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return (week - 27, 13);
   }
 
-  // Tappable — leads to Baby Development. (The "New Milestone" alert leads
-  // to the Milestone Journey screen instead.)
   Widget _buildPregnancyCard(BuildContext context) {
     final week = _currentWeek;
     final hasDate = week > 0;
@@ -431,7 +412,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final week = _currentWeek;
     final auth = context.read<AuthProvider>();
 
-    // Consultations that still need attention (not finished/cancelled).
     final activeConsultations = _consultations.where((c) {
       final status = (c['status'] as String? ?? '').toLowerCase();
       return status == 'pending' || status == 'confirmed';
@@ -625,8 +605,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'premium': false
       },
       {
-        // Not premium-locked: free users can still book volunteers — only
-        // the specialist option inside Consultations itself requires Premium.
         'emoji': '👩‍⚕️',
         'title': 'Consultations',
         'desc': 'Connect with a volunteer or specialist',

@@ -28,12 +28,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _error = 'Please enter a valid email address.');
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await SupabaseService.resetPassword(email);
-      if (mounted) setState(() { _loading = false; _sent = true; });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _sent = true;
+        });
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
     }
   }
 
@@ -52,7 +63,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               const Text('🔒', style: TextStyle(fontSize: 48)),
               const SizedBox(height: 16),
               Text('Reset Password',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 24)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontSize: 24)),
               const SizedBox(height: 8),
               const Text(
                   'Enter your email and we\'ll send you a link to reset your password.',
@@ -67,7 +81,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   boxShadow: [
                     BoxShadow(
                         color: AppColors.textDark.withValues(alpha: 0.08),
-                        blurRadius: 20, offset: const Offset(0, 8)),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8)),
                   ],
                 ),
                 child: _sent ? _sentState() : _formState(),
@@ -82,7 +97,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget _sentState() {
     return Column(
       children: [
-        const Icon(Icons.mark_email_read_outlined, color: AppColors.sage, size: 48),
+        const Icon(Icons.mark_email_read_outlined,
+            color: AppColors.sage, size: 48),
         const SizedBox(height: 12),
         const Text('Check your email',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
@@ -105,7 +121,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
               labelText: 'Email Address',
-              prefixIcon: Icon(Icons.email_outlined, color: AppColors.textLight)),
+              prefixIcon:
+                  Icon(Icons.email_outlined, color: AppColors.textLight)),
         ),
         if (_error != null) ...[
           const SizedBox(height: 12),
@@ -121,12 +138,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               const SizedBox(width: 8),
               Expanded(
                   child: Text(_error!,
-                      style: TextStyle(color: Colors.red.shade700, fontSize: 13))),
+                      style:
+                          TextStyle(color: Colors.red.shade700, fontSize: 13))),
             ]),
           ),
         ],
         const SizedBox(height: 20),
-        TBButton(label: 'Send Reset Link', onPressed: _submit, loading: _loading),
+        TBButton(
+            label: 'Send Reset Link', onPressed: _submit, loading: _loading),
       ],
     );
   }

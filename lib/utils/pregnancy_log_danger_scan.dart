@@ -1,10 +1,3 @@
-// ── Pregnancy log danger-symptom scan ─────────────────────────────────
-// Shared by the next-of-kin alerts screen (which builds full emergency
-// alert cards) and the next-of-kin dashboard (which only needs a count for
-// the notification-bell badge), so the keyword list only lives in one
-// place. Mirrors the same style of scan the mum's own Notifications
-// Centre runs on her logs.
-
 List<String> stringListFromArray(dynamic raw) {
   if (raw == null) return [];
   if (raw is List) {

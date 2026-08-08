@@ -11,11 +11,7 @@ import '../../../widgets/common_widgets.dart';
 import '../../../widgets/quick_chat_volunteer.dart';
 import 'consultation_helpers.dart';
 
-// ── Consultation List Screen ──────────────────────────────────────
 class ConsultationListScreen extends StatefulWidget {
-  // Lets a caller deep-link straight into a pre-filtered view — e.g. the
-  // next-of-kin dashboard's message icon jumps here with just
-  // {'Volunteer Chats'} selected, instead of landing on the unfiltered list.
   final Set<String>? initialTypeFilters;
   const ConsultationListScreen({super.key, this.initialTypeFilters});
   @override
@@ -27,12 +23,7 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   late TabController _tabs;
   List<Map<String, dynamic>> _consultations = [];
   bool _loading = true;
-  // Next-of-kin can only view the linked mum's consultations — booking is
-  // her own action, so the "Book New" tab and any booking CTA are hidden.
   bool _isNextOfKin = false;
-  // Keyed by specialist_id, so the card can show "Dr. Jane Tan" instead of
-  // just "Specialist Consultation" — consultations rows don't embed the
-  // provider's name, so it's fetched once per unique id after loading.
   Map<String, Map<String, dynamic>?> _providerProfiles = {};
 
   static const _filterOptions = [
@@ -47,11 +38,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   String _selectedFilter = 'All';
   Set<String> _selectedProviders = _providerOptions.toSet();
 
-  // Next-of-kin's simpler type filter — a chip row instead of the Filter
-  // sheet, since their tabs already split by status (active vs history).
-  // Multi-select: Pending, Confirmed, and Volunteer Chats can each be
-  // toggled independently, so "just pending", "just confirmed", or "both"
-  // are all reachable. Empty selection means no filter (show everything).
   static const _typeFilterOptions = ['Pending', 'Confirmed', 'Volunteer Chats'];
   final Set<String> _selectedTypeFilters = {};
 
@@ -59,8 +45,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   void initState() {
     super.initState();
     _isNextOfKin = context.read<AuthProvider>().isNextOfKin;
-    // Both roles get 2 tabs now: mum sees My Consultations + Book New;
-    // next-of-kin sees My Consultations (active) + History (past).
     _tabs = TabController(length: 2, vsync: this);
     if (widget.initialTypeFilters != null) {
       _selectedTypeFilters.addAll(widget.initialTypeFilters!);
@@ -70,10 +54,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
 
   String? _error;
 
-  // See effectiveConsultationStatus in consultation_helpers.dart — a
-  // consultation is never written back to 'completed' server-side once its
-  // slot passes, so the meeting time itself is what this treats as the
-  // source of truth (shared with the detail screen for consistency).
   String _effectiveStatus(Map<String, dynamic> item) {
     if (item['_kind'] == 'question') {
       return (item['status'] as String? ?? 'pending').toLowerCase();
@@ -81,8 +61,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     return effectiveConsultationStatus(item);
   }
 
-  // Normalises a consultation row or volunteer question into one shared
-  // status bucket so a single filter row can cover both sources.
   String _itemCategory(Map<String, dynamic> item) {
     final status = _effectiveStatus(item);
     if (item['_kind'] == 'question') {
@@ -101,14 +79,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }
   }
 
-  // A volunteer question ('_kind' == 'question') came from the open Q&A
-  // board; everything else in the merged list is a specialist consultation
-  // booking (volunteer bookings were already filtered out in _load).
   String _providerCategory(Map<String, dynamic> item) =>
       item['_kind'] == 'question' ? 'Volunteer' : 'Specialist';
 
-  // Next-of-kin's two tabs split by status instead of using the Filter
-  // sheet (that stays mum-only): active items now, history once resolved.
   bool _isHistoryItem(Map<String, dynamic> item) {
     final category = _itemCategory(item);
     return category == 'completed' || category == 'cancelled';
@@ -134,9 +107,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     if (status == 'confirmed') {
       return _selectedTypeFilters.contains('Confirmed');
     }
-    // Completed/cancelled consultations only ever show up in the History
-    // tab, which Pending/Confirmed/Volunteer Chats never match — correct,
-    // since none of those describe a resolved item.
     return false;
   }
 
@@ -148,9 +118,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       .where((c) => _isHistoryItem(c) && _matchesTypeFilter(c))
       .toList();
 
-  // Prefers a consultation's own scheduled_date/time as the sort key over
-  // when it was booked; falls back to created_at for volunteer questions
-  // and pending consultations that don't have a slot yet.
   DateTime _sortKey(Map<String, dynamic> item) {
     if (item['_kind'] != 'question') {
       final scheduled = consultationScheduledDateTime(item);
@@ -164,8 +131,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     try {
       List<Map<String, dynamic>> c;
       if (_isNextOfKin) {
-        // Next-of-kin doesn't book consultations themselves — the real
-        // data is the linked mum's own consultations.
         final linkedMum = await SupabaseService.getLinkedMum();
         c = linkedMum != null
             ? await SupabaseService.getConsultationsForPatient(
@@ -177,20 +142,13 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       List<Map<String, dynamic>> questions = [];
       try {
         final raw = await SupabaseService.getMyVolunteerQuestions();
-        // A chat with no activity in 48h is done — flip it to closed here
-        // too, not just when someone happens to open its own thread screen.
         await SupabaseService.autoCloseStaleRequests(raw);
         questions = await enrichQuickChatQuestions(raw);
       } catch (_) {}
 
-      // Volunteer bookings are a leftover from before the volunteer flow was
-      // replaced by the open Q&A board — volunteer interactions now show up
-      // as question cards instead, so drop the old booking rows here.
       final specialistConsultations =
           c.where((r) => r['consultation_type'] != 'volunteer').toList();
 
-      // Batch-fetch each specialist's profile once so the card can show
-      // "Dr. Jane Tan" instead of just the consultation type.
       final specialistIds = specialistConsultations
           .map((r) => r['specialist_id'] as String?)
           .whereType<String>()
@@ -200,9 +158,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         providerProfiles[id] = await SupabaseService.getProviderProfile(id);
       }));
 
-      // Prompt the mum to rate a specialist once their consultation's slot
-      // has passed. Next-of-kin only views the linked mum's list here, so
-      // this only fires from the mum's own load to avoid duplicate work.
       if (!_isNextOfKin) {
         final mumId = SupabaseService.currentUser?.id;
         if (mumId != null) {
@@ -234,10 +189,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         ...specialistConsultations,
         ...questions.map((q) => {...q, '_kind': 'question'}),
       ];
-      // The most recently *scheduled* consultation goes on top — not just
-      // whichever was booked most recently. Falls back to created_at for
-      // volunteer questions (no scheduled_date/time of their own) and for
-      // pending consultations that haven't been given a slot yet.
       merged.sort((a, b) => _sortKey(b).compareTo(_sortKey(a)));
 
       if (mounted) {
@@ -258,10 +209,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }
   }
 
-  // Status + Provider filters, always visible as chip rows instead of
-  // hidden behind a "Filter" button and modal sheet. Same ChoiceChip style
-  // (checkmark on the selected pill, tinted fill, bordered outline) as the
-  // specialist's own consultations filter row, in the mum-side teal accent.
   Widget _filterBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -311,8 +258,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                   if (checked) {
                     _selectedProviders.add(option);
                   } else if (_selectedProviders.length > 1) {
-                    // Always keep at least one provider selected so the
-                    // list can never silently filter down to nothing.
                     _selectedProviders.remove(option);
                   }
                 }),
@@ -384,7 +329,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                 ),
               ]
             : [
-                // Tab 1: My consultations
                 Column(
                   children: [
                     if (!_loading &&
@@ -440,9 +384,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                     ),
                   ],
                 ),
-
-                // Tab 2: Book new — everyone can reach volunteers;
-                // specialists are premium-only.
                 _buildBookTab(isPremium),
               ],
       ),
@@ -504,8 +445,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   }
 
   Widget _typeFilterRow() {
-    // "All" is its own chip: tapping it clears every specific selection.
-    // It's shown as selected exactly when nothing else is picked.
     final chips = ['All', ..._typeFilterOptions];
     return SizedBox(
       height: 34,
@@ -554,8 +493,6 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     );
   }
 
-  // Consultation rows don't embed the specialist's name — resolved from the
-  // batch lookup done in _load() so the card can show "Dr. Jane Tan".
   String? _providerName(Map<String, dynamic> c) {
     final id = c['specialist_id'] as String?;
     if (id == null) return null;

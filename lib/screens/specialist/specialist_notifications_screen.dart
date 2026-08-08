@@ -5,11 +5,6 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'specialist_notifications_helpers.dart';
 
-// ── Specialist Notifications Centre ─────────────────────────────────
-// Same tagging system as the premium user's Notifications Centre
-// (lib/screens/shared/notifications_screen.dart), scoped to what a
-// specialist needs to act on: Consultation confirmations/reminders and
-// Review queue items. Emergency is intentionally left empty for now.
 class SpecialistNotificationsScreen extends StatefulWidget {
   const SpecialistNotificationsScreen({super.key});
 
@@ -204,8 +199,7 @@ class _SpecialistNotificationsScreenState
                           : AppColors.textLight.withValues(alpha: 0.25),
                     ),
                     labelStyle: TextStyle(
-                      color:
-                          selected ? AppColors.roseDeep : AppColors.textMid,
+                      color: selected ? AppColors.roseDeep : AppColors.textMid,
                       fontWeight: FontWeight.w700,
                       fontSize: 12,
                     ),

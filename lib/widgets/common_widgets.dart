@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 
-// ── Primary Button ──────────────────────────────────────────────
 class TBButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -12,9 +11,14 @@ class TBButton extends StatelessWidget {
   final IconData? icon;
 
   const TBButton({
-    super.key, required this.label, this.onPressed,
-    this.loading = false, this.outline = false,
-    this.color, this.width, this.icon,
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.loading = false,
+    this.outline = false,
+    this.color,
+    this.width,
+    this.icon,
   });
 
   @override
@@ -45,13 +49,17 @@ class TBButton extends StatelessWidget {
 
   Widget _child() => loading
       ? const SizedBox(
-          width: 20, height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2, color: AppColors.white))
+          width: 20,
+          height: 20,
+          child:
+              CircularProgressIndicator(strokeWidth: 2, color: AppColors.white))
       : Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 6)],
+            if (icon != null) ...[
+              Icon(icon, size: 18),
+              const SizedBox(width: 6)
+            ],
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -65,7 +73,6 @@ class TBButton extends StatelessWidget {
         );
 }
 
-// ── Card ─────────────────────────────────────────────────────────
 class TBCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -74,8 +81,12 @@ class TBCard extends StatelessWidget {
   final double? borderRadius;
 
   const TBCard({
-    super.key, required this.child,
-    this.padding, this.color, this.onTap, this.borderRadius,
+    super.key,
+    required this.child,
+    this.padding,
+    this.color,
+    this.onTap,
+    this.borderRadius,
   });
 
   @override
@@ -88,8 +99,9 @@ class TBCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(borderRadius ?? 16),
           boxShadow: [
             BoxShadow(
-              color: AppColors.textDark.withValues(alpha: 0.06),
-              blurRadius: 12, offset: const Offset(0, 4)),
+                color: AppColors.textDark.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4)),
           ],
         ),
         padding: padding ?? const EdgeInsets.all(16),
@@ -99,35 +111,36 @@ class TBCard extends StatelessWidget {
   }
 }
 
-// ── Section Title ─────────────────────────────────────────────────
 class TBSectionTitle extends StatelessWidget {
   final String title;
   final String? action;
   final VoidCallback? onAction;
 
-  const TBSectionTitle({
-    super.key, required this.title, this.action, this.onAction});
+  const TBSectionTitle(
+      {super.key, required this.title, this.action, this.onAction});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontSize: 17)),
+        Text(title,
+            style:
+                Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 17)),
         if (action != null)
           GestureDetector(
             onTap: onAction,
             child: Text(action!,
-              style: const TextStyle(
-                color: AppColors.teal, fontSize: 13, fontWeight: FontWeight.w600)),
+                style: const TextStyle(
+                    color: AppColors.teal,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
           ),
       ],
     );
   }
 }
 
-// ── Blush Header ─────────────────────────────────────────────────
 class TBPageHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -147,13 +160,14 @@ class TBPageHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 22)),
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(fontSize: 22)),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
             Text(subtitle!,
-              style: const TextStyle(
-                color: AppColors.textMid, fontSize: 14)),
+                style: const TextStyle(color: AppColors.textMid, fontSize: 14)),
           ],
         ],
       ),
@@ -161,7 +175,6 @@ class TBPageHeader extends StatelessWidget {
   }
 }
 
-// ── Empty State ───────────────────────────────────────────────────
 class TBEmptyState extends StatelessWidget {
   final String emoji;
   final String title;
@@ -170,8 +183,12 @@ class TBEmptyState extends StatelessWidget {
   final VoidCallback? onButton;
 
   const TBEmptyState({
-    super.key, required this.emoji, required this.title,
-    required this.subtitle, this.buttonLabel, this.onButton,
+    super.key,
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    this.buttonLabel,
+    this.onButton,
   });
 
   @override
@@ -185,12 +202,13 @@ class TBEmptyState extends StatelessWidget {
             Text(emoji, style: const TextStyle(fontSize: 52)),
             const SizedBox(height: 16),
             Text(title,
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center),
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(subtitle,
-              style: const TextStyle(color: AppColors.textLight, fontSize: 14),
-              textAlign: TextAlign.center),
+                style:
+                    const TextStyle(color: AppColors.textLight, fontSize: 14),
+                textAlign: TextAlign.center),
             if (buttonLabel != null) ...[
               const SizedBox(height: 24),
               TBButton(label: buttonLabel!, onPressed: onButton, width: 180),
@@ -202,14 +220,11 @@ class TBEmptyState extends StatelessWidget {
   }
 }
 
-// ── Notification Bell (dashboard header) ────────────────────────────
-// Shared across every role that has its own Notifications Centre (mum,
-// next-of-kin, specialist) so the bell + unread-count badge look and
-// behave identically no matter which dashboard it's on.
 class TBNotificationBell extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
-  const TBNotificationBell({super.key, required this.count, required this.onTap});
+  const TBNotificationBell(
+      {super.key, required this.count, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -264,10 +279,6 @@ class TBNotificationBell extends StatelessWidget {
   }
 }
 
-// ── Generic circular header icon button ─────────────────────────────
-// Same chrome as TBNotificationBell (white circle, subtle shadow, optional
-// red count badge) but for any icon — e.g. a "chats with volunteers"
-// shortcut next to the bell — without hijacking the bell's fixed icon.
 class TBIconBadgeButton extends StatelessWidget {
   final IconData icon;
   final int count;
@@ -327,18 +338,16 @@ class TBIconBadgeButton extends StatelessWidget {
   }
 }
 
-// ── Loading Spinner ───────────────────────────────────────────────
 class TBLoading extends StatelessWidget {
   const TBLoading({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Center(
-      child: CircularProgressIndicator(color: AppColors.rose));
+        child: CircularProgressIndicator(color: AppColors.rose));
   }
 }
 
-// ── Premium Badge ─────────────────────────────────────────────────
 class PremiumBadge extends StatelessWidget {
   const PremiumBadge({super.key});
 
@@ -357,8 +366,10 @@ class PremiumBadge extends StatelessWidget {
           Icon(Icons.star, color: AppColors.gold, size: 13),
           SizedBox(width: 4),
           Text('Premium',
-            style: TextStyle(
-              color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w700)),
+              style: TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -378,13 +389,14 @@ class FreeBadge extends StatelessWidget {
         border: Border.all(color: AppColors.teal.withValues(alpha: 0.4)),
       ),
       child: const Text('Free',
-        style: TextStyle(
-          color: AppColors.teal, fontSize: 12, fontWeight: FontWeight.w700)),
+          style: TextStyle(
+              color: AppColors.teal,
+              fontSize: 12,
+              fontWeight: FontWeight.w700)),
     );
   }
 }
 
-// ── Premium Gate ──────────────────────────────────────────────────
 class PremiumGate extends StatefulWidget {
   final String feature;
   final VoidCallback? onUpgrade;
@@ -416,12 +428,15 @@ class _PremiumGateState extends State<PremiumGate> {
           const Text('⭐', style: TextStyle(fontSize: 36)),
           const SizedBox(height: 12),
           Text('${widget.feature} is a Premium Feature',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16),
-            textAlign: TextAlign.center),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontSize: 16),
+              textAlign: TextAlign.center),
           const SizedBox(height: 8),
           const Text('Upgrade to Premium to unlock this feature.',
-            style: TextStyle(color: AppColors.textMid, fontSize: 13),
-            textAlign: TextAlign.center),
+              style: TextStyle(color: AppColors.textMid, fontSize: 13),
+              textAlign: TextAlign.center),
           const SizedBox(height: 16),
           TBButton(
             label: 'Upgrade to Premium',

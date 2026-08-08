@@ -6,12 +6,9 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
 import 'consultation_helpers.dart';
 
-// ── Consultation Booking ──────────────────────────────────────────
 class ConsultationBookingScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
-  // Non-null when this screen is picking a new slot for an existing
-  // consultation instead of creating a brand new one.
   final Map<String, dynamic>? consultation;
 
   const ConsultationBookingScreen({
@@ -97,17 +94,14 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
 
     var clean = value.trim();
 
-    // Handles values like "Today 2pm".
     if (clean.toLowerCase().startsWith('today')) {
       clean = clean.substring(5).trim();
     }
 
-    // Handles values like "10:00 AM - 11:00 AM".
     if (clean.contains('-')) {
       clean = clean.split('-').first.trim();
     }
 
-    // Also handle helper output safely if your helper exists.
     try {
       clean = timeOnly(clean).trim();
     } catch (_) {}
@@ -218,8 +212,6 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
         });
       }
     } catch (e) {
-      // If booked-time check fails, do not block future bookings entirely.
-      // Show timings and allow the user to continue.
       if (mounted) {
         setState(() {
           _bookedTimes.clear();
@@ -238,27 +230,18 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     return _providerTimeSlots.where((time) {
       final normalised = _normaliseTime(time);
 
-      // Hide timings that are already booked for THIS provider and THIS selected date.
       if (_bookedTimes.contains(normalised)) return false;
 
-      // For today only, hide timings that already passed.
       if (_isSameDay(_selectedDate, now)) {
         final slot = _slotDateTime(_selectedDate, normalised);
         if (slot == null) return true;
         return slot.isAfter(now);
       }
 
-      // For tomorrow and future dates, show all slots except booked ones.
       return true;
     }).toList();
   }
 
-  // A slot that's still technically in the future but only minutes away
-  // doesn't give the specialist any real notice — same cutoff used to grey
-  // out the Reschedule button on the detail screen (see minBookingNotice).
-  // Applies to a first-time booking just as much as a reschedule: e.g. at
-  // 12:50pm the 1pm slot is only 10 minutes out, so it's greyed out and the
-  // closest pickable slot is 2pm.
   bool _isTooCloseToBook(String normalisedTime) {
     final now = sgtNow();
     if (!_isSameDay(_selectedDate, now)) return false;
@@ -329,7 +312,9 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _isReschedule ? 'Reschedule Consultation' : 'Consultation Booking',
+              _isReschedule
+                  ? 'Reschedule Consultation'
+                  : 'Consultation Booking',
               style: Theme.of(context)
                   .textTheme
                   .headlineMedium
@@ -512,8 +497,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
                         ? null
                         : () {
                             setState(() {
-                              _month =
-                                  sgtWallClock(_month.year, _month.month - 1, 1);
+                              _month = sgtWallClock(
+                                  _month.year, _month.month - 1, 1);
                             });
                           },
                   ),
@@ -521,8 +506,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
                     icon: const Icon(Icons.chevron_right),
                     onPressed: () {
                       setState(() {
-                        _month =
-                            sgtWallClock(_month.year, _month.month + 1, 1);
+                        _month = sgtWallClock(_month.year, _month.month + 1, 1);
                       });
                     },
                   ),

@@ -45,12 +45,9 @@ Color moodColor(String? mood) {
   return AppColors.textLight;
 }
 
-// Accepts either a Postgres array (returned as a List) or a legacy
-// comma-separated string from older rows, and normalizes to a string list.
 List<String> asStringList(Object? value) {
   if (value == null) return const [];
 
-  // Already a Dart List
   if (value is List) {
     return value
         .map((e) => e.toString())
@@ -63,12 +60,10 @@ List<String> asStringList(Object? value) {
 
   if (text.isEmpty) return const [];
 
-  // PostgreSQL array: {A,B}
   if (text.startsWith('{') && text.endsWith('}')) {
     text = text.substring(1, text.length - 1);
   }
 
-  // JSON array: ["A","B"]
   if (text.startsWith('[') && text.endsWith(']')) {
     text = text.substring(1, text.length - 1);
   }
@@ -80,7 +75,6 @@ List<String> asStringList(Object? value) {
       .toList();
 }
 
-// Small "back + logout" app bar shared by the logs screens.
 PreferredSizeWidget logsAppBar(BuildContext context) {
   return AppBar(
     backgroundColor: AppColors.background,
@@ -92,7 +86,6 @@ PreferredSizeWidget logsAppBar(BuildContext context) {
   );
 }
 
-// Solid filled pill (light pink "View", dark fills for Edit/Delete).
 Widget pillButton(String label,
     {required Color bg, required Color fg, required VoidCallback onTap}) {
   return GestureDetector(

@@ -4,9 +4,6 @@ import '../../utils/app_theme.dart';
 import '../../utils/next_of_kin_relationship.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── Link to Pregnant User (Next of Kin) ──────────────────────────────
-// Lets a next-of-kin account link straight to a mum by her user code — no
-// email verification or mum-side approval yet, linking is immediate.
 class LinkToMumScreen extends StatefulWidget {
   const LinkToMumScreen({super.key});
   @override
@@ -33,7 +30,11 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
 
   Future<void> _loadLinkedMum() async {
     final mum = await SupabaseService.getLinkedMum();
-    if (mounted) setState(() { _linkedMum = mum; _loadingLinked = false; });
+    if (mounted)
+      setState(() {
+        _linkedMum = mum;
+        _loadingLinked = false;
+      });
   }
 
   @override
@@ -48,11 +49,12 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
     return null;
   }
 
-  // Clears any previous verification result whenever the code is edited, so
-  // the Link button can't stay enabled for a code that's since changed.
   void _onUserCodeEdited(String _) {
     if (_verifiedMumName != null || _verifyError != null) {
-      setState(() { _verifiedMumName = null; _verifyError = null; });
+      setState(() {
+        _verifiedMumName = null;
+        _verifyError = null;
+      });
     }
   }
 
@@ -65,7 +67,11 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
       });
       return;
     }
-    setState(() { _verifying = true; _verifiedMumName = null; _verifyError = null; });
+    setState(() {
+      _verifying = true;
+      _verifiedMumName = null;
+      _verifyError = null;
+    });
     try {
       final mum = await SupabaseService.verifyMumUserCode(code);
       if (mounted) {
@@ -73,8 +79,8 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() =>
-            _verifyError = e.toString().replaceFirst('Exception: ', ''));
+        setState(
+            () => _verifyError = e.toString().replaceFirst('Exception: ', ''));
       }
     }
     if (mounted) setState(() => _verifying = false);
@@ -87,11 +93,14 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
       final mumName = await SupabaseService.linkToMum(
           _userCodeCtrl.text.trim().toUpperCase(), _relationship!);
       _userCodeCtrl.clear();
-      setState(() { _relationship = null; _verifiedMumName = null; });
+      setState(() {
+        _relationship = null;
+        _verifiedMumName = null;
+      });
       await _loadLinkedMum();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Linked to $mumName!')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Linked to $mumName!')));
       }
     } catch (e) {
       if (mounted) {
@@ -117,8 +126,8 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Connect Account',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 16)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                   const SizedBox(height: 4),
                   const Text(
                       "Enter the user code of the pregnant user to link to her.",
@@ -134,7 +143,8 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                             Expanded(
                               child: TextFormField(
                                 controller: _userCodeCtrl,
-                                textCapitalization: TextCapitalization.characters,
+                                textCapitalization:
+                                    TextCapitalization.characters,
                                 decoration: const InputDecoration(
                                     labelText: 'User code',
                                     hintText: "Enter the mum's user code"),
@@ -149,14 +159,17 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                                 onPressed: _verifying ? null : _verify,
                                 child: _verifying
                                     ? const SizedBox(
-                                        width: 16, height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2))
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2))
                                     : const Text('Verify'),
                               ),
                             ),
                           ],
                         ),
-                        if (_verifiedMumName != null || _verifyError != null) ...[
+                        if (_verifiedMumName != null ||
+                            _verifyError != null) ...[
                           const SizedBox(height: 6),
                           Align(
                             alignment: Alignment.centerLeft,
@@ -180,7 +193,8 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
                               labelText: 'Relationship to Expectant Mother'),
                           hint: const Text('Select relationship'),
                           items: nextOfKinRelationshipOptions
-                              .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                              .map((r) =>
+                                  DropdownMenuItem(value: r, child: Text(r)))
                               .toList(),
                           onChanged: (v) => setState(() => _relationship = v),
                           validator: (v) =>
@@ -207,7 +221,8 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
               const TBEmptyState(
                   emoji: '🔗',
                   title: 'Not linked yet',
-                  subtitle: 'Enter a user code above to link to a pregnant user.')
+                  subtitle:
+                      'Enter a user code above to link to a pregnant user.')
             else
               _buildLinkedMumCard(_linkedMum!),
           ],

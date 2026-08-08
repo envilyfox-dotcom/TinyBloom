@@ -255,7 +255,6 @@ class _SpecialistEditProfileScreenState
     setState(() => _saving = true);
 
     try {
-      // Update base profile (name + email)
       await SupabaseService.updateProfile({
         'full_name': _nameCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
@@ -303,7 +302,6 @@ class _SpecialistEditProfileScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Profile Photo ─────────────────────────────────────
               Center(
                 child: Stack(
                   clipBehavior: Clip.none,
@@ -363,8 +361,6 @@ class _SpecialistEditProfileScreenState
                 ),
               ],
               const SizedBox(height: 16),
-
-              // ── Name ──────────────────────────────────────────────
               _label('Full Name'),
               const SizedBox(height: 8),
               TextFormField(
@@ -376,8 +372,6 @@ class _SpecialistEditProfileScreenState
                     (v == null || v.trim().isEmpty) ? 'Name is required' : null,
               ),
               const SizedBox(height: 16),
-
-              // ── Email ─────────────────────────────────────────────
               _label('Email Address'),
               const SizedBox(height: 8),
               TextFormField(
@@ -393,8 +387,6 @@ class _SpecialistEditProfileScreenState
                 },
               ),
               const SizedBox(height: 16),
-
-              // ── Specialty ─────────────────────────────────────────
               _label('Specialty'),
               const SizedBox(height: 4),
               const Text(
@@ -420,8 +412,6 @@ class _SpecialistEditProfileScreenState
                 ),
               ),
               const SizedBox(height: 16),
-
-              // ── Edit Password ────────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
@@ -450,8 +440,6 @@ class _SpecialistEditProfileScreenState
                 ),
               ),
               const SizedBox(height: 24),
-
-              // ── Available Days ─────────────────────────────────
               _label('Available Days for Consultation'),
               const SizedBox(height: 4),
               const Text(
@@ -459,7 +447,6 @@ class _SpecialistEditProfileScreenState
                 style: TextStyle(color: AppColors.textMid, fontSize: 12),
               ),
               const SizedBox(height: 12),
-
               TBCard(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -493,7 +480,6 @@ class _SpecialistEditProfileScreenState
                   ),
                 ),
               ),
-
               if (_selectedDays.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Padding(
@@ -516,10 +502,7 @@ class _SpecialistEditProfileScreenState
                   ),
                 ),
               ],
-
               const SizedBox(height: 24),
-
-              // ── Available Time Slots ───────────────────────────
               _label('Available Time Slots for Consultation'),
               const SizedBox(height: 4),
               const Text(
@@ -527,7 +510,6 @@ class _SpecialistEditProfileScreenState
                 style: TextStyle(color: AppColors.textMid, fontSize: 12),
               ),
               const SizedBox(height: 12),
-
               TBCard(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -561,7 +543,6 @@ class _SpecialistEditProfileScreenState
                   ),
                 ),
               ),
-
               if (_selectedTimes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Padding(
@@ -585,10 +566,7 @@ class _SpecialistEditProfileScreenState
                   ),
                 ),
               ],
-
               const SizedBox(height: 24),
-
-              // ── Save ──────────────────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

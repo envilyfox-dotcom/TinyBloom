@@ -31,9 +31,6 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
-// Every image markdown syntax (Create Article's image button) anywhere in
-// an article's body — not just a leading one — so a card can preview a
-// photo from any post that has one, not only posts that open with one.
 final _imagePattern = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
 List<String> _articleImageUrls(String content) {
   return _imagePattern
@@ -43,9 +40,6 @@ List<String> _articleImageUrls(String content) {
       .toList();
 }
 
-// Strips markdown formatting down to plain text for the card's body
-// preview, since the full ArticleContent markdown renderer is only used on
-// the detail screen.
 String _plainTextPreview(String markdown) {
   var text = markdown;
   text = text.replaceAll(RegExp(r'!\[[^\]]*\]\([^)]*\)'), '');
@@ -55,7 +49,6 @@ String _plainTextPreview(String markdown) {
   return text.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
-// ── Education Screen ──────────────────────────────────────────────
 class EducationScreen extends StatefulWidget {
   const EducationScreen({super.key});
 
@@ -63,8 +56,6 @@ class EducationScreen extends StatefulWidget {
   State<EducationScreen> createState() => _EducationScreenState();
 }
 
-// The tags an article carries — falls back to its single legacy `category`
-// for rows saved before the multi-tag picker existed.
 List<String> _articleTags(Map<String, dynamic> article) {
   final tags = (article['tags'] as List?)?.whereType<String>().toList() ?? [];
   if (tags.isNotEmpty) return tags;
@@ -77,9 +68,6 @@ class _EducationScreenState extends State<EducationScreen> {
   bool _loading = true;
   final ValueNotifier<String> _search = ValueNotifier('');
   Timer? _searchDebounce;
-  // Empty means "All" — any tag selected matches an article carrying any of
-  // them (per product decision: filtering is OR across selected tags, not
-  // limited to a single category at a time).
   final Set<String> _selectedTags = {};
 
   @override
@@ -115,9 +103,6 @@ class _EducationScreenState extends State<EducationScreen> {
     }
   }
 
-  // Report is UI-only for now (per product decision) — it collects a
-  // category + reason like "Flag for emergency review" does for specialists,
-  // but nothing is persisted or sent anywhere yet.
   Future<void> _showReportDialog(Map<String, dynamic> article) async {
     String category = 'clinical';
     final reasonCtrl = TextEditingController();
@@ -192,11 +177,8 @@ class _EducationScreenState extends State<EducationScreen> {
       final title = (a['title'] as String? ?? '').toLowerCase();
       final excerpt = (a['excerpt'] as String? ?? '').toLowerCase();
 
-      // Any selected tag matching any of the article's tags is a match —
-      // selecting multiple filter chips widens the result set (OR), it
-      // doesn't narrow it (AND).
-      final matchTags = _selectedTags.isEmpty ||
-          _articleTags(a).any(_selectedTags.contains);
+      final matchTags =
+          _selectedTags.isEmpty || _articleTags(a).any(_selectedTags.contains);
       final matchSearch = q.isEmpty || title.contains(q) || excerpt.contains(q);
 
       return matchTags && matchSearch;
@@ -438,10 +420,6 @@ class _EducationScreenState extends State<EducationScreen> {
   }
 }
 
-// ── Article Card ──────────────────────────────────────────────────
-// Styled after the specialist-authored feed mockup: author strip (photo,
-// name, specialization, time), category pill, title, an expandable excerpt,
-// and a like/comment footer — all in the app's existing rose/teal palette.
 class _ArticleCard extends StatefulWidget {
   final Map<String, dynamic> article;
   final VoidCallback onReport;
@@ -647,10 +625,6 @@ class _ArticleCardState extends State<_ArticleCard> {
   }
 }
 
-// Preview of an article whose body opens straight with an image (no leading
-// text) — cropped to a fixed height with a fade-to-white at the bottom
-// instead of stretching the full image or showing a blank card, since the
-// full photo is still one tap away on the detail screen.
 class _ContentImagePreview extends StatelessWidget {
   final String url;
   const _ContentImagePreview({required this.url});
@@ -701,10 +675,6 @@ class _ContentImagePreview extends StatelessWidget {
   }
 }
 
-// Collage preview for a post with more than one photo: the first photo
-// large on the left, up to two more stacked smaller on the right — an
-// "+N" badge covers the last small tile if there are more photos than
-// fit, so the count is never silently lost.
 class _ContentImageCollage extends StatelessWidget {
   final List<String> urls;
   const _ContentImageCollage({required this.urls});
@@ -749,8 +719,6 @@ class _ContentImageCollage extends StatelessWidget {
   }
 }
 
-// A single collage cell — plain cropped photo, optionally darkened with a
-// "+N more" label over the last visible tile.
 class _CollageTile extends StatelessWidget {
   final String url;
   final String? overlayLabel;
@@ -764,7 +732,8 @@ class _CollageTile extends StatelessWidget {
         CachedNetworkImage(
           imageUrl: url,
           fit: BoxFit.cover,
-          memCacheHeight: (120 * MediaQuery.of(context).devicePixelRatio).round(),
+          memCacheHeight:
+              (120 * MediaQuery.of(context).devicePixelRatio).round(),
           errorWidget: (context, url, error) => Container(
             color: AppColors.rose.withValues(alpha: 0.08),
             child: const Icon(Icons.broken_image_outlined,
@@ -778,7 +747,9 @@ class _CollageTile extends StatelessWidget {
             child: Text(
               overlayLabel!,
               style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16),
             ),
           ),
       ],

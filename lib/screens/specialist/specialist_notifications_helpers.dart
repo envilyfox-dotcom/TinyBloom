@@ -2,13 +2,6 @@ import 'package:intl/intl.dart';
 import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
-// ── Specialist Alerts & Notifications ───────────────────────────────
-// Builds the specialist's notification feed live from consultations +
-// the review queue (already loaded by the calling screen) rather than a
-// stored notifications table — there's no notification-delivery service
-// in this app yet, so "needs action" here just means the underlying
-// consultation/article still needs it; it naturally clears once the
-// specialist confirms the consultation or the review moves on.
 List<Map<String, dynamic>> buildSpecialistNotifications({
   required List<Map<String, dynamic>> consultations,
   required List<Map<String, dynamic>> reviewQueue,
@@ -33,8 +26,6 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
     }
   }
 
-  // "24 May 2026, 3:00 pm" — falls back to just the date if there's no
-  // parseable time.
   String formatDateTimeLabel(dynamic dateValue, dynamic timeValue) {
     if (dateValue == null) return '';
     try {
@@ -57,26 +48,24 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
     final scheduled = scheduledDateTime(c);
     final apptId =
         appointmentIdLabel(c['id'], c['consultation_type'] as String?);
-    // Rescheduling (see SupabaseService.rescheduleConsultation) resets the
-    // consultation back to 'pending' and stashes the slot it moved from —
-    // distinguishing "pending because the mum just moved it" from an
-    // ordinary new booking, which gets the plain confirmation prompt below.
     final previousScheduledDate = c['previous_scheduled_date'];
 
     if (status == 'pending' && previousScheduledDate != null) {
-      final fromLabel =
-          formatDateTimeLabel(previousScheduledDate, c['previous_scheduled_time']);
+      final fromLabel = formatDateTimeLabel(
+          previousScheduledDate, c['previous_scheduled_time']);
       final toLabel =
           formatDateTimeLabel(c['scheduled_date'], c['scheduled_time']);
       items.add({
         'id': 'consult-reschedule-${c['id']}',
         'category': 'consultation',
         'title': 'Consultation reschedule reminder',
-        'message': 'Appointment ID $apptId was rescheduled from $fromLabel to $toLabel',
+        'message':
+            'Appointment ID $apptId was rescheduled from $fromLabel to $toLabel',
         'created_at': c['rescheduled_at'] ?? c['created_at'],
         'consultation': c,
       });
-    } else if (status == 'pending' && (scheduled == null || scheduled.isAfter(now))) {
+    } else if (status == 'pending' &&
+        (scheduled == null || scheduled.isAfter(now))) {
       items.add({
         'id': 'consult-confirm-${c['id']}',
         'category': 'consultation',
@@ -88,7 +77,6 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
       });
     } else if (status == 'confirmed' && scheduled != null) {
       final minutesUntil = scheduled.difference(now).inMinutes;
-      // "About 15 mins before" the appointment starts, once it's confirmed.
       if (minutesUntil >= 0 && minutesUntil <= 15) {
         final timeLabel = c['scheduled_time'] as String? ?? '';
         items.add({
@@ -96,9 +84,6 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
           'category': 'consultation',
           'title': 'Consultation about to start',
           'message': 'Consultation $apptId at $timeLabel is about to start',
-          // `now` is Singapore wall clock, for comparing against slot times.
-          // This field is sorted against real `created_at` instants from the
-          // database, so it has to be a true instant instead.
           'created_at': dbNow(),
           'consultation': c,
         });

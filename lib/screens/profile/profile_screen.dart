@@ -18,22 +18,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     final p = await SupabaseService.getProfile();
-    if (mounted) setState(() { _profile = p; _loading = false; });
+    if (mounted)
+      setState(() {
+        _profile = p;
+        _loading = false;
+      });
   }
 
   String _roleLabel(String? role) {
     switch (role) {
-      case 'free_user': return 'Free Member';
-      case 'premium_user': return 'Premium Member ⭐';
-      case 'specialist': return 'Specialist / Doctor';
-      case 'volunteer': return 'Volunteer';
-      case 'next_of_kin': return 'Next of Kin';
-      case 'admin': return 'Admin';
-      default: return 'Member';
+      case 'free_user':
+        return 'Free Member';
+      case 'premium_user':
+        return 'Premium Member ⭐';
+      case 'specialist':
+        return 'Specialist / Doctor';
+      case 'volunteer':
+        return 'Volunteer';
+      case 'next_of_kin':
+        return 'Next of Kin';
+      case 'admin':
+        return 'Admin';
+      default:
+        return 'Member';
     }
   }
 
@@ -50,7 +64,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -60,35 +73,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 36,
                     backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                      style: const TextStyle(
-                        color: AppColors.roseDeep,
-                        fontSize: 28, fontWeight: FontWeight.w700)),
+                    child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                            color: AppColors.roseDeep,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700)),
                   ),
                   const SizedBox(height: 12),
-                  Text(name,
-                    style: Theme.of(context).textTheme.titleLarge),
+                  Text(name, style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 4),
                   Text(email,
-                    style: const TextStyle(color: AppColors.textMid, fontSize: 14)),
+                      style: const TextStyle(
+                          color: AppColors.textMid, fontSize: 14)),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                     decoration: BoxDecoration(
                       color: AppColors.teal.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(50),
                     ),
                     child: Text(_roleLabel(role),
-                      style: const TextStyle(
-                        color: AppColors.teal, fontSize: 13, fontWeight: FontWeight.w600)),
+                        style: const TextStyle(
+                            color: AppColors.teal,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
             ),
-
-            // User ID (mum accounts)
-            if (userCode != null && (role == 'free_user' || role == 'premium_user'))
+            if (userCode != null &&
+                (role == 'free_user' || role == 'premium_user'))
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: TBCard(
@@ -97,25 +112,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('YOUR UNIQUE USER ID',
-                        style: TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w700,
-                          color: AppColors.roseDeep, letterSpacing: 1)),
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.roseDeep,
+                              letterSpacing: 1)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
                           Expanded(
                             child: Text(userCode,
-                              style: const TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.w700,
-                                letterSpacing: 3)),
+                                style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 3)),
                           ),
                           TextButton.icon(
                             onPressed: () {
-                              // Copy to clipboard
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('User ID copied!'),
-                                  duration: Duration(seconds: 2)));
+                                  const SnackBar(
+                                      content: Text('User ID copied!'),
+                                      duration: Duration(seconds: 2)));
                             },
                             icon: const Icon(Icons.copy, size: 16),
                             label: const Text('Copy'),
@@ -123,14 +140,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                       const Text(
-                        'Share this ID with your partner or family so they can link to your account.',
-                        style: TextStyle(color: AppColors.textMid, fontSize: 12)),
+                          'Share this ID with your partner or family so they can link to your account.',
+                          style: TextStyle(
+                              color: AppColors.textMid, fontSize: 12)),
                     ],
                   ),
                 ),
               ),
-
-            // Menu items
             Padding(
               padding: const EdgeInsets.all(16),
               child: TBCard(
@@ -138,25 +154,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     _menuItem(Icons.edit_outlined, 'Edit Profile',
-                      onTap: () => context.push('/profile/edit', extra: _profile)
-                          .then((_) => _load())),
+                        onTap: () => context
+                            .push('/profile/edit', extra: _profile)
+                            .then((_) => _load())),
                     _divider(),
                     if (role == 'specialist') ...[
                       _menuItem(Icons.edit_note, 'Create Article',
-                        onTap: () => context.push('/specialist/create-article')),
+                          onTap: () =>
+                              context.push('/specialist/create-article')),
                       _divider(),
                     ],
                     if (role == 'free_user' || role == 'premium_user') ...[
-                      _menuItem(Icons.workspace_premium_outlined, 'Subscription',
-                        onTap: () => context.push('/subscription')),
+                      _menuItem(
+                          Icons.workspace_premium_outlined, 'Subscription',
+                          onTap: () => context.push('/subscription')),
                       _divider(),
                     ],
                     _menuItem(Icons.feedback_outlined, 'Feedback',
-                      onTap: () => _showFeedback()),
+                        onTap: () => _showFeedback()),
                     _divider(),
                     _menuItem(Icons.logout, 'Sign Out',
-                      color: Colors.red,
-                      onTap: () => _signOut()),
+                        color: Colors.red, onTap: () => _signOut()),
                   ],
                 ),
               ),
@@ -172,24 +190,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ListTile(
       leading: Icon(icon, color: color ?? AppColors.textMid, size: 22),
       title: Text(label,
-        style: TextStyle(
-          color: color ?? AppColors.textDark,
-          fontWeight: FontWeight.w500, fontSize: 15)),
-      trailing: const Icon(Icons.chevron_right,
-        color: AppColors.textLight, size: 20),
+          style: TextStyle(
+              color: color ?? AppColors.textDark,
+              fontWeight: FontWeight.w500,
+              fontSize: 15)),
+      trailing:
+          const Icon(Icons.chevron_right, color: AppColors.textLight, size: 20),
       onTap: onTap,
     );
   }
 
-  Widget _divider() => const Divider(height: 1, indent: 56,
-    color: AppColors.textLight, thickness: 0.3);
+  Widget _divider() => const Divider(
+      height: 1, indent: 56, color: AppColors.textLight, thickness: 0.3);
 
   void _showFeedback() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => const _FeedbackSheet(),
     );
   }
@@ -201,7 +220,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ── Edit Profile ──────────────────────────────────────────────────
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? profile;
   const EditProfileScreen({super.key, this.profile});
@@ -241,12 +259,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final newPassword = _newPasswordCtrl.text;
     if (newEmail.isEmpty || !newEmail.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address.')));
+          const SnackBar(content: Text('Please enter a valid email address.')));
       return;
     }
     if (newPassword.isNotEmpty && newPassword.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New password must be at least 6 characters.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('New password must be at least 6 characters.')));
       return;
     }
 
@@ -262,7 +280,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final emailChanged = newEmail != _originalEmail;
       if (emailChanged) {
         try {
-          await SupabaseService.client.auth.updateUser(UserAttributes(email: newEmail));
+          await SupabaseService.client.auth
+              .updateUser(UserAttributes(email: newEmail));
           messages.add('Check your new email to confirm the change.');
         } catch (e) {
           messages.add('Could not update login email: $e');
@@ -271,7 +290,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (newPassword.isNotEmpty) {
         try {
-          await SupabaseService.client.auth.updateUser(UserAttributes(password: newPassword));
+          await SupabaseService.client.auth
+              .updateUser(UserAttributes(password: newPassword));
           messages.add('Password updated.');
         } catch (e) {
           messages.add('Could not update password: $e');
@@ -281,12 +301,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (mounted) {
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(messages.isEmpty ? 'Profile updated!' : messages.join(' '))));
+            content: Text(
+                messages.isEmpty ? 'Profile updated!' : messages.join(' '))));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -303,47 +324,55 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             TextFormField(
               controller: _nameCtrl,
               decoration: const InputDecoration(
-                labelText: 'Full Name',
-                prefixIcon: Icon(Icons.person_outline, color: AppColors.textLight)),
+                  labelText: 'Full Name',
+                  prefixIcon:
+                      Icon(Icons.person_outline, color: AppColors.textLight)),
             ),
             const SizedBox(height: 14),
             TextFormField(
               controller: _emailCtrl,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined, color: AppColors.textLight)),
+                  labelText: 'Email',
+                  prefixIcon:
+                      Icon(Icons.email_outlined, color: AppColors.textLight)),
             ),
             const SizedBox(height: 14),
             TextFormField(
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
-                labelText: 'Phone Number',
-                prefixIcon: Icon(Icons.phone_outlined, color: AppColors.textLight)),
+                  labelText: 'Phone Number',
+                  prefixIcon:
+                      Icon(Icons.phone_outlined, color: AppColors.textLight)),
             ),
             const SizedBox(height: 24),
             const Align(
               alignment: Alignment.centerLeft,
               child: Text('Change Password',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textDark)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: AppColors.textDark)),
             ),
             const SizedBox(height: 4),
             const Align(
               alignment: Alignment.centerLeft,
               child: Text('Leave blank to keep your current password.',
-                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
+                  style: TextStyle(color: AppColors.textLight, fontSize: 12)),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _newPasswordCtrl,
               obscureText: true,
               decoration: const InputDecoration(
-                labelText: 'New Password',
-                prefixIcon: Icon(Icons.lock_outline, color: AppColors.textLight)),
+                  labelText: 'New Password',
+                  prefixIcon:
+                      Icon(Icons.lock_outline, color: AppColors.textLight)),
             ),
             const SizedBox(height: 24),
-            TBButton(label: 'Save Changes', onPressed: _save, loading: _loading),
+            TBButton(
+                label: 'Save Changes', onPressed: _save, loading: _loading),
           ],
         ),
       ),
@@ -351,7 +380,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
-// ── Feedback Sheet with Star Rating ──────────────────────────────
 class _FeedbackSheet extends StatefulWidget {
   const _FeedbackSheet();
 
@@ -368,7 +396,6 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill name from profile
     SupabaseService.getProfile().then((p) {
       if (mounted && p != null) {
         _nameCtrl.text = p['full_name'] ?? '';
@@ -386,18 +413,17 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   Future<void> _submit() async {
     if (_rating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a rating.')));
+          const SnackBar(content: Text('Please select a rating.')));
       return;
     }
     if (_feedbackCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your feedback.')));
+          const SnackBar(content: Text('Please enter your feedback.')));
       return;
     }
 
     setState(() => _loading = true);
     try {
-      // Save as testimonial to Supabase
       await SupabaseService.client.from('testimonials').insert({
         'reviewer_name': _nameCtrl.text.trim(),
         'content': _feedbackCtrl.text.trim(),
@@ -407,16 +433,14 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
       });
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Thank you for your feedback! 🌸'),
             backgroundColor: Color(0xFF7A9E8E)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'),
-            backgroundColor: Colors.red));
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -426,47 +450,46 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 20, right: 20, top: 24),
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 20,
+          right: 20,
+          top: 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFF9B8B86).withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2)),
+                  color: const Color(0xFF9B8B86).withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2)),
             ),
           ),
           const SizedBox(height: 16),
-
           Text('Share Your Feedback',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 20)),
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(fontSize: 20)),
           const SizedBox(height: 4),
           const Text('Your feedback helps us improve TinyBloom.',
-            style: TextStyle(color: Color(0xFF9B8B86), fontSize: 13)),
+              style: TextStyle(color: Color(0xFF9B8B86), fontSize: 13)),
           const SizedBox(height: 20),
-
-          // Name field
           TextFormField(
             controller: _nameCtrl,
             decoration: const InputDecoration(
-              labelText: 'Your Name',
-              prefixIcon: Icon(Icons.person_outline,
-                color: Color(0xFF9B8B86))),
+                labelText: 'Your Name',
+                prefixIcon:
+                    Icon(Icons.person_outline, color: Color(0xFF9B8B86))),
           ),
           const SizedBox(height: 16),
-
-          // Star rating
           const Text('Rating',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: Color(0xFF5C4F4A))),
+              style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: Color(0xFF5C4F4A))),
           const SizedBox(height: 8),
           Row(
             children: List.generate(5, (i) {
@@ -489,30 +512,30 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
           if (_rating > 0) ...[
             const SizedBox(height: 6),
             Text(
-              _rating == 5 ? 'Excellent! 🌟'
-                : _rating == 4 ? 'Very Good! 😊'
-                : _rating == 3 ? 'Good 👍'
-                : _rating == 2 ? 'Fair 😐'
-                : 'Poor 😔',
-              style: const TextStyle(
-                color: Color(0xFFD4A847),
-                fontWeight: FontWeight.w600,
-                fontSize: 13)),
+                _rating == 5
+                    ? 'Excellent! 🌟'
+                    : _rating == 4
+                        ? 'Very Good! 😊'
+                        : _rating == 3
+                            ? 'Good 👍'
+                            : _rating == 2
+                                ? 'Fair 😐'
+                                : 'Poor 😔',
+                style: const TextStyle(
+                    color: Color(0xFFD4A847),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
           ],
           const SizedBox(height: 16),
-
-          // Feedback text
           TextFormField(
             controller: _feedbackCtrl,
             maxLines: 4,
             decoration: const InputDecoration(
-              labelText: 'Your Feedback',
-              hintText: 'Tell us about your experience...',
-              alignLabelWithHint: true),
+                labelText: 'Your Feedback',
+                hintText: 'Tell us about your experience...',
+                alignLabelWithHint: true),
           ),
           const SizedBox(height: 20),
-
-          // Submit button
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -520,9 +543,10 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
               onPressed: _loading ? null : _submit,
               child: _loading
                   ? const SizedBox(
-                      width: 20, height: 20,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2, color: Colors.white))
                   : const Text('Submit Feedback'),
             ),
           ),

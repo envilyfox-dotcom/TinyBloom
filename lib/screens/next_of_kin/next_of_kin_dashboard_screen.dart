@@ -116,8 +116,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     List<Map<String, dynamic>> myQuestions = [];
     try {
       final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
-      // A chat with no activity in 48h is done — flip it to closed here
-      // too, not just when someone happens to open its own thread screen.
       await SupabaseService.autoCloseStaleRequests(rawQuestions);
       myQuestions = await enrichQuickChatQuestions(
         List<Map<String, dynamic>>.from(rawQuestions),
@@ -125,9 +123,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     } catch (_) {}
 
     final week = (linkedMum?['current_week'] as int?) ?? 0;
-    // Prefer the real, server-derived week-start date over the local
-    // "first seen on this device" fallback — see alerts_screen.dart's
-    // _load() for the full rationale.
     final weekStartDate = DateTime.tryParse(
         (linkedMum?['current_week_start_date'] ?? '').toString());
     final milestoneTimestamp = week <= 0
@@ -165,11 +160,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
 
   String? get _photoUrl => _profile?['profile_picture_url'] as String?;
 
-  // Notification-bell badge count. Uses the same alert-source builder and
-  // persisted read-state store as the full Notifications Centre
-  // (alerts_screen.dart), so the two screens always agree on what's
-  // unread — an alert only stops counting here once it's actually been
-  // seen there.
   int get _notificationBellCount {
     if (_linkedMum == null) return 0;
     final sources = buildNextOfKinAlertSources(
@@ -194,9 +184,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     return '3rd Trimester';
   }
 
-  // Named milestones for a handful of well-known weeks, falling back to the
-  // existing per-week development highlight for everything else — mirrors
-  // the mum's own dashboard so the two never disagree on a given week.
   String _milestoneLabel(int week) {
     const named = {
       4: 'Pregnancy confirmed',
@@ -214,7 +201,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         (pregnancyWeekData[week]?['highlight'] ?? 'Growing strong');
   }
 
-  // Progress through the *current* trimester, not the whole pregnancy.
   double get _trimesterProgress {
     final week = _linkedMumWeek;
     if (week <= 12) return week / 12;
@@ -222,7 +208,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     return (week - 27) / 13;
   }
 
-  // "Week X of Y" within the current trimester, for the caption under the bar.
   (int, int) get _trimesterWeekOverview {
     final week = _linkedMumWeek;
     if (week <= 12) return (week, 12);
@@ -298,8 +283,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                         icon: Icons.chat_bubble_outline,
                         onTap: () async {
                           if (!_canNav()) return;
-                          // Deep-links into Consultations with the
-                          // Volunteer Chats filter already selected.
                           await context.push('/consultation',
                               extra: {'Volunteer Chats'});
                           if (mounted) _load();
@@ -310,8 +293,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
                         count: _notificationBellCount,
                         onTap: () async {
                           if (!_canNav()) return;
-                          // Reload on return so the badge reflects the
-                          // read-state changes the visit just made.
                           await context.push('/next-of-kin/alerts');
                           if (mounted) _load();
                         },
@@ -482,9 +463,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
-  // "Current trimester" here is whatever the user last picked on the full
-  // Checklist screen (getCurrentChecklistPhaseIndex), not derived from the
-  // mum's real week — same source of truth both screens read from.
   Widget _buildChecklistSection(BuildContext context) {
     if (_checklistPhases.isEmpty) return const SizedBox.shrink();
 
@@ -571,11 +549,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
-  // Mirrors the mum dashboard's Explore section (same TBSectionTitle +
-  // card style) so AI Assistant lives in a consistent spot across roles,
-  // now that it's off the bottom nav. Also absorbs the old Quick Actions
-  // row (Health logs / Gift premium / Chat volunteer) — "Join consult" was
-  // dropped since it duplicated the Consultations card below.
   Widget _buildExploreSection(BuildContext context) {
     final items =
         <({String emoji, String title, String desc, VoidCallback onTap})>[
@@ -584,10 +557,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         title: 'Health Logs',
         desc: "View her health logs",
         onTap: () {
-          // go(), not push() — /logs is a bottom-nav tab inside the same
-          // ShellRoute; pushing it leaves the dashboard underneath instead
-          // of replacing it, so the tab highlight never updates and the
-          // dashboard never reloads when you come back to it.
           if (_canNav()) context.go('/logs');
         },
       ),
@@ -621,9 +590,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         desc: 'Post a question and any volunteer can reply',
         onTap: () async {
           if (!_canNav()) return;
-          // Reload on return so a newly-posted question shows up in the
-          // Quick Chat preview immediately instead of only after
-          // switching tabs.
           await context.push('/ask-volunteer');
           if (mounted) _load();
         },
@@ -681,11 +647,6 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     );
   }
 
-  // Same alert-source builder that drives the bell badge and the full
-  // Notifications Centre, so "any new notification" (milestone, active
-  // consultation, health-log emergency, daily reminder, volunteer reply)
-  // shows up here too — not just milestone/consultation like before.
-  // Sorted latest-first, same as the full centre.
   Widget _buildActiveAlerts() {
     final sources = buildNextOfKinAlertSources(
       linkedMumWeek: _linkedMumWeek,

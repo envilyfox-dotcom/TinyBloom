@@ -1,15 +1,11 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ── Shared checklist model + prefs ────────────────────────────────────
-// Used by both the full Support Checklist screen and its dashboard
-// preview, so grouping logic and the "current trimester" selection stay
-// in one place instead of being duplicated across two screens.
-
 class ChecklistItem {
   final String id; // real Supabase uuid, or 'temp-N' for an unsaved new item
   String text;
   bool isCompleted;
-  ChecklistItem({required this.id, required this.text, this.isCompleted = false});
+  ChecklistItem(
+      {required this.id, required this.text, this.isCompleted = false});
   ChecklistItem copy() =>
       ChecklistItem(id: id, text: text, isCompleted: isCompleted);
 }
@@ -33,14 +29,9 @@ class ChecklistPhase {
       emoji: emoji,
       categories: categories.map((c) => c.copy()).toList());
 
-  List<ChecklistItem> get allItems =>
-      [for (final c in categories) ...c.items];
+  List<ChecklistItem> get allItems => [for (final c in categories) ...c.items];
 }
 
-// Groups the flat checklist_items rows into phases/categories, preserving
-// first-seen order (rows come pre-sorted by display_order, so this lines
-// up with the intended phase/category sequence without needing it stored
-// separately).
 List<ChecklistPhase> phasesFromRows(List<Map<String, dynamic>> rows) {
   final phaseOrder = <String>[];
   final phaseEmojis = <String, String>{};
@@ -88,10 +79,6 @@ int phaseTotal(ChecklistPhase phase) =>
 int phaseDone(ChecklistPhase phase) => phase.categories
     .fold(0, (sum, c) => sum + c.items.where((i) => i.isCompleted).length);
 
-// "Current trimester" is a user-set toggle (on the checklist screen), not
-// auto-detected from the mum's week — stored locally per device via
-// SharedPreferences, defaulting to the first phase (First Trimester) until
-// the user picks one.
 const _kCurrentPhaseIndexKey = 'next_of_kin_current_checklist_phase_index';
 
 Future<int> getCurrentChecklistPhaseIndex() async {

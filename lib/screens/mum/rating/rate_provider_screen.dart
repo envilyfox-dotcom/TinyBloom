@@ -5,9 +5,6 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import '../consultation/consultation_helpers.dart';
 
-// Opened from a "Rate Dr {name}" / "Rate {name}" notification. Deliberately
-// minimal — a profile, five tappable stars, and Submit. No comment field or
-// free text anywhere on this screen by design.
 class RateProviderScreen extends StatefulWidget {
   final Map<String, dynamic> notification;
   const RateProviderScreen({super.key, required this.notification});
@@ -33,11 +30,6 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
   String get _sourceLabel =>
       _sourceType == 'consultation' ? 'Appointment ID' : 'Reference ID';
 
-  // Consultations use the same short SPC-xxxxxx/VOL-xxxxxx id shown on the
-  // consultation detail screens (see appointmentIdLabel) — derived
-  // deterministically from the row id, so it matches what the specialist
-  // sees for the same appointment. Chat-sourced ratings (volunteer quick
-  // chat) aren't consultations table rows, so they keep the raw source id.
   String get _displaySourceId => _sourceType == 'consultation'
       ? appointmentIdLabel(_sourceId, _providerType)
       : _sourceId;
@@ -51,8 +43,6 @@ class _RateProviderScreenState extends State<RateProviderScreen> {
   Future<void> _load() async {
     Map<String, dynamic>? profile;
     try {
-      // getProviderProfile joins specialist_profiles/volunteer_profiles (for
-      // the specialization) with profiles (for name/photo) in one call.
       profile = await SupabaseService.getProviderProfile(_providerId);
     } catch (_) {}
     if (mounted) {

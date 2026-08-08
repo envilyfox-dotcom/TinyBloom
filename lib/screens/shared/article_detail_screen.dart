@@ -24,8 +24,6 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
-// The tags an article carries — falls back to its single legacy `category`
-// for rows saved before the multi-tag picker existed.
 List<String> _articleTags(Map<String, dynamic> article) {
   final tags = (article['tags'] as List?)?.whereType<String>().toList() ?? [];
   if (tags.isNotEmpty) return tags;
@@ -33,11 +31,8 @@ List<String> _articleTags(Map<String, dynamic> article) {
   return category != null ? [category] : [];
 }
 
-// A more saturated green than AppColors.sage for the "Approved by" badge —
-// sage reads too muted against the white card for this particular chip.
 const _approvedGreen = Color(0xFF2E9E5B);
 
-// ── Article Detail ────────────────────────────────────────────────
 class ArticleDetailScreen extends StatefulWidget {
   final Map<String, dynamic> article;
   const ArticleDetailScreen({super.key, required this.article});
@@ -51,8 +46,6 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   bool _loadingComments = true;
   final _commentCtrl = TextEditingController();
   final _commentFocusNode = FocusNode();
-  // The comment being replied to — the fixed bottom bar doubles as the
-  // reply box, with a "Replying to X" chip shown above it while set.
   Map<String, dynamic>? _replyingTo;
   bool _isLiked = false;
   late int _likeCount;
@@ -97,7 +90,6 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     final id = _articleId;
     if (id == null) return;
     final wasLiked = _isLiked;
-    // Optimistic update so the tap feels instant.
     setState(() {
       _isLiked = !wasLiked;
       _likeCount = (_likeCount + (wasLiked ? -1 : 1)).clamp(0, 1 << 30);
@@ -148,9 +140,6 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     final id = _articleId;
     final body = _commentCtrl.text.trim();
     if (id == null || body.isEmpty) return;
-    // Replies to a reply flatten to the same top-level thread (one reply
-    // depth in storage/UI, like Facebook) — the chip above the input still
-    // names the specific person being replied to.
     final parentId =
         _replyingTo == null ? null : _topLevelParentId(_replyingTo!);
     _commentCtrl.clear();
@@ -452,11 +441,6 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     );
   }
 
-  // Green dropdown badge — same pill shape as the specialist-side "In
-  // publish buffer" status chip, sat beside the author's name — listing the
-  // reviewers (stage 1 and 2) who approved or approved-with-suggestion this
-  // article. Tapping it opens _approvedByOverlayPanel on top of the content
-  // below, since readers close it again before actually reading the article.
   Widget _approvedByBadge() {
     return InkWell(
       borderRadius: BorderRadius.circular(50),
@@ -483,8 +467,6 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     );
   }
 
-  // Darker card than the white article body it sits on top of, so it reads
-  // as a floating panel rather than blending into the content underneath.
   Widget _approvedByOverlayPanel() {
     return Container(
       width: double.infinity,
@@ -678,9 +660,6 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     );
   }
 
-  // Fixed to the bottom of the screen (not the scroll content) so it's
-  // always reachable; SafeArea(top: false) lifts it clear of the Android
-  // gesture/nav bar.
   Widget _commentInputBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),

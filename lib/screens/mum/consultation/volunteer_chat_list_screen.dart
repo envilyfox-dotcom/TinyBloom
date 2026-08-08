@@ -5,11 +5,6 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import '../../../widgets/quick_chat_volunteer.dart';
 
-// ── "View All" destination for the Quick Chat with Volunteer dashboard
-// widget. Unlike ConsultationListScreen (which mixes specialist bookings
-// with volunteer Q&A), this screen is volunteer-chat-only, and drops any
-// chat that has already ended (closed/completed) — those are done, so
-// they don't need to keep taking up space in the list.
 class VolunteerChatListScreen extends StatefulWidget {
   const VolunteerChatListScreen({super.key});
 
@@ -32,8 +27,6 @@ class _VolunteerChatListScreenState extends State<VolunteerChatListScreen> {
   Future<void> _load() async {
     try {
       final raw = await SupabaseService.getMyVolunteerQuestions();
-      // A chat with no activity in 48h is done — flip it to closed here
-      // too, not just when someone happens to open its own thread screen.
       await SupabaseService.autoCloseStaleRequests(raw);
       final active = raw.where((q) => !quickChatIsEnded(q)).toList();
       final enriched = await enrichQuickChatQuestions(active);

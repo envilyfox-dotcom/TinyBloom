@@ -5,10 +5,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── Create Article (Specialists) ────────────────────────────────────────
-// Replaces the old instant-publish "Submit Article Link" screen. Every
-// article now starts as a draft and must pass the two-stage peer review
-// pipeline (see Article_System_specialist.md) before it goes live.
 class SpecialistCreateArticleScreen extends StatefulWidget {
   const SpecialistCreateArticleScreen({super.key});
   @override
@@ -17,8 +13,22 @@ class SpecialistCreateArticleScreen extends StatefulWidget {
 }
 
 const _quickEmojis = [
-  '😀', '😊', '😍', '🥰', '😴', '😢', '🎉', '👍',
-  '❤️', '🤰', '👶', '🍼', '🌸', '✨', '🙏', '💪',
+  '😀',
+  '😊',
+  '😍',
+  '🥰',
+  '😴',
+  '😢',
+  '🎉',
+  '👍',
+  '❤️',
+  '🤰',
+  '👶',
+  '🍼',
+  '🌸',
+  '✨',
+  '🙏',
+  '💪',
 ];
 
 class _SpecialistCreateArticleScreenState
@@ -37,9 +47,6 @@ class _SpecialistCreateArticleScreenState
   final Set<String> _selectedTags = {};
   String? _tagsError;
 
-  // Trimester tags sit in the same multi-select tag list as ordinary
-  // categories — no separate "Relevant Trimester" section — so an article
-  // can be tagged with more than one and/or a trimester at once.
   List<String> get _allTagOptions =>
       [..._categories, ...SupabaseService.trimesterTags];
 
@@ -82,7 +89,6 @@ class _SpecialistCreateArticleScreenState
     }
   }
 
-  // ── Formatting toolbar ────────────────────────────────────────────
   void _wrapSelection(String left, [String? right]) {
     right ??= left;
     final text = _contentCtrl.text;
@@ -141,14 +147,15 @@ class _SpecialistCreateArticleScreenState
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 85);
+    final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery, maxWidth: 1280, imageQuality: 85);
     if (picked == null) return;
 
     setState(() => _uploadingImage = true);
     try {
       final bytes = await picked.readAsBytes();
-      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final ext =
+          picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
       final url = await SupabaseService.uploadArticleImage(
           bytes, ext.length <= 4 ? ext : 'jpg');
       _insertAtCursor('\n![image]($url)\n');
@@ -187,9 +194,8 @@ class _SpecialistCreateArticleScreenState
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(submitForReview
-                ? 'Submitted for review!'
-                : 'Draft saved.')));
+            content: Text(
+                submitForReview ? 'Submitted for review!' : 'Draft saved.')));
       }
       if (submitForReview) {
         if (mounted) context.go('/education');
@@ -274,275 +280,288 @@ class _SpecialistCreateArticleScreenState
                   ),
                 )
               : SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                  20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  padding: EdgeInsets.fromLTRB(
+                      20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(
-                          child: Text('Title',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 16)),
-                        ),
-                        if (_myGroup != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.tealLight,
-                              borderRadius: BorderRadius.circular(50),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Expanded(
+                              child: Text('Title',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16)),
                             ),
-                            child: Text(_myGroup!['name'] as String? ?? '',
-                                style: const TextStyle(
-                                    color: AppColors.teal,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700)),
+                            if (_myGroup != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.tealLight,
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: Text(_myGroup!['name'] as String? ?? '',
+                                    style: const TextStyle(
+                                        color: AppColors.teal,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (_myGroup == null)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                                'No specialty set on your profile yet — set it under Edit Profile before you can submit an article.',
+                                style:
+                                    TextStyle(color: Colors.red, fontSize: 12)),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (_myGroup == null)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                            'No specialty set on your profile yet — set it under Edit Profile before you can submit an article.',
-                            style: TextStyle(color: Colors.red, fontSize: 12)),
-                      ),
-                    TextFormField(
-                      controller: _titleCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Insert your title here...',
-                        filled: true,
-                        fillColor: AppColors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide:
-                              const BorderSide(color: AppColors.rose, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 14),
-                      ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Please enter a title'
-                          : null,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text('Description',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
-                    const SizedBox(height: 8),
-                    FormField<String>(
-                      validator: (_) => _contentCtrl.text.trim().isEmpty
-                          ? 'Please write the article content'
-                          : null,
-                      builder: (field) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                  color: field.hasError
-                                      ? Theme.of(context).colorScheme.error
-                                      : AppColors.textLight
-                                          .withValues(alpha: 0.2)),
+                        TextFormField(
+                          controller: _titleCtrl,
+                          decoration: InputDecoration(
+                            hintText: 'Insert your title here...',
+                            filled: true,
+                            fillColor: AppColors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(50),
+                              borderSide: BorderSide.none,
                             ),
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  child: Row(
-                                    children: [
-                                      _toolbarButton(
-                                        onPressed: () => _wrapSelection('**'),
-                                        child: const Text('B',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 16,
-                                                color: AppColors.textDark)),
-                                      ),
-                                      _toolbarButton(
-                                        onPressed: () => _wrapSelection('*'),
-                                        child: const Text('I',
-                                            style: TextStyle(
-                                                fontStyle: FontStyle.italic,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 16,
-                                                color: AppColors.textDark)),
-                                      ),
-                                      _toolbarButton(
-                                        onPressed: () => _wrapSelection('++'),
-                                        child: const Text('U',
-                                            style: TextStyle(
-                                                decoration:
-                                                    TextDecoration.underline,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 16,
-                                                color: AppColors.textDark)),
-                                      ),
-                                      const Spacer(),
-                                      _toolbarButton(
-                                        onPressed: _pickEmoji,
-                                        child: const Icon(
-                                            Icons.emoji_emotions_outlined,
-                                            color: AppColors.textMid,
-                                            size: 22),
-                                      ),
-                                      _toolbarButton(
-                                        onPressed:
-                                            _uploadingImage ? null : _pickImage,
-                                        child: _uploadingImage
-                                            ? const SizedBox(
-                                                width: 18,
-                                                height: 18,
-                                                child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    color: AppColors.teal))
-                                            : const Icon(Icons.image_outlined,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(50),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(50),
+                              borderSide: const BorderSide(
+                                  color: AppColors.rose, width: 1.5),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 14),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Please enter a title'
+                              : null,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text('Description',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 16)),
+                        const SizedBox(height: 8),
+                        FormField<String>(
+                          validator: (_) => _contentCtrl.text.trim().isEmpty
+                              ? 'Please write the article content'
+                              : null,
+                          builder: (field) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                      color: field.hasError
+                                          ? Theme.of(context).colorScheme.error
+                                          : AppColors.textLight
+                                              .withValues(alpha: 0.2)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      child: Row(
+                                        children: [
+                                          _toolbarButton(
+                                            onPressed: () =>
+                                                _wrapSelection('**'),
+                                            child: const Text('B',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 16,
+                                                    color: AppColors.textDark)),
+                                          ),
+                                          _toolbarButton(
+                                            onPressed: () =>
+                                                _wrapSelection('*'),
+                                            child: const Text('I',
+                                                style: TextStyle(
+                                                    fontStyle: FontStyle.italic,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16,
+                                                    color: AppColors.textDark)),
+                                          ),
+                                          _toolbarButton(
+                                            onPressed: () =>
+                                                _wrapSelection('++'),
+                                            child: const Text('U',
+                                                style: TextStyle(
+                                                    decoration: TextDecoration
+                                                        .underline,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16,
+                                                    color: AppColors.textDark)),
+                                          ),
+                                          const Spacer(),
+                                          _toolbarButton(
+                                            onPressed: _pickEmoji,
+                                            child: const Icon(
+                                                Icons.emoji_emotions_outlined,
                                                 color: AppColors.textMid,
                                                 size: 22),
+                                          ),
+                                          _toolbarButton(
+                                            onPressed: _uploadingImage
+                                                ? null
+                                                : _pickImage,
+                                            child: _uploadingImage
+                                                ? const SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color:
+                                                                AppColors.teal))
+                                                : const Icon(
+                                                    Icons.image_outlined,
+                                                    color: AppColors.textMid,
+                                                    size: 22),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    Divider(
+                                        height: 1,
+                                        color: AppColors.textLight
+                                            .withValues(alpha: 0.2)),
+                                    TextFormField(
+                                      controller: _contentCtrl,
+                                      focusNode: _contentFocus,
+                                      maxLines: 8,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Insert your content here...',
+                                        filled: false,
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        contentPadding: EdgeInsets.all(16),
+                                      ),
+                                      onChanged: (v) => field.didChange(v),
+                                    ),
+                                  ],
                                 ),
-                                Divider(
-                                    height: 1,
-                                    color: AppColors.textLight
-                                        .withValues(alpha: 0.2)),
-                                TextFormField(
-                                  controller: _contentCtrl,
-                                  focusNode: _contentFocus,
-                                  maxLines: 8,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Insert your content here...',
-                                    filled: false,
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    contentPadding: EdgeInsets.all(16),
-                                  ),
-                                  onChanged: (v) => field.didChange(v),
+                              ),
+                              if (field.hasError)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(top: 8, left: 12),
+                                  child: Text(field.errorText!,
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error,
+                                          fontSize: 12)),
                                 ),
-                              ],
-                            ),
-                          ),
-                          if (field.hasError)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8, left: 12),
-                              child: Text(field.errorText!,
-                                  style: TextStyle(
-                                      color: Theme.of(context).colorScheme.error,
-                                      fontSize: 12)),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Tags',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: AppColors.textMid)),
-                    ),
-                    const SizedBox(height: 4),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                          'Select all that apply.',
-                          style: TextStyle(
-                              color: AppColors.textLight, fontSize: 12)),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _allTagOptions.map((tag) {
-                          final sel = _selectedTags.contains(tag);
-                          return FilterChip(
-                            label: Text(tag,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: sel
-                                        ? AppColors.teal
-                                        : AppColors.textMid,
-                                    fontWeight: sel
-                                        ? FontWeight.w600
-                                        : FontWeight.normal)),
-                            selected: sel,
-                            onSelected: (_) => setState(() {
-                              if (sel) {
-                                _selectedTags.remove(tag);
-                              } else {
-                                _selectedTags.add(tag);
-                              }
-                              if (_tagsError != null) {
-                                _tagsError = _selectedTags.isEmpty
-                                    ? 'Please select at least one tag'
-                                    : null;
-                              }
-                            }),
-                            selectedColor: AppColors.tealLight,
-                            checkmarkColor: AppColors.teal,
-                            backgroundColor: AppColors.white,
-                            side: BorderSide(
-                                color: sel
-                                    ? AppColors.teal
-                                    : AppColors.textLight.withValues(alpha: 0.3)),
-                          );
-                        }).toList()),
-                    if (_tagsError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, left: 4),
-                        child: Text(_tagsError!,
-                            style: const TextStyle(
-                                color: Colors.red, fontSize: 12)),
-                      ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed:
-                                _saving ? null : () => _save(submitForReview: false),
-                            child: const Text('Save Draft'),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TBButton(
-                            label: 'Submit for Review',
-                            loading: _saving,
-                            onPressed: () => _save(submitForReview: true),
+                        const SizedBox(height: 20),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Tags',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: AppColors.textMid)),
+                        ),
+                        const SizedBox(height: 4),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Select all that apply.',
+                              style: TextStyle(
+                                  color: AppColors.textLight, fontSize: 12)),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _allTagOptions.map((tag) {
+                              final sel = _selectedTags.contains(tag);
+                              return FilterChip(
+                                label: Text(tag,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: sel
+                                            ? AppColors.teal
+                                            : AppColors.textMid,
+                                        fontWeight: sel
+                                            ? FontWeight.w600
+                                            : FontWeight.normal)),
+                                selected: sel,
+                                onSelected: (_) => setState(() {
+                                  if (sel) {
+                                    _selectedTags.remove(tag);
+                                  } else {
+                                    _selectedTags.add(tag);
+                                  }
+                                  if (_tagsError != null) {
+                                    _tagsError = _selectedTags.isEmpty
+                                        ? 'Please select at least one tag'
+                                        : null;
+                                  }
+                                }),
+                                selectedColor: AppColors.tealLight,
+                                checkmarkColor: AppColors.teal,
+                                backgroundColor: AppColors.white,
+                                side: BorderSide(
+                                    color: sel
+                                        ? AppColors.teal
+                                        : AppColors.textLight
+                                            .withValues(alpha: 0.3)),
+                              );
+                            }).toList()),
+                        if (_tagsError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, left: 4),
+                            child: Text(_tagsError!,
+                                style: const TextStyle(
+                                    color: Colors.red, fontSize: 12)),
                           ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _saving
+                                    ? null
+                                    : () => _save(submitForReview: false),
+                                child: const Text('Save Draft'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TBButton(
+                                label: 'Submit for Review',
+                                loading: _saving,
+                                onPressed: () => _save(submitForReview: true),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
     );
   }
 }

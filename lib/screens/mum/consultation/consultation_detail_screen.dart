@@ -122,7 +122,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     if (provider == null) return;
     final c = widget.consultation;
     final type = c['consultation_type'] as String? ??
-        (provider['provider_type'] == 'specialist' ? 'specialist' : 'volunteer');
+        (provider['provider_type'] == 'specialist'
+            ? 'specialist'
+            : 'volunteer');
     context.push('/consultation/book', extra: {
       'provider': provider,
       'type': type,
@@ -130,8 +132,6 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     });
   }
 
-  // Matches the forum's "+ New Post" bottom sheet design so cancellation
-  // flows feel consistent with the rest of the app.
   Future<String?> _promptCancellationReason() async {
     final ctrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -205,31 +205,18 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Next-of-kin can only view the linked mum's consultations — cancelling
-    // is her own action, so the Cancel button is hidden entirely for them.
     final isNextOfKin = context.watch<AuthProvider>().isNextOfKin;
     final c = widget.consultation;
-    // Once the slot is over, effectiveConsultationStatus already reports
-    // 'completed' — so gating on 'confirmed' here also takes care of
-    // hiding the Join button once the meeting time has passed.
     final status = effectiveConsultationStatus(c);
     final meetingLink = (c['meeting_link'] as String? ?? '').trim();
     final showJoin =
         !isNextOfKin && status == 'confirmed' && meetingLink.isNotEmpty;
     final showCancel =
         !isNextOfKin && (status == 'confirmed' || status == 'pending');
-    // Same eligibility as Cancel, plus a cutoff: once the appointment is
-    // less than 30 minutes away (or already started), rescheduling is no
-    // longer allowed — the button stays visible but greyed out so it's
-    // clear the option existed and just closed, rather than vanishing.
     final scheduledAt = consultationScheduledDateTime(c);
     final tooCloseToReschedule = scheduledAt != null &&
         scheduledAt.difference(sgtNow()) <= minBookingNotice;
     final showReschedule = showCancel && _provider != null;
-    // Still 'pending' in the database, but the slot has passed — the
-    // specialist never responded in time, so it now reads as cancelled.
-    // Distinguished from a deliberate cancel so the mum gets the right
-    // explanation rather than a bare "Cancelled" with no reason.
     final wasNeverAccepted =
         (c['status'] as String? ?? '').toLowerCase() == 'pending' &&
             status == 'cancelled';
@@ -429,8 +416,7 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
                             ? 'Too close to the appointment time to reschedule.'
                             : '',
                         child: OutlinedButton.icon(
-                          onPressed:
-                              tooCloseToReschedule ? null : _reschedule,
+                          onPressed: tooCloseToReschedule ? null : _reschedule,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             foregroundColor: AppColors.teal,

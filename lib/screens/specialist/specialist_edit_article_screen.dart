@@ -5,12 +5,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── Edit Article (Specialists) ───────────────────────────────────────────
-// Same form/design as SpecialistCreateArticleScreen, pre-filled for an
-// existing draft/changes_requested article. Reached from the review
-// thread's Edit Article button once a reviewer has requested changes —
-// primary_group_id is fixed at submission and isn't editable here (see
-// SupabaseService.updateArticleDraft).
 class SpecialistEditArticleScreen extends StatefulWidget {
   final Map<String, dynamic> article;
   const SpecialistEditArticleScreen({super.key, required this.article});
@@ -21,8 +15,22 @@ class SpecialistEditArticleScreen extends StatefulWidget {
 }
 
 const _quickEmojis = [
-  '😀', '😊', '😍', '🥰', '😴', '😢', '🎉', '👍',
-  '❤️', '🤰', '👶', '🍼', '🌸', '✨', '🙏', '💪',
+  '😀',
+  '😊',
+  '😍',
+  '🥰',
+  '😴',
+  '😢',
+  '🎉',
+  '👍',
+  '❤️',
+  '🤰',
+  '👶',
+  '🍼',
+  '🌸',
+  '✨',
+  '🙏',
+  '💪',
 ];
 
 class _SpecialistEditArticleScreenState
@@ -41,15 +49,9 @@ class _SpecialistEditArticleScreenState
   bool _uploadingImage = false;
   late final Set<String> _selectedTags;
 
-  // Trimester tags sit in the same multi-select tag list as ordinary
-  // categories — no separate "Relevant Trimester" section.
   List<String> get _allTagOptions =>
       [..._categories, ...SupabaseService.trimesterTags];
 
-  // Submitting for review is only valid while the article hasn't cleared
-  // the pipeline yet (mirrors resubmit_content's own status guard) — once
-  // it's mid-review/buffer, editing here just logs a change, it doesn't
-  // resubmit anything.
   bool get _canSubmit {
     final status = widget.article['status'] as String?;
     return status == 'draft' || status == 'changes_requested';
@@ -60,15 +62,13 @@ class _SpecialistEditArticleScreenState
     super.initState();
     _titleCtrl =
         TextEditingController(text: widget.article['title'] as String? ?? '');
-    _contentCtrl = TextEditingController(
-        text: widget.article['content'] as String? ?? '');
+    _contentCtrl =
+        TextEditingController(text: widget.article['content'] as String? ?? '');
     final existingTags =
         (widget.article['tags'] as List?)?.whereType<String>().toList() ?? [];
     if (existingTags.isNotEmpty) {
       _selectedTags = existingTags.toSet();
     } else {
-      // Pre-tags articles: seed from the legacy single category/trimester
-      // values so editing an old draft doesn't start with an empty picker.
       final legacyCategory = widget.article['category'] as String?;
       final legacyTrimester = widget.article['trimester'] as int?;
       _selectedTags = {
@@ -120,7 +120,6 @@ class _SpecialistEditArticleScreenState
     }
   }
 
-  // ── Formatting toolbar ────────────────────────────────────────────
   void _wrapSelection(String left, [String? right]) {
     right ??= left;
     final text = _contentCtrl.text;
@@ -179,14 +178,15 @@ class _SpecialistEditArticleScreenState
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 85);
+    final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery, maxWidth: 1280, imageQuality: 85);
     if (picked == null) return;
 
     setState(() => _uploadingImage = true);
     try {
       final bytes = await picked.readAsBytes();
-      final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
+      final ext =
+          picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
       final url = await SupabaseService.uploadArticleImage(
           bytes, ext.length <= 4 ? ext : 'jpg');
       _insertAtCursor('\n![image]($url)\n');
@@ -202,8 +202,8 @@ class _SpecialistEditArticleScreenState
   Future<void> _save({required bool submitForReview}) async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedTags.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please choose at least one tag.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please choose at least one tag.')));
       return;
     }
     setState(() => _saving = true);
@@ -577,8 +577,7 @@ class _SpecialistEditArticleScreenState
                                 child: TBButton(
                                   label: 'Submit for Review',
                                   loading: _saving,
-                                  onPressed: () =>
-                                      _save(submitForReview: true),
+                                  onPressed: () => _save(submitForReview: true),
                                 ),
                               ),
                             ],

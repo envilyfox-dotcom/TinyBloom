@@ -32,8 +32,6 @@ import 'package:intl/intl.dart';
 
 const singaporeOffset = Duration(hours: 8);
 
-// ── Writing to the database ──────────────────────────────────────────
-
 /// "Now" as an absolute instant, ready for a `timestamptz` column.
 ///
 /// Use this for every explicit timestamp write. Where the column already
@@ -45,14 +43,11 @@ String dbNow() => DateTime.now().toUtc().toIso8601String();
 /// Converts any instant into the UTC form a `timestamptz` column expects.
 String dbTimestamp(DateTime instant) => instant.toUtc().toIso8601String();
 
-// ── Reading / displaying ─────────────────────────────────────────────
-
 /// Shifts an instant into Singapore wall-clock fields for display.
 ///
 /// The result is flagged UTC so `DateFormat` prints the SGT fields as-is.
 /// It is a display value only — never write it back to the database.
-DateTime toSingaporeTime(DateTime date) =>
-    date.toUtc().add(singaporeOffset);
+DateTime toSingaporeTime(DateTime date) => date.toUtc().add(singaporeOffset);
 
 /// The current Singapore wall-clock time.
 ///
@@ -80,8 +75,6 @@ DateTime? sgtDateFrom(dynamic raw) {
   final parsed = raw is DateTime ? raw : DateTime.tryParse(raw.toString());
   return parsed == null ? null : asSgtWallClock(parsed);
 }
-
-// ── Building wall-clock values ───────────────────────────────────────
 
 /// Builds a Singapore wall-clock `DateTime` from calendar fields — the
 /// counterpart to the plain `DateTime(...)` constructor, which would tag

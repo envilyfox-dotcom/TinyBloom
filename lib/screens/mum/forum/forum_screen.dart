@@ -11,7 +11,6 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
-// ── Forum (post list) ─────────────────────────────────────────────
 class ForumScreen extends StatefulWidget {
   const ForumScreen({super.key});
   @override
@@ -56,7 +55,6 @@ class _ForumScreenState extends State<ForumScreen> {
   Future<void> _toggleLike(Map<String, dynamic> post) async {
     final id = post['id'] as String;
     final wasLiked = _likedIds.contains(id);
-    // Optimistic update so the tap feels instant.
     setState(() {
       if (wasLiked) {
         _likedIds.remove(id);
@@ -290,8 +288,6 @@ class _ForumScreenState extends State<ForumScreen> {
     final isLiked = _likedIds.contains(id);
     final isMine = post['author_id'] == myId;
 
-    // A single shared handler so the avatar/name block and the content text
-    // below both open the post without duplicating the push logic.
     Future<void> openDetail() async {
       await context.push('/forum/post', extra: post);
       _load();
@@ -300,11 +296,6 @@ class _ForumScreenState extends State<ForumScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TBCard(
-        // No onTap on the card itself — the edit/delete icons below sit in
-        // the same Row as the "open detail" GestureDetector as siblings, not
-        // descendants, of it. Nesting them (as before) let a single tap fire
-        // both the icon's handler and the card's navigation at once, racing
-        // a dialog pop against a route push and crashing the Navigator.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

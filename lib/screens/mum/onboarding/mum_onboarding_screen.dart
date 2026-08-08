@@ -122,7 +122,6 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
 
   int get _pregnancyWeek {
     if (_dueDate == null) return 0;
-    // _dueDate is a picked date, so its fields are already wall clock.
     final conception =
         asSgtWallClock(_dueDate!).subtract(const Duration(days: 280));
     return sgtNow().difference(conception).inDays ~/ 7;
@@ -1092,10 +1091,6 @@ class _WeekSummaryCard extends StatelessWidget {
   }
 }
 
-// Allergy chips double as their own description viewer — tapping any chip
-// (including to deselect it) swaps in that allergy's description at the
-// bottom of the card, so this needs its own State to remember which one
-// was tapped last across the parent's rebuilds.
 class _AllergyChips extends StatefulWidget {
   final Set<String> selected;
   final List<String> options;

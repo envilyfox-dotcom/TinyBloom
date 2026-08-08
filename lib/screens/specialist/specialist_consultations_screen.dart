@@ -11,14 +11,8 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
-// The Start Session button unlocks this long before the scheduled time,
-// so a specialist can't join (and a patient can't be joined) way too early.
 const Duration _joinWindow = Duration(minutes: 10);
 
-// ── Specialist Consultation Tab ─────────────────────────────────────
-// Lists every pending/confirmed consultation for the logged-in
-// specialist, soonest first, with the same details shown on
-// SpecialistConsultationDetailScreen surfaced directly on each card.
 class SpecialistConsultationsScreen extends StatefulWidget {
   const SpecialistConsultationsScreen({super.key});
 
@@ -53,11 +47,6 @@ class _SpecialistConsultationsScreenState
   void initState() {
     super.initState();
     _load();
-    // Re-evaluates the Start Session lock/unlock (and Pending -> Expired
-    // display) against the current time without needing a manual refresh,
-    // so the join window opens on its own while the page is open. Only the
-    // consultation list listens to _now, so the tick doesn't rebuild the
-    // whole screen.
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) _now.value = sgtNow();
     });
@@ -153,7 +142,6 @@ class _SpecialistConsultationsScreenState
       if (aTime == null) return 1;
       if (bTime == null) return -1;
 
-      // Active appointments: soonest first. Expired/cancelled: most recent first.
       return aInactive ? bTime.compareTo(aTime) : aTime.compareTo(bTime);
     });
 
@@ -181,10 +169,6 @@ class _SpecialistConsultationsScreenState
     }
   }
 
-  // A pending consultation whose scheduled time has already passed without
-  // the specialist approving it reads as "Expired"; a confirmed one that has
-  // already passed reads as "Completed" — both distinct from a patient-initiated
-  // "Cancelled".
   String _effectiveStatusKey(Map<String, dynamic> consultation) {
     final status =
         (consultation['status'] as String? ?? 'pending').toLowerCase();
@@ -200,9 +184,6 @@ class _SpecialistConsultationsScreenState
   bool _isInactiveKey(String key) =>
       key == 'expired' || key == 'cancelled' || key == 'completed';
 
-  // Start Session unlocks _joinWindow (1 hour) before the scheduled time —
-  // if the schedule can't be determined, fail open rather than locking the
-  // specialist out of a confirmed session.
   bool _canStartSession(Map<String, dynamic> consultation) {
     final scheduled = _scheduledDateTime(consultation);
     if (scheduled == null) return true;
@@ -235,8 +216,6 @@ class _SpecialistConsultationsScreenState
     }
   }
 
-  // Approving creates a real Zoom meeting and confirms in one step — see
-  // the matching comment in specialist_consultation_detail_screen.dart.
   Future<void> _approve(Map<String, dynamic> consultation) async {
     final id = consultation['id']?.toString();
     if (id == null) return;
@@ -397,32 +376,29 @@ class _SpecialistConsultationsScreenState
   String _formatScheduledDate(dynamic rawDate) {
     if (rawDate == null) return '—';
     try {
-      return DateFormat('d MMMM yyyy').format(DateTime.parse(rawDate.toString()));
+      return DateFormat('d MMMM yyyy')
+          .format(DateTime.parse(rawDate.toString()));
     } catch (_) {
       return '—';
     }
   }
 
-  // Small pop-up shown from the "!" badge on a rescheduled appointment's
-  // avatar — a before/after comparison of the same field set as the card
-  // itself (Appointment ID, Name, Age, Date, Time, Status, Descriptions):
-  // the previous slot on top, an arrow down, then the new slot below, with
-  // Date/Time picked out in a gold chip on both so the change is obvious at
-  // a glance.
   Future<void> _showRescheduleDetails(
     Map<String, dynamic> consultation,
     String patientName,
     String patientAge,
   ) async {
     final id = consultation['id']?.toString() ?? '';
-    final apptId = appointmentIdLabel(
-        id, consultation['consultation_type'] as String?);
+    final apptId =
+        appointmentIdLabel(id, consultation['consultation_type'] as String?);
     final status = statusLabel(_effectiveStatusKey(consultation));
     final purpose = consultation['purpose'] as String? ?? '';
     final ageLabel = patientAge == '—' ? '—' : '$patientAge yrs old';
 
-    final oldDateStr = _formatScheduledDate(consultation['previous_scheduled_date']);
-    final oldTimeStr = consultation['previous_scheduled_time'] as String? ?? '—';
+    final oldDateStr =
+        _formatScheduledDate(consultation['previous_scheduled_date']);
+    final oldTimeStr =
+        consultation['previous_scheduled_time'] as String? ?? '—';
     final newDateStr = _formatScheduledDate(consultation['scheduled_date']);
     final newTimeStr = consultation['scheduled_time'] as String? ?? '—';
 
@@ -546,8 +522,8 @@ class _SpecialistConsultationsScreenState
           else
             Expanded(
               child: Text(value,
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 13)),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 13)),
             ),
         ],
       ),
@@ -582,12 +558,8 @@ class _SpecialistConsultationsScreenState
     final platform = consultation['platform'] as String? ?? 'Zoom Meeting';
     final canStartSession = _canStartSession(consultation);
     final busy = _busyIds.contains(id);
-    // Set by SupabaseService.rescheduleConsultation whenever the mum moves
-    // this appointment — cleared implicitly once the specialist re-approves
-    // (status leaves 'pending'), so the badge doesn't linger after that.
-    final wasRescheduled =
-        consultation['previous_scheduled_date'] != null &&
-            effectiveKey == 'pending';
+    final wasRescheduled = consultation['previous_scheduled_date'] != null &&
+        effectiveKey == 'pending';
 
     return GestureDetector(
       onTap: () async {
@@ -637,11 +609,6 @@ class _SpecialistConsultationsScreenState
                     ),
                     if (wasRescheduled)
                       Positioned(
-                        // The visual badge stays 20x20 (offset -4/-4 from the
-                        // avatar as before) but the tap target is padded out
-                        // to 36x36 — a bare 20px circle is fiddly to hit on a
-                        // touchscreen, so the extra padding is invisible but
-                        // still tappable.
                         top: -12,
                         right: -12,
                         child: GestureDetector(
@@ -798,9 +765,6 @@ class _SpecialistConsultationsScreenState
     );
   }
 
-  // Expired/Cancelled are display-only concepts local to this tab — layered
-  // on top of the shared statusColor/statusLabel used elsewhere in the app
-  // (pending = gold, confirmed = sage) so those screens are unaffected.
   Widget _statusBadge(String key) {
     String label;
     Color color;

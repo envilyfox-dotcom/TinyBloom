@@ -19,21 +19,17 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   bool _saving = false;
   String? _error;
 
-  // Step 1 – About You
   final _ageCtrl = TextEditingController();
   String _pregnancyStatus = '';
 
-  // Step 2 – Your Pregnancy
   DateTime? _dueDate;
 
-  // Step 3 – Health Details
   final _heightCtrl = TextEditingController();
   final _weightCtrl = TextEditingController();
   final Set<String> _conditions = {};
   final _allergiesCtrl = TextEditingController();
   final _otherConditionCtrl = TextEditingController();
 
-  // Step 4 – Interests & Support
   final Set<String> _interests = {};
   final Set<String> _consultationNeeds = {};
 
@@ -112,7 +108,10 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   }
 
   Future<void> _submit() async {
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       await SupabaseService.savePregnancyProfile({
         'age': int.tryParse(_ageCtrl.text),
@@ -133,8 +132,7 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
         'allergies': _allergiesCtrl.text.trim().isEmpty
             ? null
             : _allergiesCtrl.text.trim(),
-        'areas_of_interest':
-            _interests.isEmpty ? null : _interests.join(', '),
+        'areas_of_interest': _interests.isEmpty ? null : _interests.join(', '),
         'consultation_needs':
             _consultationNeeds.isEmpty ? null : _consultationNeeds.join(', '),
       });
@@ -143,7 +141,9 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
         if (mounted) context.go('/home');
       }
     } catch (_) {
-      if (mounted) setState(() => _error = 'Something went wrong. Please check your connection and try again.');
+      if (mounted)
+        setState(() => _error =
+            'Something went wrong. Please check your connection and try again.');
     }
     if (mounted) setState(() => _saving = false);
   }
@@ -165,7 +165,8 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
                     ageCtrl: _ageCtrl,
                     pregnancyStatus: _pregnancyStatus,
                     statuses: _statuses,
-                    onStatusChanged: (v) => setState(() => _pregnancyStatus = v),
+                    onStatusChanged: (v) =>
+                        setState(() => _pregnancyStatus = v),
                   ),
                   _StepYourPregnancy(
                     dueDate: _dueDate,
@@ -249,8 +250,8 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
                       fontSize: 13)),
               const Spacer(),
               Text('${_step + 1} / 4',
-                  style: const TextStyle(
-                      color: AppColors.textMid, fontSize: 13)),
+                  style:
+                      const TextStyle(color: AppColors.textMid, fontSize: 13)),
             ],
           ),
           const SizedBox(height: 12),
@@ -261,7 +262,9 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
                   height: 4,
                   margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
                   decoration: BoxDecoration(
-                    color: i <= _step ? AppColors.rose : AppColors.rose.withValues(alpha: 0.2),
+                    color: i <= _step
+                        ? AppColors.rose
+                        : AppColors.rose.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -354,7 +357,6 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   }
 }
 
-// ── Step 1: About You ────────────────────────────────────────────────
 class _StepAboutYou extends StatelessWidget {
   final TextEditingController ageCtrl;
   final String pregnancyStatus;
@@ -379,8 +381,8 @@ class _StepAboutYou extends StatelessWidget {
             TextFormField(
               controller: ageCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'Age', suffixText: 'years'),
+              decoration:
+                  const InputDecoration(labelText: 'Age', suffixText: 'years'),
             ),
           ]),
           const SizedBox(height: 12),
@@ -392,8 +394,8 @@ class _StepAboutYou extends StatelessWidget {
                 child: Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: sel ? AppColors.blush : AppColors.background,
                     borderRadius: BorderRadius.circular(10),
@@ -406,9 +408,7 @@ class _StepAboutYou extends StatelessWidget {
                   child: Text(s,
                       style: TextStyle(
                           fontWeight: sel ? FontWeight.w700 : FontWeight.normal,
-                          color: sel
-                              ? AppColors.roseDeep
-                              : AppColors.textDark,
+                          color: sel ? AppColors.roseDeep : AppColors.textDark,
                           fontSize: 14)),
                 ),
               );
@@ -420,7 +420,6 @@ class _StepAboutYou extends StatelessWidget {
   }
 }
 
-// ── Step 2: Your Pregnancy ───────────────────────────────────────────
 class _StepYourPregnancy extends StatelessWidget {
   final DateTime? dueDate;
   final int pregnancyWeek;
@@ -444,23 +443,22 @@ class _StepYourPregnancy extends StatelessWidget {
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,
-                  initialDate: dueDate ??
-                      DateTime.now().add(const Duration(days: 140)),
+                  initialDate:
+                      dueDate ?? DateTime.now().add(const Duration(days: 140)),
                   firstDate: DateTime.now(),
-                  lastDate:
-                      DateTime.now().add(const Duration(days: 300)),
+                  lastDate: DateTime.now().add(const Duration(days: 300)),
                   builder: (ctx, child) => Theme(
                     data: Theme.of(ctx).copyWith(
-                        colorScheme: const ColorScheme.light(
-                            primary: AppColors.rose)),
+                        colorScheme:
+                            const ColorScheme.light(primary: AppColors.rose)),
                     child: child!,
                   ),
                 );
                 if (picked != null) onDatePicked(picked);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(10),
@@ -511,16 +509,14 @@ class _StepYourPregnancy extends StatelessWidget {
                 const SizedBox(height: 4),
                 const Text(
                   'of your pregnancy',
-                  style: TextStyle(
-                      color: AppColors.textMid, fontSize: 14),
+                  style: TextStyle(color: AppColors.textMid, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
                 LinearProgressIndicator(
                   value: (pregnancyWeek / 40).clamp(0.0, 1.0),
-                  backgroundColor:
-                      AppColors.rose.withValues(alpha: 0.15),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                      AppColors.rose),
+                  backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(AppColors.rose),
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -537,7 +533,6 @@ class _StepYourPregnancy extends StatelessWidget {
   }
 }
 
-// ── Step 3: Health Details ───────────────────────────────────────────
 class _StepHealthDetails extends StatelessWidget {
   final TextEditingController heightCtrl;
   final TextEditingController weightCtrl;
@@ -592,7 +587,6 @@ class _StepHealthDetails extends StatelessWidget {
             const Text('Select any that apply',
                 style: TextStyle(color: AppColors.textLight, fontSize: 12)),
             const SizedBox(height: 10),
-            // "None" chip — visually separated from the rest
             FilterChip(
               label: Text('None',
                   style: TextStyle(
@@ -621,9 +615,7 @@ class _StepHealthDetails extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 6,
-              children: conditionOptions
-                  .where((c) => c != 'None')
-                  .map((c) {
+              children: conditionOptions.where((c) => c != 'None').map((c) {
                 final sel = conditions.contains(c);
                 final noneSelected = conditions.contains('None');
                 return FilterChip(
@@ -638,7 +630,8 @@ class _StepHealthDetails extends StatelessWidget {
                           fontWeight:
                               sel ? FontWeight.w600 : FontWeight.normal)),
                   selected: sel,
-                  onSelected: noneSelected ? null : (_) => onConditionToggled(c),
+                  onSelected:
+                      noneSelected ? null : (_) => onConditionToggled(c),
                   selectedColor: AppColors.blush,
                   checkmarkColor: AppColors.roseDeep,
                   backgroundColor: AppColors.white,
@@ -674,8 +667,8 @@ class _StepHealthDetails extends StatelessWidget {
                     borderSide:
                         const BorderSide(color: AppColors.rose, width: 1.5),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
             ],
@@ -686,8 +679,7 @@ class _StepHealthDetails extends StatelessWidget {
               controller: allergiesCtrl,
               maxLines: 2,
               decoration: const InputDecoration(
-                hintText:
-                    'e.g. Penicillin, Nuts, Latex (leave blank if none)',
+                hintText: 'e.g. Penicillin, Nuts, Latex (leave blank if none)',
                 border: InputBorder.none,
               ),
             ),
@@ -698,7 +690,6 @@ class _StepHealthDetails extends StatelessWidget {
   }
 }
 
-// ── Step 4: Interests & Support ──────────────────────────────────────
 class _StepInterests extends StatelessWidget {
   final Set<String> interests;
   final List<String> interestOptions;
@@ -725,8 +716,7 @@ class _StepInterests extends StatelessWidget {
         children: [
           _card('💡 Areas of Interest', [
             const Text('What topics matter most to you?',
-                style: TextStyle(
-                    color: AppColors.textLight, fontSize: 12)),
+                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -738,9 +728,8 @@ class _StepInterests extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 12,
                           color: sel ? AppColors.teal : AppColors.textMid,
-                          fontWeight: sel
-                              ? FontWeight.w600
-                              : FontWeight.normal)),
+                          fontWeight:
+                              sel ? FontWeight.w600 : FontWeight.normal)),
                   selected: sel,
                   onSelected: (_) => onInterestToggled(i),
                   selectedColor: AppColors.tealLight,
@@ -758,8 +747,7 @@ class _StepInterests extends StatelessWidget {
           const SizedBox(height: 12),
           _card('👩‍⚕️ Consultation Needs', [
             const Text('Who would you like to speak with?',
-                style: TextStyle(
-                    color: AppColors.textLight, fontSize: 12)),
+                style: TextStyle(color: AppColors.textLight, fontSize: 12)),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -770,12 +758,9 @@ class _StepInterests extends StatelessWidget {
                   label: Text(c,
                       style: TextStyle(
                           fontSize: 12,
-                          color: sel
-                              ? AppColors.roseDeep
-                              : AppColors.textMid,
-                          fontWeight: sel
-                              ? FontWeight.w600
-                              : FontWeight.normal)),
+                          color: sel ? AppColors.roseDeep : AppColors.textMid,
+                          fontWeight:
+                              sel ? FontWeight.w600 : FontWeight.normal)),
                   selected: sel,
                   onSelected: (_) => onConsultationToggled(c),
                   selectedColor: AppColors.blush,
@@ -813,8 +798,8 @@ class _StepInterests extends StatelessWidget {
                     SizedBox(height: 2),
                     Text(
                         'Your profile helps us personalise TinyBloom just for you.',
-                        style: TextStyle(
-                            color: AppColors.textMid, fontSize: 12)),
+                        style:
+                            TextStyle(color: AppColors.textMid, fontSize: 12)),
                   ],
                 ),
               ),
@@ -826,7 +811,6 @@ class _StepInterests extends StatelessWidget {
   }
 }
 
-// ── Shared card widget ───────────────────────────────────────────────
 Widget _card(String title, List<Widget> children) {
   return Container(
     width: double.infinity,

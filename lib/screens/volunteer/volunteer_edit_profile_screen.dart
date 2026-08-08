@@ -40,8 +40,6 @@ class _VolunteerEditProfileScreenState
       _applyProfile(widget.profile!);
       _loading = false;
     } else {
-      // Reached directly (URL navigation/refresh) without the `extra` map
-      // that context.push() normally carries, so fetch the profile ourselves.
       _loadProfile();
     }
   }
@@ -249,8 +247,6 @@ class _VolunteerEditProfileScreenState
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-
-                  // ── Avatar picker ─────────────────────────────────────
                   GestureDetector(
                     onTap: _photoBusy ? null : _pickPhoto,
                     child: Stack(
@@ -300,8 +296,6 @@ class _VolunteerEditProfileScreenState
                     ),
                   ],
                   const SizedBox(height: 24),
-
-                  // ── Form card ──────────────────────────────────────────
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -388,8 +382,6 @@ class _VolunteerEditProfileScreenState
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // ── Save button ───────────────────────────────
                         ElevatedButton(
                           onPressed: _saving ? null : _save,
                           style: ElevatedButton.styleFrom(
@@ -410,8 +402,6 @@ class _VolunteerEditProfileScreenState
                                       fontWeight: FontWeight.w600)),
                         ),
                         const SizedBox(height: 8),
-
-                        // ── Cancel button ─────────────────────────────
                         OutlinedButton(
                           onPressed: () => context.pop(),
                           style: OutlinedButton.styleFrom(
@@ -502,8 +492,8 @@ class _VolunteerEditProfileScreenState
         Row(
           children: [
             Text(label,
-                style:
-                    GoogleFonts.poppins(color: AppColors.textMid, fontSize: 12)),
+                style: GoogleFonts.poppins(
+                    color: AppColors.textMid, fontSize: 12)),
             if (locked) ...[
               const SizedBox(width: 4),
               const Icon(Icons.lock_outline,

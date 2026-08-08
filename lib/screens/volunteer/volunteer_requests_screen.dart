@@ -11,9 +11,6 @@ import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import '../mum/forum/forum_shared.dart';
 
-// ── User Requests — open Q&A board ────────────────────────────────────────
-// Any mum can post a question; any volunteer can see every question and
-// reply to it (not tied to one specific volunteer).
 class VolunteerRequestsScreen extends StatefulWidget {
   const VolunteerRequestsScreen({super.key});
 
@@ -36,10 +33,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
     _load();
-    // Picks up new/claimed/closed requests without the volunteer having to
-    // manually pull-to-refresh.
-    _refreshTimer =
-        Timer.periodic(const Duration(seconds: 15), (_) => _load());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
   @override
@@ -52,9 +46,6 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
 
   Future<void> _load() async {
     try {
-      // patient_id references auth.users, not public.profiles, so
-      // PostgREST has no FK to auto-embed profiles(full_name) through —
-      // fetch the asker's name as a separate lookup instead.
       final data = await SupabaseService.client
           .from('volunteer_requests')
           .select()
@@ -90,9 +81,6 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                 },
               })
           .toList();
-      // Unclaimed questions need a volunteer most, so they surface first,
-      // then actively-claimed ones, then completed ones sink to the
-      // bottom — newest-first within each group.
       requests.sort((a, b) {
         final priorityCompare = _priority(a).compareTo(_priority(b));
         if (priorityCompare != 0) return priorityCompare;
@@ -113,10 +101,6 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
     }
   }
 
-  // A thread is "Completed" once closed (manually or via 48h auto-close).
-  // Otherwise, "Available" means no volunteer has claimed it yet
-  // (volunteer_id is still null — visible to every volunteer via RLS), and
-  // "Ongoing" means a volunteer has claimed it and is actively chatting.
   String _category(Map<String, dynamic> r) {
     if ((r['status'] as String? ?? 'pending') == 'closed') return 'completed';
     return r['volunteer_id'] == null ? 'available' : 'ongoing';
@@ -375,8 +359,6 @@ class _RequestCard extends StatelessWidget {
   }
 }
 
-// ── Request Detail / Response Screen ─────────────────────────────────────────
-
 class RequestDetailScreen extends StatefulWidget {
   final Map<String, dynamic> request;
   const RequestDetailScreen({super.key, required this.request});
@@ -392,8 +374,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   List<Map<String, dynamic>> _messages = [];
   bool _loading = true;
   bool _sending = false;
-  // True once we discover (via a fresh fetch) that another volunteer
-  // claimed this thread first — locks out further replies from this side.
   bool _lockedOut = false;
   String? _myPhotoUrl;
   bool _closing = false;
@@ -409,9 +389,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   bool get _canReply => !_lockedOut && !_isClosed && (_isOpen || _isMine);
   String get _callStatus => widget.request['call_status'] as String? ?? 'none';
   String? get _meetingLink => widget.request['meeting_link'] as String?;
-  // The mum accepting now creates the Zoom meeting immediately (see
-  // SupabaseService.acceptVideoCall), but it's only actually shared with
-  // her once this side explicitly sends it into the thread.
   bool get _linkSharedInThread {
     final link = _meetingLink;
     if (link == null || link.isEmpty) return false;
@@ -426,9 +403,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   void initState() {
     super.initState();
     _load();
-    // Polls for new messages/status changes from the mum's side (e.g. she
-    // accepts a call or replies) without the volunteer needing to send a
-    // message or manually refresh to see it.
     _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) => _load());
   }
 
@@ -444,9 +418,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   Future<void> _load() async {
     final previousMessageCount = _messages.length;
     try {
-      // Re-fetch the request itself (not just messages) so a stale copy
-      // passed in via navigation can't show outdated claim/status info —
-      // e.g. if another volunteer claimed it since this list was loaded.
       final fresh = await SupabaseService.client
           .from('volunteer_requests')
           .select()
@@ -483,9 +454,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           _messages = msgs;
           _loading = false;
         });
-        // Only snap to the bottom on the first load or when a genuinely new
-        // message arrived — a background poll shouldn't yank the volunteer
-        // back down while they're scrolled up reading earlier messages.
         if (previousMessageCount == 0 || msgs.length > previousMessageCount) {
           _scrollToEnd();
         }
@@ -558,17 +526,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
-  // Video calls used to be pure "call me right now", which meant nothing
-  // stopped a volunteer from ending up double-booked at the same time —
-  // so requesting one now means proposing a specific slot instead.
   Future<(DateTime, String)?> _pickCallSlot() async {
-    // Singapore wall clock — this date is written to scheduled_date, so it
-    // has to mean "today in Singapore" regardless of the device's timezone.
     DateTime selectedDate = sgtNow();
     String? selectedTime;
-    // Slots this volunteer has already proposed to some mum (still
-    // pending, not yet 48h stale) aren't offered again, so the same time
-    // can't be double-proposed to two different mums at once.
     Set<String> heldTimes =
         await SupabaseService.getHeldCallTimesForDate(selectedDate);
     if (!mounted) return null;
@@ -713,10 +673,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
-  // Volunteers tend to paste the whole Zoom invite (join link, chat link,
-  // meeting ID, passcode) rather than just the URL, so the stored
-  // meeting_link keeps all of that (displayed as-is to both sides) while
-  // this pulls out just the http(s) link to actually launch on tap.
   static final _urlPattern = RegExp(r'https?://\S+');
 
   Future<void> _openMeetingLink(String link) async {
@@ -729,10 +685,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
-  // Posted into the chat as a normal message (so it appears in the
-  // conversation like anything else either side sends) as well as saved
-  // onto meeting_link (so the persistent "Join Video Call" button and the
-  // My Sessions list keep working without scrolling back through history).
   Future<void> _sendMeetingLink() async {
     final pasted = _linkCtrl.text.trim();
     if (pasted.isEmpty) return;
@@ -743,9 +695,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
     setState(() => _sendingLink = true);
     try {
-      // The mum accepted a specific date/time back when the call was
-      // requested (_scheduledDate/_scheduledTime) — surface it alongside
-      // the invite so it's not lost once this scrolls up the thread.
       final scheduledLine = _scheduledDate != null && _scheduledTime != null
           ? 'Scheduled for ${DateFormat('d MMM yyyy').format(_scheduledDate!)} at $_scheduledTime\n\n'
           : '';
@@ -767,10 +716,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
-  // The Zoom meeting already exists (created the moment the mum accepted —
-  // see SupabaseService.acceptVideoCall) and is already saved to
-  // meeting_link, so this just announces it in the thread rather than
-  // asking the volunteer to build and paste one themselves.
   Future<void> _sendGeneratedLink() async {
     final link = _meetingLink;
     if (link == null || link.isEmpty) return;
@@ -817,8 +762,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           ),
         );
       case 'accepted':
-        // Normal path: accepting already created a real Zoom meeting (see
-        // SupabaseService.acceptVideoCall) — just announce it in the thread.
         if (_meetingLink != null &&
             _meetingLink!.trim().isNotEmpty &&
             !_linkSharedInThread) {
@@ -881,9 +824,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             ),
           );
         }
-        // Fallback for a call accepted before this Zoom integration existed
-        // (or where creation somehow failed): no meeting_link at all, so
-        // fall back to pasting one in by hand.
         if (_meetingLink == null || _meetingLink!.trim().isEmpty) {
           return Container(
             width: double.infinity,
@@ -949,9 +889,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             ),
           );
         }
-        // Link's already been shared — the "Join Call" button attached to
-        // that message in the thread (see _messageTile) is enough — no
-        // need for a second, persistent one down here too.
         return const SizedBox.shrink();
       default:
         return OutlinedButton.icon(
@@ -1057,8 +994,6 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final mumName = mumProfile?['full_name'] as String? ?? 'A mum';
     final mumPhoto = mumProfile?['profile_picture_url'] as String?;
     final mumRoleLabel = forumRoleLabel(mumProfile?['role'] as String?);
-    // A next-of-kin can chat with a volunteer on the linked mum's behalf,
-    // but video calls are the mum's own to arrange — not offered here.
     final isNextOfKinRequester = mumProfile?['role'] == 'next_of_kin';
     final requestId = formatRequestId(widget.request['request_number']);
 

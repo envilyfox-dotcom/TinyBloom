@@ -51,9 +51,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'consultations',
       'booking',
       'bookings',
-      // A "Rate Dr {name}" prompt is filed as a consultation notification
-      // (see ensureRatingNotification) so it shows up in the Consultation
-      // section instead of its own separate category.
       'rating',
       'ratings',
       'review',
@@ -267,9 +264,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .or('user_id.eq.$userId,user_id.is.null')
         .order('created_at', ascending: false);
 
-    // volunteer_name (spread in via ...item below) is what _showSessionDetails
-    // reads for the "Hosted by" heading on volunteer-service broadcast rows
-    // (see volunteer_services_screen) — otherwise it falls back to "A volunteer".
     return List<Map<String, dynamic>>.from(data).map((item) {
       return {
         ...item,
@@ -422,17 +416,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final cleanSpecialistId = specialistId?.trim();
     if (cleanSpecialistId == null || cleanSpecialistId.isEmpty) return null;
 
-    // Some consultations store specialist_id as profiles.id.
     final directProfile = await _safeLinkedProfile(cleanSpecialistId);
     if (directProfile != null) {
       return _normaliseSpecialistProvider(null, directProfile);
     }
 
-    // Other consultations store specialist_id as specialist_profiles.user_id.
     var specialistRow =
         await _safeSpecialistProfileRow('user_id', cleanSpecialistId);
 
-    // Some schemas store specialist_id as specialist_profiles.id.
     specialistRow ??= await _safeSpecialistProfileRow('id', cleanSpecialistId);
 
     if (specialistRow == null) return null;
@@ -471,12 +462,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
       final item = Map<String, dynamic>.from(rawItem);
 
-      // Same status vocabulary as the mum's own consultations list
-      // (effectiveConsultationStatus in consultation_helpers.dart): drop
-      // anything cancelled/completed — including a still-'pending' request
-      // the specialist never responded to, which counts as cancelled once
-      // its slot passes — so the Consultation filter shows current/upcoming
-      // bookings only, not an ever-growing history.
       final effectiveStatus = effectiveConsultationStatus(item);
       if (effectiveStatus == 'cancelled' || effectiveStatus == 'completed') {
         continue;
@@ -490,10 +475,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       kept.add(item);
     }
 
-    // Fetch every distinct specialist's profile once, in parallel, instead
-    // of one sequential round trip per consultation — several bookings
-    // often share the same specialist, and this used to be an N+1 chain
-    // that could make the whole Notifications Centre feel slow to load.
     final specialistIds = kept
         .map((c) => c['specialist_id']?.toString())
         .whereType<String>()
@@ -568,12 +549,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return rows;
   }
 
-  // Once a volunteer accepts a video call from an "Ask a Volunteer" thread
-  // (see SupabaseService.acceptVideoCall/sendMeetingLink), it's filed under
-  // the same Consultation category as specialist consultations rather than
-  // Reminder — Reminder is premium-only, but volunteer calls are a free-tier
-  // feature, so gating this behind Reminder would hide it from the mums who
-  // actually use it.
   Future<List<Map<String, dynamic>>> _loadVolunteerCallReminderRows(
       String userId) async {
     final data = await SupabaseService.client
@@ -589,11 +564,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     for (final rawItem in List<Map<String, dynamic>>.from(data)) {
       final item = Map<String, dynamic>.from(rawItem);
-      // volunteer_requests.scheduled_time is stored as "6:00 PM" (12-hour),
-      // not the consultations table's format — _consultationReminderDateTime
-      // can't parse that and silently falls back to midnight, so use
-      // slotDateTime (same helper the volunteer's own dashboard uses for
-      // this exact table) instead.
       final rawDate = item['scheduled_date']?.toString();
       final parsedDate = rawDate != null ? DateTime.tryParse(rawDate) : null;
       final timeStr = item['scheduled_time']?.toString();
@@ -601,8 +571,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ? null
           : (timeStr != null ? slotDateTime(parsedDate, timeStr) : null) ??
               parsedDate;
-      // Same 2-hour grace window as _upcomingConsultationReminderRows, in
-      // case the mum still needs the meeting link just after it starts.
       if (scheduledAt != null &&
           scheduledAt.isBefore(now.subtract(const Duration(hours: 2)))) {
         continue;
@@ -611,8 +579,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       kept.add(item);
     }
 
-    // Fetch every distinct volunteer's profile once, in parallel, rather
-    // than one sequential round trip per row.
     final volunteerIds = kept
         .map((r) => r['volunteer_id']?.toString())
         .whereType<String>()
@@ -664,10 +630,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return rows;
   }
 
-  // Returns Singapore wall clock, so callers can compare it against
-  // sgtNow(). `scheduled_at` is a timestamptz (an instant) and gets
-  // converted; `scheduled_date`/`scheduled_time` are already wall clock and
-  // only get re-tagged into the SGT frame.
   DateTime? _consultationReminderDateTime(Map<String, dynamic> item) {
     final scheduledAt = item['scheduled_at']?.toString().trim();
     if (scheduledAt != null && scheduledAt.isNotEmpty) {
@@ -679,9 +641,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (date == null || date.isEmpty) return null;
 
     final rawTime = item['scheduled_time']?.toString().trim() ?? '';
-    // Inline (?i) case-insensitive flags aren't valid JS RegExp syntax, so
-    // this threw a FormatException on web (compiled via dart2js/DDC) even
-    // though the Dart VM tolerated it — use the caseSensitive param instead.
     final cleanedTime = rawTime
         .replaceAll(RegExp(r'^today\s*', caseSensitive: false), '')
         .split('-')
@@ -719,10 +678,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return fallback == null ? null : asSgtWallClock(fallback);
   }
 
-  // Non-null only for the two upcoming-consultation card sources
-  // (_loadRowsFromConsultationsTable / _loadVolunteerCallReminderRows) that
-  // have a parseable slot — used to bubble them near the top of the feed,
-  // soonest first, instead of leaving them ordered by booking date.
   DateTime? _upcomingConsultationSortDate(Map<String, dynamic> item) {
     final sourceTable = item['source_table']?.toString();
     if (sourceTable != 'consultations' &&
@@ -796,9 +751,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final premiumOnly = item['is_premium_only'] == true;
       if (!isPremiumUser && premiumOnly) return false;
 
-      // Only surface as a notification for a week — the article itself
-      // stays in the Learn tab library regardless, this just stops it
-      // cluttering the feed indefinitely.
       final published = DateTime.tryParse(
           (item['published_at'] ?? item['created_at'] ?? '').toString());
       return published == null || published.isAfter(cutoff);
@@ -828,11 +780,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
   }
 
-  // volunteer_services.status only flips to 'done' when the volunteer opens
-  // their own Services screen (see VolunteerServicesScreen._autoMarkExpired)
-  // — if they never do, a mum would otherwise keep seeing an already-ended
-  // service as "available" indefinitely. This double-checks the actual
-  // availability window regardless of the stored status.
   bool _volunteerServiceHasEnded(String availability) {
     if (!availability.contains(' | ')) return false;
     final parts = availability.split(' | ');
@@ -1110,10 +1057,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   String _healthLogCreatedAt(Map<String, dynamic> item) {
-    return (item['logged_at'] ??
-            item['created_at'] ??
-            dbNow())
-        .toString();
+    return (item['logged_at'] ?? item['created_at'] ?? dbNow()).toString();
   }
 
   String _cleanHealthText(List<String> symptoms, String notes) {
@@ -1250,10 +1194,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'message': matches.first,
         'type': 'emergency',
         'is_read': false,
-        'created_at': (item['created_at'] ??
-                item['log_date'] ??
-                dbNow())
-            .toString(),
+        'created_at':
+            (item['created_at'] ?? item['log_date'] ?? dbNow()).toString(),
         'source_table': 'pregnancy_logs',
         'severity': 'Urgent',
         'condition': 'Abnormal pregnancy log detected',
@@ -1267,9 +1209,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     ];
   }
 
-  // Only the most recent health_log/pregnancy_log is considered "current" —
-  // once a mum logs a newer entry, an older danger symptom counts as over,
-  // even if it's never individually dismissed.
   Future<List<Map<String, dynamic>>> _loadRowsFromHealthLogEmergencyAlerts(
       String userId) async {
     final alerts = <Map<String, dynamic>>[];
@@ -1302,8 +1241,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       debugPrint('Failed to scan pregnancy_logs for emergency alerts: $e');
     }
 
-    // Even the most recent log's alert stops surfacing once it's a week old
-    // — it's still the "current" log, but no longer worth flagging as urgent.
     final cutoff = DateTime.now().subtract(const Duration(days: 7));
     return alerts.where((alert) {
       final createdAt = DateTime.tryParse(alert['created_at'].toString());
@@ -1332,36 +1269,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     try {
-      // Every source below is independent of the others, so they're all
-      // fetched concurrently instead of one sequential round trip after
-      // another — with ~10 different tables involved, that sequential chain
-      // was what made the whole Notifications Centre slow to load. Capped
-      // with a timeout so one stuck/slow source (e.g. a network hiccup)
-      // can't leave the whole screen spinning forever — whatever's already
-      // in `merged` by then still gets shown.
       await Future.wait([
         if (userId != null) ...[
           addSafely('rows from notifications table',
               () => _loadRowsFromNotificationsTable(userId)),
-          // This table is optional for the notification centre. If RLS
-          // blocks it, normal notifications should still work instead of a
-          // blank page.
           addSafely('rows from active_alerts table',
               () => _loadRowsFromActiveAlertsTable(userId)),
           addSafely('health log emergency alerts',
               () => _loadRowsFromHealthLogEmergencyAlerts(userId)),
-          // _loadRowsFromConsultationsTable already only returns upcoming
-          // consultations (cancelled/completed/past ones are filtered out
-          // there), so this card already doubles as the "you have one
-          // coming up" indicator — a separate reminder row would just
-          // duplicate it.
           addSafely('rows from consultations table',
               () => _loadRowsFromConsultationsTable(userId)),
           addSafely('volunteer call reminder rows',
               () => _loadVolunteerCallReminderRows(userId)),
         ],
-        // AI recommendations are optional. If the table has RLS/policy
-        // issues, the Notifications Centre should still show normal alerts.
         addSafely(
             'rows from ai_recommendations table',
             () async =>
@@ -1403,21 +1323,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       debugPrint('Failed to load notification read receipts: $e');
     }
 
-    // Guarded — an exception thrown mid-sort (e.g. from a bad date/regex on
-    // one particular row) would otherwise propagate out of _loadNotifications
-    // entirely and leave the spinner stuck forever, since nothing after this
-    // point would ever run. Worst case now is an unsorted/unmarked list
-    // instead of a screen that never finishes loading.
     var mergedWithReadState = merged;
     try {
       mergedWithReadState = merged.map((item) {
         final sourceTable = item['source_table']?.toString() ?? 'notifications';
         final sourceId = item['id']?.toString();
 
-        // Apply read receipts to EVERY source, including the notifications
-        // table. This fixes global notifications where user_id is NULL,
-        // because those rows cannot be updated with is_read=true for one
-        // user only.
         if (sourceId != null &&
             readReceiptKeys.contains(
               _notificationReadReceiptKey(sourceTable, sourceId),
@@ -1429,18 +1340,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }).toList();
 
       mergedWithReadState.sort((a, b) {
-        // Emergency alerts always float to the very top, ahead of every
-        // other category, so a mum never has to scroll past routine
-        // updates to see an urgent one.
         final aEmergency = _normaliseType(a['type']) == 'emergency' ? 0 : 1;
         final bEmergency = _normaliseType(b['type']) == 'emergency' ? 0 : 1;
         final emergencyCompare = aEmergency.compareTo(bEmergency);
         if (emergencyCompare != 0) return emergencyCompare;
 
-        // Upcoming consultations/video calls float just below Emergency
-        // too, soonest first — so a mum sees what's coming up next
-        // without scrolling past routine updates that just happen to be
-        // newer.
         final aUpcoming = _upcomingConsultationSortDate(a);
         final bUpcoming = _upcomingConsultationSortDate(b);
         if (aUpcoming != null && bUpcoming != null) {
@@ -1449,7 +1353,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         if (aUpcoming != null) return -1;
         if (bUpcoming != null) return 1;
 
-        // Everything else is strictly newest-first.
         return _createdAt(b).compareTo(_createdAt(a));
       });
     } catch (e) {
@@ -1474,10 +1377,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (id == null) return;
 
-    // Volunteer call reminders stay visible (here and on the dashboard, which
-    // shares the same read-receipt table) until the call itself passes —
-    // the loader's own "upcoming" filter drops it then — rather than being
-    // dismissed the first time it's opened.
     if (sourceTable == 'volunteer_call_reminder') return;
 
     setState(() {
@@ -1490,17 +1389,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }).toList();
     });
 
-    // Always save a read receipt, even for rows from the notifications table.
-    // This is important for global notifications where user_id is NULL; those
-    // rows cannot safely be updated to is_read=true for one user only.
     await _saveNotificationReadReceipt(item);
 
     if (sourceTable == 'notifications') {
       try {
         final itemUserId = item['user_id']?.toString();
 
-        // Only update the database notification row when it belongs to this
-        // exact user. Global notifications are cleared by the read receipt.
         if (userId != null && itemUserId == userId) {
           await SupabaseService.client
               .from('notifications')
@@ -2102,7 +1996,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     final consultationForDetail = {
       ...item,
-      // ConsultationDetailScreen expects the actual consultation id here.
       'id': consultationId,
       'consultation_id': consultationId,
       'notification_id': item['id'],
@@ -2411,10 +2304,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (!mounted) return;
 
-    // Volunteer call reminders open the actual "Ask a Volunteer" thread
-    // (where the Join Call button lives) instead of the generic read-only
-    // consultation info sheet — there's no equivalent detail screen for a
-    // volunteer thread, so the sheet would otherwise be a dead end.
     if (item['source_table'] == 'volunteer_call_reminder') {
       final rawRequest = item['raw_request'];
       if (rawRequest is Map<String, dynamic>) {
@@ -2425,13 +2314,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return;
     }
 
-    // "Rate Dr {name}" prompts are filed as consultation notifications (see
-    // ensureRatingNotification) so they group under the Consultation
-    // section, but a tap still needs to open the rating card instead of
-    // the generic consultation detail sheet. RateProviderScreen pops `true`
-    // only once the rating is actually submitted (and its notification row
-    // deleted server-side) — reload so the card doesn't linger here until
-    // the next pull-to-refresh.
     if (item['rating_provider_id'] != null) {
       final rated = await context.push<bool>('/rate-provider', extra: item);
       if (rated == true && mounted) await _loadNotifications();
@@ -2750,10 +2632,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (providerName.isNotEmpty) return providerName;
     }
 
-    // Only the "browse available services" listing card (sourced from a live
-    // volunteer_services join) leads with the volunteer's name — a plain
-    // notifications-table broadcast (e.g. "Service updated") keeps its own
-    // title so it doesn't read as just the volunteer's name with no context.
     if (type == 'session' && sourceTable == 'volunteer_services') {
       final volunteerName = (item['volunteer_name'] ?? '').toString().trim();
       if (volunteerName.isNotEmpty) return volunteerName;
@@ -2956,9 +2834,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final ratingSourceType = item['rating_source_type']?.toString();
     final ratingSourceLabel =
         ratingSourceType == 'consultation' ? 'Appointment ID' : 'Reference ID';
-    // Consultations use the same short SPC-xxxxxx/VOL-xxxxxx id shown on the
-    // consultation detail screens (see appointmentIdLabel) instead of the
-    // raw row id.
     final ratingSourceDisplayId = ratingSourceId == null
         ? null
         : ratingSourceType == 'consultation'

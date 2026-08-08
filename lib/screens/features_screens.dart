@@ -11,13 +11,6 @@ import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 
-// Opens an article: launches the external link if the article has a `url`
-// (specialist-submitted), otherwise pushes the in-app detail screen.
-//
-// Guarded against rapid double-taps: a fast double tap can fire two
-// `context.push()` calls before the first navigation completes, which makes
-// the Navigator try to register two pages with the same key and crash with
-// "!keyReservation.contains(key)". A short cooldown avoids that.
 DateTime? _lastArticleOpen;
 void _openArticle(BuildContext context, Map<String, dynamic> article) {
   final now = DateTime.now();
@@ -35,7 +28,6 @@ void _openArticle(BuildContext context, Map<String, dynamic> article) {
   }
 }
 
-// ── FAQ Screen ────────────────────────────────────────────────────
 class FaqScreen extends StatefulWidget {
   const FaqScreen({super.key});
   @override
@@ -83,7 +75,6 @@ class _FaqScreenState extends State<FaqScreen> {
           ? const TBLoading()
           : Column(
               children: [
-                // Category chips
                 SizedBox(
                   height: 52,
                   child: ListView(
@@ -156,7 +147,6 @@ class _FaqScreenState extends State<FaqScreen> {
   }
 }
 
-// ── Education Screen ──────────────────────────────────────────────
 class EducationScreen extends StatefulWidget {
   const EducationScreen({super.key});
   @override
@@ -363,7 +353,6 @@ class _EducationScreenState extends State<EducationScreen> {
   }
 }
 
-// ── Article Detail ────────────────────────────────────────────────
 class ArticleDetailScreen extends StatelessWidget {
   final Map<String, dynamic> article;
   const ArticleDetailScreen({super.key, required this.article});
@@ -424,7 +413,6 @@ class ArticleDetailScreen extends StatelessWidget {
   }
 }
 
-// ── Consultation Screen ───────────────────────────────────────────
 class ConsultationScreen extends StatefulWidget {
   const ConsultationScreen({super.key});
   @override
@@ -483,7 +471,6 @@ class _ConsultationScreenState extends State<ConsultationScreen>
       body: TabBarView(
         controller: _tabs,
         children: [
-          // Tab 1: My consultations
           _loading
               ? const TBLoading()
               : _error != null
@@ -563,8 +550,6 @@ class _ConsultationScreenState extends State<ConsultationScreen>
                             );
                           },
                         ),
-
-          // Tab 2: Book new — everyone can reach volunteers; specialists are premium-only.
           _buildBookTab(isPremium),
         ],
       ),
@@ -691,7 +676,6 @@ String _consultationTypeLabel(String? type) {
   return '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
 }
 
-// ── AI Chatbot Screen ─────────────────────────────────────────────
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
   @override
@@ -726,7 +710,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     _ctrl.clear();
     _scrollDown();
 
-    // Simulated AI response (replace with actual API call)
     await Future.delayed(const Duration(seconds: 1));
     final response = _getResponse(text.toLowerCase());
     if (mounted) {
@@ -800,7 +783,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                     },
                   ),
                 ),
-                // Suggestions
                 if (_messages.length <= 2)
                   SizedBox(
                     height: 46,
@@ -834,7 +816,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                           .toList(),
                     ),
                   ),
-                // Input
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -1002,14 +983,12 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
       child: const CircleAvatar(radius: 4, backgroundColor: AppColors.teal));
 }
 
-// ── Subscription Screen ───────────────────────────────────────────
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
   @override
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-// Plan metadata shared by the upgrade tiles and the Change Plan sheet.
 const _subscriptionPlans = {
   'premium_monthly': {'label': 'Premium Monthly', 'price': '\$9.90/month'},
   'premium_yearly': {
@@ -1021,9 +1000,6 @@ const _subscriptionPlans = {
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   bool _busy = false;
 
-  // There's no real payment gateway here — "subscribing" just records the
-  // chosen plan and flips the role, same as everywhere else this app mocks
-  // a feature it can't actually wire up to a third party.
   Future<void> _setPlan(String? plan) async {
     setState(() => _busy = true);
     try {
@@ -1280,7 +1256,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 }
 
-// ── Shared provider card (Select Specialist / Select Volunteer) ────
 Widget _providerCard(
     BuildContext context, Map<String, dynamic> provider, String type) {
   final profile = provider['profiles'] as Map<String, dynamic>? ?? {};
@@ -1412,7 +1387,6 @@ Widget _providerCard(
   );
 }
 
-// ── Specialists List ──────────────────────────────────────────────
 class SpecialistsListScreen extends StatefulWidget {
   const SpecialistsListScreen({super.key});
   @override
@@ -1519,7 +1493,6 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
   }
 }
 
-// ── Volunteers List ───────────────────────────────────────────────
 class VolunteersListScreen extends StatefulWidget {
   const VolunteersListScreen({super.key});
   @override
@@ -1618,7 +1591,6 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
   }
 }
 
-// ── Consultation Booking ──────────────────────────────────────────
 class ConsultationBookingScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
@@ -1635,9 +1607,6 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   String? _selectedTime;
   final _purposeCtrl = TextEditingController();
 
-  // Derived from the provider's own "Available Today" times (shown on their
-  // selection card), each turned into a full hour-long start–end range, so
-  // the slots offered here always match what was advertised on that card.
   List<String> get _timeSlots {
     final available = (widget.provider['available_today'] as List?)
         ?.map((e) => e.toString())
@@ -1866,7 +1835,6 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   }
 }
 
-// ── Confirm Consultation ──────────────────────────────────────────
 class ConfirmConsultationScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
@@ -2081,7 +2049,6 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
   }
 }
 
-// ── Baby Development Screen ───────────────────────────────────────
 class BabyDevelopmentScreen extends StatefulWidget {
   const BabyDevelopmentScreen({super.key});
 
@@ -2122,8 +2089,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
   }
 
   Future<void> _init() async {
-    // Load the current week first so article recommendations can be
-    // filtered by the right trimester from the start.
     await _loadWeek();
     await _loadArticles();
   }
@@ -2132,7 +2097,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     try {
       final data = await SupabaseService.getPregnancyProfile();
       if (data != null && mounted) {
-        // Calculate week from due date if available
         if (data['due_date'] != null) {
           final due = DateTime.parse(data['due_date']);
           final now = DateTime.now();
@@ -2145,7 +2109,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
           });
           return;
         }
-        // Fall back to weeks_pregnant field if present
         if (data['weeks_pregnant'] != null) {
           setState(() {
             _currentWeek = (data['weeks_pregnant'] as int).clamp(1, 40);
@@ -2162,7 +2125,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     try {
       final all = await SupabaseService.getArticles();
 
-      // 1st choice: articles a specialist tagged for the mum's current trimester.
       final byTrimester =
           all.where((a) => a['trimester'] == _trimester).toList();
       if (byTrimester.isNotEmpty) {
@@ -2170,7 +2132,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
         return;
       }
 
-      // 2nd choice: untagged but pregnancy/baby-development related articles.
       final relevant = all.where((a) {
         final cat = (a['category'] as String? ?? '').toLowerCase();
         return cat.contains('pregnan') ||
@@ -2178,7 +2139,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
             cat.contains('develop');
       }).toList();
 
-      // 3rd choice: whatever is published, newest first.
       if (mounted) {
         setState(() => _articles =
             (relevant.isNotEmpty ? relevant : all).take(3).toList());
@@ -2186,8 +2146,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     } catch (_) {}
   }
 
-  // Splits a highlight sentence (or several) into short bullet points for
-  // the "Development Progress" card.
   List<String> _milestones(String highlight) {
     return highlight
         .split('. ')
@@ -2244,7 +2202,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Trimester badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
@@ -2268,8 +2225,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                                 color: AppColors.textLight, fontSize: 12)),
                       ],
                       const SizedBox(height: 20),
-
-                      // Hero card
                       TBCard(
                         color: AppColors.blush,
                         child: Column(
@@ -2302,7 +2257,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            // Progress bar
                             LinearProgressIndicator(
                               value: _currentWeek / 40,
                               backgroundColor:
@@ -2320,8 +2274,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // Baby Information — stats grid
                       Row(
                         children: [
                           Expanded(
@@ -2352,8 +2304,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-
-                      // Development Progress card
                       TBCard(
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2396,8 +2346,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // Recommended Articles
                       if (_articles.isNotEmpty) ...[
                         TBCard(
                           child: Column(
@@ -2454,10 +2402,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                                   )),
                               const SizedBox(height: 4),
                               GestureDetector(
-                                // `go`, not `push` — `/education` lives inside the bottom-nav
-                                // ShellRoute, and pushing it from a screen outside the shell
-                                // (this one) would create a duplicate shell page with a
-                                // colliding key, crashing the Navigator.
                                 onTap: () => context.go('/education'),
                                 child: Container(
                                   width: double.infinity,
@@ -2487,9 +2431,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
   }
 }
 
-// ── Milestone Journey ─────────────────────────────────────────────
-// Curated "big moments" timeline (as opposed to BabyDevelopmentScreen's
-// week-by-week data), grouped by trimester.
 const _milestoneJourney = [
   {
     'week': 4,
@@ -2647,7 +2588,6 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // The most recently reached milestone week, so far.
     int? currentMilestoneWeek;
     for (final m in _milestoneJourney) {
       if ((m['week'] as int) <= _currentWeek) {

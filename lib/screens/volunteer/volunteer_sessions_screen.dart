@@ -40,9 +40,6 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
     super.dispose();
   }
 
-  // Sessions here are video calls requested in an ask-a-volunteer chat
-  // thread — a call only becomes a session once the mum has accepted it;
-  // a pending or declined request stays in the chat only.
   Future<void> _load() async {
     try {
       final callRows = await SupabaseService.client
@@ -63,7 +60,8 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
           debugPrint('[Sessions] getProfileById($patientId) failed: $e');
         }
         try {
-          pregnancy = await SupabaseService.getPregnancyProfileByUserId(patientId);
+          pregnancy =
+              await SupabaseService.getPregnancyProfileByUserId(patientId);
         } catch (e) {
           debugPrint(
               '[Sessions] getPregnancyProfileByUserId($patientId) failed: $e');
@@ -87,8 +85,9 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
     }
   }
 
-  List<Map<String, dynamic>> get _upcoming =>
-      _sessions.where((s) => (s['status'] as String? ?? '') != 'closed').toList();
+  List<Map<String, dynamic>> get _upcoming => _sessions
+      .where((s) => (s['status'] as String? ?? '') != 'closed')
+      .toList();
 
   List<Map<String, dynamic>> get _completed => _sessions
       .where((s) => (s['status'] as String? ?? '') == 'closed')
@@ -131,7 +130,8 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
               ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.rose))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.rose))
           : widget.completedOnly
               ? _SessionList(sessions: _completed, onRefresh: _load)
               : TabBarView(
@@ -156,7 +156,8 @@ class _SessionList extends StatelessWidget {
     if (sessions.isEmpty) {
       return Center(
         child: Text('No sessions here yet.',
-            style: GoogleFonts.poppins(color: AppColors.textLight, fontSize: 14)),
+            style:
+                GoogleFonts.poppins(color: AppColors.textLight, fontSize: 14)),
       );
     }
     return RefreshIndicator(
@@ -173,10 +174,6 @@ class _SessionList extends StatelessWidget {
   }
 }
 
-// A video call from an ask-a-volunteer chat thread, once the mum has
-// accepted it. Tapping the card (or "Send meeting link") opens the chat
-// itself, so there's one place — RequestDetailScreen — that owns pasting
-// and updating the Zoom link rather than duplicating that here.
 class _VideoCallSessionCard extends StatelessWidget {
   final Map<String, dynamic> session;
   final Future<void> Function() onRefresh;
@@ -185,12 +182,10 @@ class _VideoCallSessionCard extends StatelessWidget {
 
   Future<void> _openChat(BuildContext context) => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => RequestDetailScreen(request: session)),
+        MaterialPageRoute(
+            builder: (_) => RequestDetailScreen(request: session)),
       ).then((_) => onRefresh());
 
-  // meeting_link holds the whole pasted invite (join link, meeting ID,
-  // passcode), not just a bare URL, so pull out just the http(s) link to
-  // actually launch on tap.
   static final _urlPattern = RegExp(r'https?://\S+');
 
   Future<void> _joinCall(BuildContext context) async {
@@ -240,11 +235,10 @@ class _VideoCallSessionCard extends StatelessWidget {
     final hasLink = meetingLink != null && meetingLink.trim().isNotEmpty;
     final scheduledDate =
         DateTime.tryParse(session['scheduled_date']?.toString() ?? '');
-    final dateStr =
-        scheduledDate != null ? DateFormat('d MMMM yyyy').format(scheduledDate) : '—';
+    final dateStr = scheduledDate != null
+        ? DateFormat('d MMMM yyyy').format(scheduledDate)
+        : '—';
     final timeStr = session['scheduled_time'] as String? ?? '—';
-    // "Confirmed"/"Completed" mirror the legacy booking card's status
-    // vocabulary so the two card types read consistently in this list.
     final statusKey = isClosed ? 'completed' : 'confirmed';
 
     return GestureDetector(
@@ -282,7 +276,9 @@ class _VideoCallSessionCard extends StatelessWidget {
                       child: photoUrl != null
                           ? null
                           : Text(
-                              mumName.isNotEmpty ? mumName[0].toUpperCase() : '?',
+                              mumName.isNotEmpty
+                                  ? mumName[0].toUpperCase()
+                                  : '?',
                               style: const TextStyle(
                                   color: AppColors.teal,
                                   fontWeight: FontWeight.w700),
@@ -295,11 +291,8 @@ class _VideoCallSessionCard extends StatelessWidget {
                     'Request ID', formatRequestId(session['request_number'])),
                 _infoLine('Name', mumName),
                 _infoLine('Age', age == null ? '—' : '$age yrs old'),
-                _infoLine(
-                    'Pregnancy',
-                    week > 0
-                        ? 'Week $week · ${trimesterLabel(week)}'
-                        : '—'),
+                _infoLine('Pregnancy',
+                    week > 0 ? 'Week $week · ${trimesterLabel(week)}' : '—'),
                 _infoLine('Date', dateStr),
                 _infoLine('Time', timeStr),
                 _infoLine('Platform', 'Zoom Meeting'),
@@ -316,7 +309,8 @@ class _VideoCallSessionCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                            color: statusColor(statusKey).withValues(alpha: 0.18),
+                            color:
+                                statusColor(statusKey).withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(20)),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -342,8 +336,8 @@ class _VideoCallSessionCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                     'Descriptions: ${(session['question'] as String? ?? '').isEmpty ? 'No purpose specified.' : session['question']}',
-                    style:
-                        const TextStyle(color: AppColors.textMid, fontSize: 13)),
+                    style: const TextStyle(
+                        color: AppColors.textMid, fontSize: 13)),
                 if (!isClosed) ...[
                   const SizedBox(height: 16),
                   SizedBox(
@@ -354,7 +348,8 @@ class _VideoCallSessionCard extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.teal,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(24))),
                             child: const Text('Join Video Call',

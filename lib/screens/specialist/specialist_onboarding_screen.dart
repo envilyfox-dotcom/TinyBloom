@@ -6,12 +6,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
-// ── Specialist onboarding ────────────────────────────────────────────────
-// Shown once, the first time a specialist logs in, until they've set their
-// weekly availability — mirrors MumOnboardingScreen's header/card styling,
-// but as a single step since there's only one thing to collect. Writes the
-// same available_today/available_hours columns SpecialistEditProfileScreen
-// uses, so AuthProvider.needsOnboarding (see _loadProfile) clears itself.
 class SpecialistOnboardingScreen extends StatefulWidget {
   const SpecialistOnboardingScreen({super.key});
 

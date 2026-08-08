@@ -63,11 +63,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     } catch (_) {}
 
     try {
-      // Same source as the "My Consultations" tab: a video call from an
-      // ask-a-volunteer chat thread, once the mum has accepted it and
-      // before the chat's closed. A same-day call whose slot has already
-      // passed isn't "upcoming" either, even though its date still
-      // matches today.
       final data = await SupabaseService.client
           .from('volunteer_requests')
           .select()
@@ -103,9 +98,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     } catch (_) {}
 
     try {
-      // Sessions/services this volunteer has published themselves (e.g. a
-      // Zoom talk), so they get a reminder + quick access from their own
-      // dashboard rather than having to dig into the Services tab.
       final data = await SupabaseService.client
           .from('volunteer_services')
           .select()
@@ -125,13 +117,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     } catch (_) {}
 
     try {
-      // "Ongoing" here matches the Request page's Ongoing tab: a request a
-      // volunteer has actually claimed (volunteer_id set) and isn't closed
-      // yet. Unclaimed questions are "Available" instead — they show up on
-      // the Request page's Available tab, not counted here. patient_id
-      // references auth.users, not public.profiles, so there's no FK for
-      // PostgREST to auto-embed profiles(full_name) through — look the name
-      // up separately.
       final data = await SupabaseService.client
           .from('volunteer_requests')
           .select()

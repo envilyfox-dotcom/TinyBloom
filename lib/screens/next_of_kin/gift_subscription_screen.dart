@@ -5,13 +5,17 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../shared/subscription_screen.dart' show subscriptionPlans;
 
-// ── Gift Subscription (Next of Kin) ──────────────────────────────────
-// Lets a next-of-kin account gift Premium to the mum they're linked to.
-// Reuses subscriptionPlans from subscription_screen.dart so pricing stays
-// identical to the mum's own self-subscribe flow.
 const _planFeatures = {
-  'premium_monthly': ['1-1 specialist access', 'Priority consultation', 'AI recommendations'],
-  'premium_yearly': ['All monthly features', 'Advanced stats', 'Premium content'],
+  'premium_monthly': [
+    '1-1 specialist access',
+    'Priority consultation',
+    'AI recommendations'
+  ],
+  'premium_yearly': [
+    'All monthly features',
+    'Advanced stats',
+    'Premium content'
+  ],
 };
 
 class GiftSubscriptionScreen extends StatefulWidget {
@@ -34,7 +38,11 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
 
   Future<void> _load() async {
     final mum = await SupabaseService.getLinkedMum();
-    if (mounted) setState(() { _linkedMum = mum; _loading = false; });
+    if (mounted)
+      setState(() {
+        _linkedMum = mum;
+        _loading = false;
+      });
   }
 
   bool get _mumIsPremium => _linkedMum?['role'] == 'premium_user';
@@ -55,12 +63,14 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           Row(children: [
-            Expanded(child: OutlinedButton(
+            Expanded(
+                child: OutlinedButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Not Now'),
             )),
             const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
+            Expanded(
+                child: ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.textDark,
@@ -79,7 +89,8 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
       await SupabaseService.giftSubscriptionPlan(mum['id'] as String, plan);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('You gifted ${mum['full_name'] ?? 'her'} the $label plan!')));
+            content: Text(
+                'You gifted ${mum['full_name'] ?? 'her'} the $label plan!')));
         context.pop();
       }
     } catch (e) {
@@ -101,7 +112,8 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
               ? TBEmptyState(
                   emoji: '🔗',
                   title: 'Not linked yet',
-                  subtitle: "Link to a pregnant user's account before gifting them Premium.",
+                  subtitle:
+                      "Link to a pregnant user's account before gifting them Premium.",
                   buttonLabel: 'Link to Pregnant User',
                   onButton: () => context.pushReplacement('/next-of-kin/link'))
               : SingleChildScrollView(
@@ -122,14 +134,16 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
                         _alreadyPremiumCard(),
                       ] else ...[
                         for (final entry in subscriptionPlans.entries) ...[
-                          _planTile(entry.key, entry.value['label']!, entry.value['price']!),
+                          _planTile(entry.key, entry.value['label']!,
+                              entry.value['price']!),
                           const SizedBox(height: 12),
                         ],
                         const SizedBox(height: 8),
                         TBButton(
                           label: 'Proceed to Payment',
                           loading: _gifting,
-                          onPressed: _selectedPlan == null ? null : _proceedToPayment,
+                          onPressed:
+                              _selectedPlan == null ? null : _proceedToPayment,
                         ),
                       ],
                     ],
@@ -160,8 +174,10 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text('$name is already on the $planLabel plan — no need to gift a subscription right now.',
-              style: const TextStyle(color: AppColors.textMid, fontSize: 13, height: 1.4)),
+          Text(
+              '$name is already on the $planLabel plan — no need to gift a subscription right now.',
+              style: const TextStyle(
+                  color: AppColors.textMid, fontSize: 13, height: 1.4)),
         ],
       ),
     );
@@ -210,7 +226,8 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
                   ElevatedButton(
                     onPressed: () => setState(() => _selectedPlan = key),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: selected ? AppColors.roseDeep : AppColors.rose,
+                        backgroundColor:
+                            selected ? AppColors.roseDeep : AppColors.rose,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 10)),
                     child: Text(selected ? 'Selected' : 'Select',

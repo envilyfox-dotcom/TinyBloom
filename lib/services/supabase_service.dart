@@ -13,7 +13,6 @@ class SupabaseService {
     );
   }
 
-  // Auth
   static User? get currentUser => client.auth.currentUser;
   static bool get isLoggedIn => currentUser != null;
 
@@ -43,7 +42,6 @@ class SupabaseService {
     await client.auth.resetPasswordForEmail(email);
   }
 
-  // Profile
   static Future<Map<String, dynamic>?> getProfile() async {
     final user = currentUser;
     if (user == null) return null;
@@ -71,9 +69,6 @@ class SupabaseService {
     await client.from('profiles').update(data).eq('id', user.id);
   }
 
-  // Profile picture — stored in the public 'avatars' bucket at
-  // <user_id>/avatar.<ext>, one file per user (upsert overwrites any
-  // previous picture, so there's nothing extra to clean up on re-upload).
   static Future<String> uploadProfilePicture(
       Uint8List bytes, String fileExt) async {
     final user = currentUser;
@@ -85,8 +80,6 @@ class SupabaseService {
     await client.storage.from('avatars').uploadBinary(path, bytes,
         fileOptions: FileOptions(upsert: true, contentType: contentType));
 
-    // Cache-bust so the new photo shows immediately instead of a
-    // browser/CDN-cached copy of whatever used to be at this path.
     final url =
         '${client.storage.from('avatars').getPublicUrl(path)}?t=${DateTime.now().millisecondsSinceEpoch}';
     await updateProfile({'profile_picture_url': url});
@@ -115,13 +108,9 @@ class SupabaseService {
       final files = await client.storage.from('avatars').list(path: user.id);
       final paths = files.map((f) => '${user.id}/${f.name}').toList();
       if (paths.isNotEmpty) await client.storage.from('avatars').remove(paths);
-    } catch (_) {
-      // Best-effort cleanup — profile_picture_url is already cleared either way.
-    }
+    } catch (_) {}
   }
 
-  // Subscription — there's no real payment gateway wired up, so "upgrading"
-  // just records the chosen plan and flips the role. Passing null cancels.
   static Future<void> setSubscriptionPlan(String? plan) async {
     await updateProfile({
       'subscription_plan': plan,
@@ -129,12 +118,6 @@ class SupabaseService {
     });
   }
 
-  // Same as setSubscriptionPlan, but for a next-of-kin gifting premium to
-  // the mum they're linked to, rather than subscribing themselves. Goes
-  // through the gift_subscription_to_linked_mum RPC rather than a direct
-  // table update — that function checks the link and touches only
-  // subscription_plan/role, instead of relying on a table-wide UPDATE grant
-  // that could otherwise let a next-of-kin write any column on the row.
   static Future<void> giftSubscriptionPlan(String mumId, String plan) async {
     await client.rpc('gift_subscription_to_linked_mum', params: {
       'mum_id': mumId,
@@ -142,7 +125,6 @@ class SupabaseService {
     });
   }
 
-  // Pregnancy profile
   static Future<Map<String, dynamic>?> getPregnancyProfile() async {
     final user = currentUser;
     if (user == null) return null;
@@ -169,10 +151,6 @@ class SupabaseService {
   static int pregnancyWeekFromProfile(Map<String, dynamic>? data) {
     if (data == null) return 0;
     if (data['due_date'] != null) {
-      // `due_date` is a `date` column — wall clock, so it's re-tagged into
-      // the Singapore frame rather than shifted, and compared against the
-      // Singapore "now" so the week never turns over on the device's
-      // midnight instead of Singapore's.
       final dueDate = sgtDateFrom(data['due_date']);
       if (dueDate != null) {
         final daysUntilDue = dueDate.difference(sgtNow()).inDays;
@@ -197,9 +175,6 @@ class SupabaseService {
     }
   }
 
-  // Current pregnancy week, derived from due_date (preferred) or the stored
-  // weeks_pregnant snapshot. Shared by any screen that needs "what week is
-  // it" without duplicating the calculation.
   static Future<int> getCurrentPregnancyWeek() async {
     try {
       final data = await getPregnancyProfile();
@@ -223,9 +198,8 @@ class SupabaseService {
     if (user == null) return;
     final conception =
         sgtDateFrom(data['due_date'])?.subtract(const Duration(days: 280));
-    final week = conception != null
-        ? sgtNow().difference(conception).inDays ~/ 7
-        : null;
+    final week =
+        conception != null ? sgtNow().difference(conception).inDays ~/ 7 : null;
     await client.from('pregnancy_profiles').upsert(
       {
         'user_id': user.id,
@@ -253,8 +227,6 @@ class SupabaseService {
   static Future<void> updateDueDate(DateTime dueDate) async {
     final user = currentUser;
     if (user == null) return;
-    // dueDate comes from a date picker, so its fields are already the wall
-    // clock the user chose — re-tag rather than shift.
     final conception =
         asSgtWallClock(dueDate).subtract(const Duration(days: 280));
     final week = sgtNow().difference(conception).inDays ~/ 7;
@@ -268,10 +240,6 @@ class SupabaseService {
     );
   }
 
-  // Pregnancy logs — mood/symptoms/milestones diary entries. Table is
-  // pregnancy_logs (id, user_id, mood, symptoms, milestones, notes,
-  // log_date, created_at); it has no vitals columns (weight/kicks/blood
-  // pressure), so callers must not send those.
   static Future<List<Map<String, dynamic>>> getLogs() async {
     final user = currentUser;
     if (user == null) return [];
@@ -287,8 +255,6 @@ class SupabaseService {
     }
   }
 
-  // Best-effort: a linked mum's logs, for a next-of-kin's read-only view.
-  // Depending on RLS this may come back empty rather than erroring.
   static Future<List<Map<String, dynamic>>> getLogsForPatient(
       String patientId) async {
     try {
@@ -303,9 +269,6 @@ class SupabaseService {
     }
   }
 
-  // Symptom/milestone chip options for CreateLogScreen, editable directly
-  // from the Supabase Table Editor (pregnancy_log_options) instead of
-  // requiring an app release. Returns {'symptom': [...], 'milestone': [...]}.
   static Future<Map<String, List<String>>> getPregnancyLogOptions() async {
     final res = await client
         .from('pregnancy_log_options')
@@ -342,7 +305,6 @@ class SupabaseService {
     await client.from('pregnancy_logs').delete().eq('id', id);
   }
 
-  // FAQs
   static Future<List<Map<String, dynamic>>> getFaqs({String? category}) async {
     List<Map<String, dynamic>> res;
     if (category != null) {
@@ -362,10 +324,6 @@ class SupabaseService {
     return res;
   }
 
-  // Articles
-  // author/public_comments/article_likes are embedded so the Learn tab card
-  // can show the author's name, photo, specialization, and live comment/like
-  // counts without a round trip per article.
   static const _articleSelect =
       '*, author:profiles!created_by(full_name, profile_picture_url, specialist_profiles(specialization)), '
       'public_comments(count), article_likes(count)';
@@ -390,11 +348,6 @@ class SupabaseService {
     return res;
   }
 
-  // Non-superseded approvals (plain or with-suggestion) on a published
-  // article, for the "Approved by" panel on the Educational Post detail
-  // screen. Relies on a public-read RLS policy scoped to decision='approve'
-  // rows on published content — approvals on pre-publish content stay
-  // restricted to review-scope doctors.
   static Future<List<Map<String, dynamic>>> getArticleApprovals(
       String contentId) async {
     try {
@@ -444,12 +397,6 @@ class SupabaseService {
         .eq('user_id', user.id);
   }
 
-  // ── Specialist article review pipeline ──────────────────────────────
-  // See Article_System_specialist.md. All state transitions (submit,
-  // approve, reject, emergency-pending) go through the security-definer RPC
-  // functions in add_review_pipeline_functions.sql — the client never writes
-  // `status`/`approvals`/`emergency_pending_clicks` rows directly.
-
   static Future<List<Map<String, dynamic>>> getReviewGroups() async {
     final res = await client.from('review_groups').select('*').order('id');
     return List<Map<String, dynamic>>.from(res);
@@ -460,9 +407,6 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // The current specialist's primary review group, derived from their
-  // specialty (specialist_profiles.specialty_id -> specialty_group_map),
-  // never chosen manually — see Article_System_specialist.md §2.
   static Future<Map<String, dynamic>?> getMyPrimaryGroup() async {
     final user = currentUser;
     if (user == null) return null;
@@ -473,9 +417,6 @@ class SupabaseService {
         .maybeSingle();
     final specialtyId = profile?['specialty_id'] as int?;
     if (specialtyId == null) return null;
-    // specialty_group_map is many-to-many at the schema level (future-
-    // proofing per the doc), but every specialty maps to exactly one group
-    // today — take the first if there's ever more than one row.
     final rows = await client
         .from('specialty_group_map')
         .select('group_id, review_groups(id, name)')
@@ -485,9 +426,6 @@ class SupabaseService {
     return rows.first['review_groups'] as Map<String, dynamic>?;
   }
 
-  // The secondary group(s) mapped to a given primary group, used for the
-  // approval-2 reviewer pool — see Article_System_specialist.md §2
-  // ("Secondary group mapping").
   static Future<List<Map<String, dynamic>>> getSecondaryGroupsFor(
       int primaryGroupId) async {
     final rows = await client
@@ -500,8 +438,6 @@ class SupabaseService {
         .toList();
   }
 
-  // Member specialties of a review group, for the group-info dropdown — see
-  // Article_System_specialist.md §2 ("Member Specialties" column).
   static Future<List<String>> getSpecialtiesForGroup(int groupId) async {
     final rows = await client
         .from('specialty_group_map')
@@ -515,12 +451,6 @@ class SupabaseService {
       ..sort();
   }
 
-  // Trimester tags live in the same multi-select tag list as ordinary
-  // categories on the Create/Edit Article screens (per product decision —
-  // no separate "Relevant Trimester" section), but the legacy `category`/
-  // `trimester` columns are still derived from `tags` under the hood since
-  // baby_development_screen/features_screens still filter recommended
-  // articles by those columns directly.
   static const trimesterTags = [
     '1st Trimester',
     '2nd Trimester',
@@ -540,10 +470,6 @@ class SupabaseService {
     return (category, trimester);
   }
 
-  // Existing tags, sourced from the same published articles shown on the
-  // Learn tab — so specialists pick from what's actually in use there
-  // instead of typing free text. Trimester tags are excluded since they're
-  // always offered separately in the picker regardless of past usage.
   static Future<List<String>> getArticleCategories() async {
     final articles = await getArticles();
     final cats = <String>{};
@@ -609,9 +535,6 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Count of a specialist's own articles that have made it all the way to
-  // "published" — shown as "Articles Published" on their profile (their own
-  // or another specialist's, viewed read-only).
   static Future<int> getPublishedArticlesCountForUser(String userId) async {
     try {
       final res = await client
@@ -631,11 +554,6 @@ class SupabaseService {
     return getPublishedArticlesCountForUser(user.id);
   }
 
-  // Count of distinct articles a specialist has reviewed — counted once per
-  // article regardless of how many approval rows they left on it (e.g. an
-  // "issue" comment followed later by the approval that resolved it), so
-  // raising and then clearing an issue doesn't inflate the count — shown as
-  // "Articles Reviewed" on their profile.
   static Future<int> getReviewActionsCountForUser(String userId) async {
     try {
       final res = await client
@@ -662,10 +580,6 @@ class SupabaseService {
     await client.from('articles').delete().eq('id', id);
   }
 
-  // Edits an article's own fields (title/content/tags) — never
-  // primary_group_id, which stays whatever it was tagged at submission.
-  // Available to the author at any point before publish. category/trimester
-  // are derived from tags server-side (see edit_article_content).
   static Future<void> updateArticleDraft(
     String id, {
     required String title,
@@ -788,7 +702,6 @@ class SupabaseService {
     await client.from('public_comments').delete().eq('id', id);
   }
 
-  // Testimonials
   static Future<List<Map<String, dynamic>>> getTestimonials() async {
     final res = await client
         .from('testimonials')
@@ -798,12 +711,6 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Provider ratings (specialist/volunteer star-only reviews)
-  //
-  // Inserts a "Rate {name}" notification for a completed interaction,
-  // unless the mum already rated it or was already prompted for it —
-  // callers (consultation loading, chat closing) may run this repeatedly
-  // for the same interaction across reloads, so this must stay idempotent.
   static Future<void> ensureRatingNotification({
     required String mumId,
     required String providerId,
@@ -832,13 +739,6 @@ class SupabaseService {
       if (alreadyPrompted != null) return;
 
       final isSpecialist = providerType == 'specialist';
-      // Filed as a 'consultation' notification (not a distinct 'rating'
-      // type) so it shows up as a normal card inside the Consultation
-      // section of Active Alerts & Notifications, rather than under its
-      // own separate category. The rating_* columns are what let a tap
-      // still route to the rating screen instead of the generic
-      // consultation detail sheet — see _openNotification/
-      // _openDashboardNotification.
       await client.from('notifications').insert({
         'user_id': mumId,
         'type': 'consultation',
@@ -887,7 +787,6 @@ class SupabaseService {
     }
   }
 
-  // Consultations
   static Future<List<Map<String, dynamic>>> getConsultations() async {
     final user = currentUser;
     if (user == null) return [];
@@ -899,9 +798,6 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Best-effort: a linked mum's consultations, for the next-of-kin
-  // dashboard's Active Alerts. Depending on RLS this may come back empty
-  // rather than erroring, so it's wrapped defensively.
   static Future<List<Map<String, dynamic>>> getConsultationsForPatient(
       String patientId) async {
     try {
@@ -916,16 +812,6 @@ class SupabaseService {
     }
   }
 
-  // Booked-slot check for the date/time picker. Goes through the
-  // get_booked_consultation_slots RPC (see
-  // add_consultation_slot_availability_function.sql) instead of selecting
-  // from `consultations` directly: that table's SELECT policy only allows a
-  // patient to read their own rows, so a plain select here would silently
-  // come back empty for slots OTHER patients already hold, and the picker
-  // would show them as free. The RPC is SECURITY DEFINER and returns only
-  // the taken time strings -- no patient identity or booking detail -- so it
-  // can safely see every hold on the specialist without widening what any
-  // patient can read from the table itself.
   static Future<Set<String>> getBookedConsultationSlots(
     List<String> specialistIds,
     DateTime date,
@@ -954,11 +840,6 @@ class SupabaseService {
         'created_at': dbNow(),
       });
     } on PostgrestException catch (e) {
-      // 23505 = unique_violation. A DB-level constraint (see
-      // add_consultation_booking_uniqueness.sql) blocks two active bookings
-      // for the same specialist/date/time, so this is the "someone (possibly
-      // this same patient, e.g. via back-button double-submit) already holds
-      // this slot" case rather than an unexpected failure.
       if (e.code == '23505') {
         throw Exception(
             'That time slot is no longer available. Please choose a different time.');
@@ -967,8 +848,6 @@ class SupabaseService {
     }
   }
 
-  // Open Q&A board: a mum posts a question here and any volunteer can see
-  // and reply to it — it isn't addressed to one specific volunteer.
   static Future<void> postVolunteerQuestion(String question) async {
     final user = currentUser;
     if (user == null) return;
@@ -979,9 +858,6 @@ class SupabaseService {
     });
   }
 
-  // Only allowed while the question is still 'pending' — once a volunteer
-  // has replied, editing it out from under their answer would be confusing,
-  // and RLS blocks it server-side too (see the amend-question policy).
   static Future<void> updateVolunteerQuestion(
       String id, String question) async {
     final res = await client
@@ -1009,14 +885,8 @@ class SupabaseService {
     }
   }
 
-  // Every message after the original question — both the volunteer's
-  // replies and the mum's follow-ups — lives here so either side can keep
-  // the conversation going instead of it stopping at one response.
   static Future<List<Map<String, dynamic>>> getRequestMessages(
       String requestId) async {
-    // ascending must be explicit — the client defaults .order() to
-    // descending, which would show the newest message first instead of
-    // last.
     final res = await client
         .from('volunteer_request_messages')
         .select()
@@ -1036,9 +906,6 @@ class SupabaseService {
     });
   }
 
-  // A volunteer's first reply claims the thread: volunteer_id is only set
-  // if it was still null, so two volunteers racing to answer the same open
-  // question can't both win. Returns false if someone else got there first.
   static Future<bool> claimAndReplyToRequest(
       String requestId, String message) async {
     final user = currentUser;
@@ -1054,11 +921,6 @@ class SupabaseService {
     return true;
   }
 
-  // The assigned volunteer ends the conversation — status moves to
-  // 'closed' ("Completed" in the UI). The thread and its messages stay
-  // visible to both participants afterward, just without a way to reply.
-  // Also prompts the mum to rate this volunteer, since a closed chat is
-  // the one real, trackable "interaction completed" event volunteers have.
   static Future<void> closeRequestChat(Map<String, dynamic> request) async {
     final requestId = request['id'].toString();
     await client
@@ -1081,11 +943,6 @@ class SupabaseService {
     );
   }
 
-  // The assigned volunteer asks to start a video call at a proposed date
-  // and time. The mum sees this as an accept/decline prompt in her thread
-  // view, with the proposed slot shown. call_requested_at is what lets a
-  // stale, never-answered request expire after 48h (see
-  // expireStaleCallRequests) instead of holding its slot forever.
   static Future<void> requestVideoCall(
       String requestId, DateTime scheduledDate, String scheduledTime) async {
     final user = currentUser;
@@ -1105,11 +962,6 @@ class SupabaseService {
         .update({'call_status': 'declined'}).eq('id', requestId);
   }
 
-  // Slots this volunteer can't be offered again on the given date: any call
-  // already confirmed with a mum (holds its slot until the thread closes),
-  // plus any still-pending proposal (holds its slot for 48h before
-  // expiring) — kept out of the request picker so the same slot can't be
-  // double-proposed, or double-booked against a call already confirmed.
   static Future<Set<String>> getHeldCallTimesForDate(DateTime date) async {
     final user = currentUser;
     if (user == null) return {};
@@ -1137,10 +989,6 @@ class SupabaseService {
     }
   }
 
-  // Client-side sweep (same pattern as autoCloseStaleRequests): a call
-  // request nobody answered within 48h releases its held slot by
-  // reverting to 'none', rather than blocking that time forever and
-  // leaving the mum staring at a prompt for a call time that's long past.
   static Future<void> expireStaleCallRequests(
       List<Map<String, dynamic>> requests) async {
     final cutoff = DateTime.now().subtract(const Duration(hours: 48));
@@ -1162,15 +1010,6 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  // Accepting creates a real Zoom meeting (via the create-zoom-meeting-
-  // volunteer-call edge function, same Server-to-Server OAuth approach as
-  // SupabaseService.approveConsultation) and stores its join_url, instead
-  // of just flipping call_status and leaving the volunteer to paste one in
-  // later. Returns the new meeting link so the caller can update local
-  // state immediately. A partial unique index (volunteer_id, scheduled_date,
-  // scheduled_time) where accepted and not closed still blocks this if the
-  // volunteer already has another accepted call at that exact slot — the
-  // edge function surfaces that as a friendly error message.
   static Future<String> acceptVideoCall(String requestId) async {
     final response = await client.functions.invoke(
       'create-zoom-meeting-volunteer-call',
@@ -1187,19 +1026,12 @@ class SupabaseService {
     return link;
   }
 
-  // Fallback path for a call that's 'accepted' but somehow still has no
-  // meeting_link (e.g. rows accepted before this Zoom integration existed) —
-  // lets the volunteer paste one in by hand, same as before.
   static Future<void> sendMeetingLink(String requestId, String link) async {
     await client
         .from('volunteer_requests')
         .update({'meeting_link': link}).eq('id', requestId);
   }
 
-  // Client-side equivalent of a cron job: whenever a list or detail screen
-  // loads, flip any 'responded' (claimed, active) thread with no activity
-  // in 48h to 'closed'. Mutates the passed-in rows in place so the caller's
-  // UI reflects the change immediately without a second round-trip.
   static Future<void> autoCloseStaleRequests(
       List<Map<String, dynamic>> requests) async {
     final cutoff = DateTime.now().subtract(const Duration(hours: 48));
@@ -1219,8 +1051,6 @@ class SupabaseService {
       for (final r in stale) {
         r['status'] = 'closed';
       }
-      // A stale auto-close is still a real "chat completed" event — prompt
-      // the mum to rate the volunteer just like a manual close does.
       await Future.wait(stale.map((r) async {
         final mumId = r['patient_id']?.toString();
         final volunteerId = r['volunteer_id']?.toString();
@@ -1240,12 +1070,6 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  // Cancelling marks the row as "cancelled" rather than deleting it, so the
-  // specialist still sees it (as a Cancelled entry) instead of it vanishing
-  // outright. .select() so we get back the rows that were actually updated —
-  // an UPDATE blocked by a missing RLS policy doesn't throw by default, it
-  // just silently affects zero rows, which would otherwise look like a
-  // successful cancel that didn't actually happen.
   static Future<void> cancelConsultation(String id, {String? reason}) async {
     final res = await client
         .from('consultations')
@@ -1273,13 +1097,6 @@ class SupabaseService {
     }
   }
 
-  // Moving a consultation to a new slot resets it to 'pending' (and clears
-  // any existing Zoom link) so the specialist has to re-approve the new
-  // time, exactly as if it were a fresh booking — the old approval doesn't
-  // carry over to a slot the specialist never agreed to. The previous
-  // date/time is kept around (see add_consultation_reschedule_tracking.sql)
-  // purely so the specialist's reschedule notification/badge can say what
-  // it changed from.
   static Future<void> rescheduleConsultation(
     String id, {
     required String scheduledDate,
@@ -1306,7 +1123,6 @@ class SupabaseService {
             'Could not reschedule this consultation — you may not have permission to.');
       }
     } on PostgrestException catch (e) {
-      // 23505 = unique_violation, same slot-conflict guard as bookConsultation.
       if (e.code == '23505') {
         throw Exception(
             'That time slot is no longer available. Please choose a different time.');
@@ -1315,11 +1131,6 @@ class SupabaseService {
     }
   }
 
-  // Approving a specialist consultation now also creates a real Zoom
-  // meeting (via the create-zoom-meeting edge function, using Zoom's
-  // Server-to-Server OAuth API) and stores its genuine join_url as
-  // meeting_link, instead of just flipping the status. Returns the new
-  // meeting link so the caller can update its local state immediately.
   static Future<String> approveConsultation(String id) async {
     final response = await client.functions.invoke(
       'create-zoom-meeting',
@@ -1336,13 +1147,6 @@ class SupabaseService {
     return link;
   }
 
-  // Publishing (or editing) a volunteer service listing used to require
-  // pasting in a Zoom link the volunteer created themselves. This calls the
-  // create-zoom-meeting-service edge function to mint a real one instead —
-  // there's no existing row to read/write here (unlike approveConsultation
-  // or acceptVideoCall), just a one-shot "create a meeting for this slot"
-  // call, so the function takes the listing's details directly rather than
-  // an id.
   static Future<String> createServiceZoomMeeting({
     required String title,
     required DateTime date,
@@ -1369,8 +1173,6 @@ class SupabaseService {
     return link;
   }
 
-  // Looks up the specialist/volunteer profile (+ name) for a consultation's
-  // other party, trying specialist_profiles first then volunteer_profiles.
   static Future<Map<String, dynamic>?> getProviderProfile(String userId) async {
     try {
       final spec = await client
@@ -1391,8 +1193,6 @@ class SupabaseService {
     return null;
   }
 
-  // Next of kin — the mum this next-of-kin account is linked to, via the
-  // next_of_kin_profiles table (user_id -> linked_pregnant_user_id).
   static Future<Map<String, dynamic>?> getLinkedMum() async {
     final user = currentUser;
     if (user == null) return null;
@@ -1407,15 +1207,7 @@ class SupabaseService {
       final mum = link?['mum'] as Map<String, dynamic>?;
       if (mum == null) return null;
 
-      // Best-effort: the linked mum's own pregnancy_profiles row may not be
-      // readable depending on RLS, so a missing week just means we show none.
       int? week;
-      // The calendar date the current week began — a pure function of
-      // due_date, not "whenever a device first noticed this week." Lets
-      // the next-of-kin milestone notification show a real, stable
-      // received-at time instead of resetting to "just now" on every
-      // fresh install/device (see getOrRecordMilestoneTimestamp, which is
-      // only a fallback for when due_date isn't set).
       DateTime? weekStartDate;
       try {
         final pp = await client
@@ -1429,8 +1221,7 @@ class SupabaseService {
           final due = sgtDateFrom(dueDateStr);
           if (due != null) {
             final conception = due.subtract(const Duration(days: 280));
-            week =
-                (sgtNow().difference(conception).inDays ~/ 7).clamp(1, 42);
+            week = (sgtNow().difference(conception).inDays ~/ 7).clamp(1, 42);
             weekStartDate = conception.add(Duration(days: week * 7));
           }
         }
@@ -1452,8 +1243,6 @@ class SupabaseService {
     }
   }
 
-  // Shared lookup for the user_code linking flow — throws a user-facing
-  // message if the code doesn't exist or doesn't belong to a mum account.
   static Future<Map<String, dynamic>> _findMumByUserCode(
       String userCode) async {
     final mum = await client
@@ -1471,15 +1260,10 @@ class SupabaseService {
     return mum;
   }
 
-  // Verifies a user_code belongs to a registered mum, without linking — used
-  // to enable the Link button only once the code checks out.
   static Future<Map<String, dynamic>> verifyMumUserCode(String userCode) {
     return _findMumByUserCode(userCode);
   }
 
-  // Looks up a mum by her user_code and links this next-of-kin account to
-  // her, replacing any previous link. Throws a user-facing message if the
-  // code doesn't exist or doesn't belong to a mum account.
   static Future<String> linkToMum(String userCode, String relationship) async {
     final user = currentUser;
     if (user == null) throw Exception('Not signed in.');
@@ -1496,9 +1280,6 @@ class SupabaseService {
     return mum['full_name'] as String? ?? 'Mum';
   }
 
-  // Edits the relationship on an existing link without touching which mum
-  // it points to — re-linking to a different mum still goes through
-  // linkToMum's delete+insert flow.
   static Future<void> updateNextOfKinRelationship(String relationship) async {
     final user = currentUser;
     if (user == null) throw Exception('Not signed in.');
@@ -1512,7 +1293,6 @@ class SupabaseService {
     }
   }
 
-  // Specialists & volunteers
   static Future<List<Map<String, dynamic>>> getSpecialists() async {
     final res = await client
         .from('specialist_profiles')
@@ -1529,10 +1309,6 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Average star rating + review count per provider, keyed by provider_id
-  // (specialist_profiles/volunteer_profiles.user_id) — aggregated client-side
-  // since there's no server-side view for it. Used to show a "★ 4.8" badge
-  // next to a provider's specialization in the Select Specialist list.
   static Future<Map<String, ({double average, int count})>>
       getProviderRatingSummaries(String providerType) async {
     try {
@@ -1558,9 +1334,6 @@ class SupabaseService {
     }
   }
 
-  // The services a volunteer currently has published (excludes ones they've
-  // deleted or that have expired), shown as tappable "Services Provided"
-  // chips on their card in the mum-facing volunteer list.
   static Future<List<Map<String, dynamic>>> getVolunteerServices(
       String volunteerId) async {
     try {
@@ -1575,15 +1348,12 @@ class SupabaseService {
     }
   }
 
-  // Get current specialist's profile (for their own dashboard)
   static Future<Map<String, dynamic>?> getMySpecialistProfile() async {
     final user = currentUser;
     if (user == null) return null;
     return getSpecialistProfileByUserId(user.id);
   }
 
-  // Get any specialist's profile by user id — used for the read-only
-  // profile view opened from an article's author/reviewer avatar.
   static Future<Map<String, dynamic>?> getSpecialistProfileByUserId(
       String userId) async {
     try {
@@ -1598,15 +1368,12 @@ class SupabaseService {
     }
   }
 
-  // Get current volunteer's profile (for their own dashboard)
   static Future<Map<String, dynamic>?> getMyVolunteerProfile() async {
     final user = currentUser;
     if (user == null) return null;
     return getVolunteerProfileByUserId(user.id);
   }
 
-  // Get any volunteer's profile by user id — used for the read-only
-  // profile view opened from a volunteer session notification.
   static Future<Map<String, dynamic>?> getVolunteerProfileByUserId(
       String userId) async {
     try {
@@ -1621,12 +1388,10 @@ class SupabaseService {
     }
   }
 
-  // Update volunteer profile
   static Future<void> updateVolunteerProfile(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
 
-    // Check if a row already exists
     final existing = await client
         .from('volunteer_profiles')
         .select('*')
@@ -1634,13 +1399,11 @@ class SupabaseService {
         .maybeSingle();
 
     if (existing != null) {
-      // Row exists — just update the fields we care about
       await client
           .from('volunteer_profiles')
           .update(data)
           .eq('user_id', user.id);
     } else {
-      // No row yet — insert with required fields defaulted
       await client.from('volunteer_profiles').insert({
         'user_id': user.id,
         'expertise': '', // satisfies NOT NULL
@@ -1650,7 +1413,6 @@ class SupabaseService {
     }
   }
 
-  // Update specialist profile
   static Future<void> updateSpecialistProfile(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
@@ -1662,8 +1424,6 @@ class SupabaseService {
         .maybeSingle();
 
     if (existing != null) {
-      // .select() so we can tell a silent RLS-blocked update (0 rows
-      // affected, no error thrown) apart from a real success.
       final res = await client
           .from('specialist_profiles')
           .update(data)
@@ -1687,7 +1447,6 @@ class SupabaseService {
     }
   }
 
-  // Site settings
   static Future<Map<String, String>> getSiteSettings() async {
     final res =
         await client.from('site_settings').select('setting_key, setting_value');
@@ -1698,20 +1457,15 @@ class SupabaseService {
     return map;
   }
 
-  // Forum
   static Future<List<Map<String, dynamic>>> getForumPosts() async {
     final res = await client
         .from('forum_posts')
-        // profiles!forum_posts_author_id_fkey disambiguates from the other
-        // path PostgREST finds via forum_likes (which also references both
-        // forum_posts and profiles, looking like a many-to-many join).
         .select(
             '*, profiles!forum_posts_author_id_fkey(full_name, role), forum_comments(count), forum_likes(count)')
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Which of the given posts the current user has already liked.
   static Future<Set<String>> getLikedPostIds(List<String> postIds) async {
     final user = currentUser;
     if (user == null || postIds.isEmpty) return {};
@@ -1732,8 +1486,6 @@ class SupabaseService {
     });
   }
 
-  // Same 0-row-means-silent-failure risk as deleteForumPost below, and RLS
-  // is scoped the same way (author_id = auth.uid()).
   static Future<void> updateForumPost(String id, String content) async {
     final updated = await client
         .from('forum_posts')
@@ -1746,9 +1498,6 @@ class SupabaseService {
     }
   }
 
-  // Deletes only succeed via RLS when auth.uid() matches author_id. Without
-  // .select(), a 0-row delete (e.g. a stale session) returns success with
-  // nothing removed, so the caller can't tell it silently no-op'd.
   static Future<void> deleteForumPost(String id) async {
     final deleted =
         await client.from('forum_posts').delete().eq('id', id).select('id');
@@ -1800,11 +1549,6 @@ class SupabaseService {
     await client.from('forum_comments').delete().eq('id', id);
   }
 
-  // ── Daily reminders (next-of-kin) ─────────────────────────────────
-  // Reminders are "sent" (materialized as daily_reminder_sends rows) by a
-  // daily cron job (see add_next_of_kin_daily_reminders.sql). This also
-  // calls the idempotent per-user RPC as a safety net so reminders still
-  // show up even if the cron job hasn't run yet for today.
   static Future<List<Map<String, dynamic>>> getMyDailyReminders() async {
     final user = currentUser;
     if (user == null) return [];
@@ -1828,7 +1572,6 @@ class SupabaseService {
     }
   }
 
-  // ── Checklist (next-of-kin support checklist) ────────────────────
   static Future<List<Map<String, dynamic>>> getChecklistTemplates() async {
     final res = await client
         .from('checklist_templates')
@@ -1837,8 +1580,6 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
-  // Returns the current user's checklist rows, materialising them from
-  // checklist_templates on first use (one row per template, same order).
   static Future<List<Map<String, dynamic>>> getOrCreateChecklistItems() async {
     final user = currentUser;
     if (user == null) return [];

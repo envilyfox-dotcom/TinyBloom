@@ -263,7 +263,6 @@ String _normaliseTime(String value) {
     } catch (_) {}
   }
 
-  // Handle compact values such as 2PM / 9AM.
   final compact = RegExp(r'^(\d{1,2})(AM|PM)$', caseSensitive: false);
   final match = compact.firstMatch(text.replaceAll(' ', ''));
   if (match != null) {
@@ -410,8 +409,6 @@ Set<String> availableDaysFromHours(dynamic value) {
       final endIndex = _weekDayOrder.indexOf(end);
 
       if (startIndex != -1 && endIndex != -1) {
-        // Expand the range (e.g. "Monday - Sunday") into every day it spans,
-        // instead of just its two endpoints. Handles wrap-around ranges too.
         var i = startIndex;
         while (true) {
           days.add(_weekDayOrder[i]);
@@ -451,7 +448,6 @@ List<String> availableTimesOnly(dynamic value) {
   } else if (value is String && value.trim().isNotEmpty) {
     var text = value.trim();
 
-    // JSON/Postgres array string formats: ["9:00 AM"] or {9:00 AM,10:00 AM}
     if ((text.startsWith('[') && text.endsWith(']')) ||
         (text.startsWith('{') && text.endsWith('}'))) {
       text = text.substring(1, text.length - 1);
@@ -474,7 +470,6 @@ List<String> availableTimesOnly(dynamic value) {
 List<String> futureTimesForDate(List<String> times, DateTime date) {
   final now = sgtNow();
 
-  // If selected date is not today, all standard unbooked slots can be shown.
   if (!_isSameDay(date, now)) return times;
 
   return times.where((time) {
@@ -503,7 +498,6 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
     for (final row in List<Map<String, dynamic>>.from(rows)) {
       final status = (row['status'] as String? ?? '').toLowerCase();
 
-      // Pending approval also blocks the slot because another user already requested it.
       if (status != 'pending' && status != 'confirmed') continue;
 
       final providerId = row['specialist_id']?.toString();
@@ -516,7 +510,6 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
 
     return booked;
   } catch (_) {
-    // If RLS blocks reading other bookings, at least keep the UI from crashing.
     return {};
   }
 }
@@ -559,7 +552,6 @@ Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
   }).toList();
 }
 
-// ── Shared provider card (Select Specialist / Select Volunteer) ────
 Widget providerCard(
     BuildContext context, Map<String, dynamic> provider, String type) {
   final profile = provider['profiles'] as Map<String, dynamic>? ?? {};
@@ -866,9 +858,6 @@ Widget _helpsChip(String label, Color accent, {bool tappable = false}) {
   );
 }
 
-// Shows a volunteer service's full details (description, category,
-// availability, consultation method) when its "Services Provided" chip is
-// tapped, since the chip itself only has room for the title.
 void _showServiceDetailsSheet(
     BuildContext context, Map<String, dynamic> service, Color accent) {
   final serviceId = formatServiceId(service['service_number']);

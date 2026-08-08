@@ -18,9 +18,6 @@ String _timeAgo(DateTime date) {
   return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
-// A single item in the merged "Checks" timeline — either an approval/reject/
-// suggestion row or an edit-history row, sorted together by time so edits
-// show up in context with the reviews around them.
 class _TimelineItem {
   final DateTime time;
   final bool isEdit;
@@ -28,12 +25,6 @@ class _TimelineItem {
   _TimelineItem({required this.time, required this.isEdit, required this.data});
 }
 
-// ── Review thread (Specialists) ──────────────────────────────────────────
-// The specialist-only thread for one piece of content: state, approval
-// history, comments, and the approve/reject/emergency-pending actions.
-// See Article_System_specialist.md §3-5. All state-changing actions call
-// the security-definer RPCs in supabase_service.dart — this screen never
-// writes `status`/approvals rows directly.
 class SpecialistReviewThreadScreen extends StatefulWidget {
   final String contentId;
   const SpecialistReviewThreadScreen({super.key, required this.contentId});
@@ -54,19 +45,12 @@ class _SpecialistReviewThreadScreenState
   int? _myGroupId;
   final _commentCtrl = TextEditingController();
   final _commentFocusNode = FocusNode();
-  // The discussion comment being replied to — the comment box above the
-  // discussion feed doubles as the reply box, with a "Replying to X" chip
-  // shown above it while set (mirrors the Educational Post comment flow).
   Map<String, dynamic>? _replyingTo;
 
-  // Inline reply composer for a flagged (suggestion/issue) entry — same
-  // tap-to-reveal-inline-input interaction as the discussion feed, instead
-  // of a modal dialog. Only one entry's composer is open at a time.
   final _issueReplyCtrl = TextEditingController();
   final _issueReplyFocus = FocusNode();
   String? _replyingToApprovalId;
 
-  // Post verification panel state.
   String? _verificationChoice; // 'suggestion' | 'issues' | null
   final _suggestionCtrl = TextEditingController();
   final _issueReasonCtrl = TextEditingController();
@@ -144,9 +128,6 @@ class _SpecialistReviewThreadScreenState
     return status == 'pending_approval_1' ? 1 : 2;
   }
 
-  // Non-superseded approvals (plain or with-suggestion) granted so far,
-  // clamped to 2 — self-corrects across every status, including after an
-  // emergency recall supersedes approvals and the count drops back down.
   int get _checksCount {
     final approvals =
         List<Map<String, dynamic>>.from(_content?['approvals'] ?? []);
@@ -158,10 +139,6 @@ class _SpecialistReviewThreadScreenState
 
   Color get _checksColor => _checksCount >= 2 ? AppColors.teal : AppColors.gold;
 
-  // The reviewer who currently holds the active (non-superseded) stage-1
-  // approval — approval 2 must come from someone else (Article_System
-  // §3.3, §7.1). Used to hide the stage-2 buttons from that same reviewer
-  // instead of letting them hit the server-side rejection.
   String? get _stage1ApproverId {
     final active = List<Map<String, dynamic>>.from(_content?['approvals'] ?? [])
         .where((a) =>
@@ -174,11 +151,6 @@ class _SpecialistReviewThreadScreenState
     return active.isEmpty ? null : active.last['reviewer_id'] as String?;
   }
 
-  // True if a prior approval 1 was voided — currently only happens via a
-  // clinical emergency-pending recall during the publish buffer
-  // (Article_System §3.5), which sends content back to pending_approval_1.
-  // Distinguishes that case from a content item that simply hasn't reached
-  // approval 1 yet, for the secondary-group notice below.
   bool get _hasSupersededStage1Approval =>
       List<Map<String, dynamic>>.from(_content?['approvals'] ?? []).any((a) =>
           a['stage'] == 1 &&
@@ -364,14 +336,6 @@ class _SpecialistReviewThreadScreenState
           .where((a) => a['decision'] == 'reject' && a['resolved'] != true)
           .length;
 
-  // Only the author can resolve an issue (turn its "X" into a checklist —
-  // enforced server-side too by resolve_review_issue). Other primary/
-  // secondary reviewers can still reply, but it's posted as a normal
-  // discussion comment and never flips the issue's resolved state. Since
-  // resolve_review_issue now also accepts suggestion rows, this same flow
-  // covers both a rejection issue and an "approved with suggestion" note.
-  // Reply UI is inline (tap Reply -> composer opens in place), matching
-  // the discussion feed's reply interaction instead of a modal dialog.
   void _startIssueReply(String approvalId) {
     setState(() => _replyingToApprovalId = approvalId);
     FocusScope.of(context).requestFocus(_issueReplyFocus);
@@ -418,10 +382,6 @@ class _SpecialistReviewThreadScreenState
     if (mounted) setState(() => _comments = comments);
   }
 
-  // Why an approval was superseded (approvals.superseded_reason) — set by
-  // edit_article_content (no longer — edits leave approvals alone) and
-  // trigger_emergency_pending, the only RPC that still voids an approval
-  // outside its own reject/reset flow.
   String _supersededReasonLabel(String reason) {
     switch (reason) {
       case 'edited':
@@ -449,10 +409,6 @@ class _SpecialistReviewThreadScreenState
       if (status == 'published') {
         return const SizedBox.shrink();
       }
-      // Editing is always available to the author pre-publish, not just
-      // after a rejection — edit_article_content no longer resets the
-      // review, so the button doesn't need to wait for a changes_requested
-      // warning first.
       final editButton = OutlinedButton.icon(
         onPressed: _acting ? null : _editArticle,
         icon: const Icon(Icons.edit_outlined, size: 18),
@@ -507,11 +463,6 @@ class _SpecialistReviewThreadScreenState
                   fontWeight: FontWeight.w600)),
         );
       }
-      // Approval 1 is primary-group only (Article_System §3.2). A
-      // secondary-group reviewer can still see this thread — including
-      // after an emergency-pending clinical recall supersedes approval 1
-      // and sends it back here — but isn't in the approval-1 reviewer pool,
-      // so show a notice instead of buttons that would just error server-side.
       if (status == 'pending_approval_1' &&
           _myGroupId != _content!['primary_group_id']) {
         return Container(
@@ -549,10 +500,6 @@ class _SpecialistReviewThreadScreenState
     return const SizedBox.shrink();
   }
 
-  // Checkbox-styled action row shared by the three "Post verification"
-  // options — visually a checklist, but "Approved" fires immediately
-  // (matching the pre-redesign single-tap behavior) while the other two
-  // toggle open a comment box gated behind a Send button.
   Widget _verificationRow({
     required String label,
     required bool checked,
@@ -777,9 +724,6 @@ class _SpecialistReviewThreadScreenState
           if (bufferStartedAt != null && status == 'publish_buffer') ...[
             const SizedBox(height: 6),
             Text(
-              // TESTING: matches the interval '0 minutes' override in
-              // testing_instant_publish_buffer.sql. Revert to
-              // Duration(hours: 24) alongside that migration.
               'Goes live ${DateFormat('d MMM yyyy, h:mm a').format(toSingaporeTime(bufferStartedAt.add(Duration.zero)))}',
               style: const TextStyle(color: AppColors.textLight, fontSize: 12),
             ),
@@ -794,9 +738,6 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  // Shared avatar + bubble frame for both the flagged feed and History
-  // entries — reviewer identity/timestamp look the same either way, only
-  // the body content and (for the flagged feed) the border color differ.
   Widget _entryBubble(
       Map<String, dynamic>? reviewer, DateTime? createdAt, Widget body,
       {Color? borderColor}) {
@@ -874,19 +815,10 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  // "Approved with suggestion" and "Issues" entries — the always-visible
-  // feed below Post verification. Comment icon = suggestion (Reply and
-  // Resolve is offered but optional — resolving it never gates anything).
-  // Warning icon = issue/rejection (Reply and Resolve is only offered while
-  // changes_requested, and resolving + resubmitting is required before the
-  // pipeline can advance to another approval).
   Widget _flaggedEntry(Map<String, dynamic> a) {
     final status = _content!['status'] as String? ?? '';
     final isReject = a['decision'] == 'reject';
     final resolved = a['resolved'] == true;
-    // Only the reviewer who sent it (to clarify) or the content's author
-    // (to resolve) can reply — every other specialist can just read it.
-    // Once published, the thread is closed to new replies entirely.
     final isSender = a['reviewer_id'] == _myId;
     final canReply = !resolved &&
         status != 'published' &&
@@ -1044,10 +976,6 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  // Every approval/reject decision, in the same plain style regardless of
-  // whether it also carried a comment (suggestions/issues are additionally
-  // shown, with their comment and Reply-and-Resolve controls, in the
-  // flagged feed above) — this is just the bare "what happened" record.
   Widget _historyApprovalEntry(Map<String, dynamic> a) {
     final reviewer = a['reviewer'] as Map<String, dynamic>?;
     final createdAt = DateTime.tryParse(a['created_at'] as String? ?? '');
@@ -1075,9 +1003,6 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  // Renders a word-diff op list as a single run of colored spans: unchanged
-  // text plain, removed text struck through in red, added text highlighted
-  // in sage — so only the actual edit stands out instead of two full blocks.
   Widget _diffSpans(List<DiffOp> ops, {double fontSize = 12}) {
     return Text.rich(
       TextSpan(
@@ -1086,8 +1011,8 @@ class _SpecialistReviewThreadScreenState
             TextSpan(
               text: op.text,
               style: switch (op.type) {
-                DiffOpType.equal => TextStyle(
-                    color: AppColors.textMid, fontSize: fontSize),
+                DiffOpType.equal =>
+                  TextStyle(color: AppColors.textMid, fontSize: fontSize),
                 DiffOpType.delete => TextStyle(
                     color: Colors.redAccent,
                     fontSize: fontSize,
@@ -1132,8 +1057,8 @@ class _SpecialistReviewThreadScreenState
 
     Widget? titleDiff() {
       if (!changed.contains('title')) return null;
-      final ops = wordDiff(e['old_title']?.toString() ?? '',
-          e['new_title']?.toString() ?? '');
+      final ops = wordDiff(
+          e['old_title']?.toString() ?? '', e['new_title']?.toString() ?? '');
       return _diffFieldBlock('Title', _diffSpans(ops, fontSize: 13));
     }
 
@@ -1213,8 +1138,6 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  // Always-visible feed of "Approved with suggestion" and "Issues" entries,
-  // sitting directly below Post verification (review_article_2.png).
   Widget _flaggedFeed() {
     final approvals = List<Map<String, dynamic>>.from(
             _content!['approvals'] ?? [])
@@ -1229,10 +1152,6 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
-  // Collapsible "History" — every approve/reject decision (plain style,
-  // "Approved stage X" / "Rejected stage X", no comment/reply controls)
-  // plus edit-history entries. Suggestions/issues are ALSO shown, with their
-  // comment and Reply-and-Resolve controls, in the flagged feed above.
   Widget _historySection() {
     final approvals =
         List<Map<String, dynamic>>.from(_content!['approvals'] ?? []);
@@ -1487,9 +1406,6 @@ class _SpecialistReviewThreadScreenState
                           ],
                         ),
                       ),
-                      // Matches the send IconButton's width below, so the
-                      // close icon lands above the comment box's edge
-                      // instead of overlapping the send button beneath it.
                       const SizedBox(width: 48),
                     ],
                   ),

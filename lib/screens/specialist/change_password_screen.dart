@@ -38,13 +38,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     });
 
     try {
-      // Verify current password by attempting to sign in
       await Supabase.instance.client.auth.signInWithPassword(
         email: Supabase.instance.client.auth.currentUser!.email!,
         password: _currentPasswordCtrl.text,
       );
 
-      // Update password
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: _newPasswordCtrl.text),
       );
@@ -87,7 +85,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Current Password Field
               const Text(
                 'Current Password',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -117,8 +114,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 },
               ),
               const SizedBox(height: 24),
-
-              // New Password Field
               const Text(
                 'New Password',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -151,8 +146,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 },
               ),
               const SizedBox(height: 24),
-
-              // Confirm Password Field
               const Text(
                 'Confirm Password',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -201,8 +194,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style:
-                              TextStyle(color: Colors.red.shade700, fontSize: 13),
+                          style: TextStyle(
+                              color: Colors.red.shade700, fontSize: 13),
                         ),
                       ),
                     ],
@@ -210,8 +203,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
               ],
               const SizedBox(height: 32),
-
-              // Change Password Button
               SizedBox(
                 width: double.infinity,
                 child: TBButton(

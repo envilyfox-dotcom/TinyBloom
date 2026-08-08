@@ -4,9 +4,6 @@ import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 
-// ── Post a Question to Volunteers ───────────────────────────────────
-// An open Q&A board: the mum just writes her question, no volunteer
-// selection or scheduling — any volunteer can see it and reply.
 class PostVolunteerQuestionScreen extends StatefulWidget {
   const PostVolunteerQuestionScreen({super.key});
 
@@ -69,7 +66,8 @@ class _PostVolunteerQuestionScreenState
           children: [
             const Text(
               'Post your question and any community volunteer will see it and reply.',
-              style: TextStyle(color: AppColors.textMid, fontSize: 13, height: 1.4),
+              style: TextStyle(
+                  color: AppColors.textMid, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 20),
             TBCard(
@@ -81,7 +79,8 @@ class _PostVolunteerQuestionScreenState
                   border: InputBorder.none,
                   hintText:
                       'e.g. How can I tell the difference between normal morning sickness and hyperemesis gravidarum?',
-                  hintStyle: TextStyle(color: AppColors.textLight, fontSize: 13),
+                  hintStyle:
+                      TextStyle(color: AppColors.textLight, fontSize: 13),
                 ),
               ),
             ),

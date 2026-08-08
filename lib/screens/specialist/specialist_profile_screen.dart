@@ -105,7 +105,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Header
             Center(
               child: Column(
                 children: [
@@ -177,8 +176,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Credentials Section
             if (licenseNumber.isNotEmpty ||
                 qualification.isNotEmpty ||
                 hospital.isNotEmpty ||
@@ -224,8 +221,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
               ),
               const SizedBox(height: 12),
             ],
-
-            // Description
             if (bio.isNotEmpty) ...[
               TBCard(
                 child: Padding(
@@ -256,8 +251,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
               ),
               const SizedBox(height: 12),
             ],
-
-            // Available Hours
             TBCard(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -296,8 +289,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // Activity
             Center(
               child: SizedBox(
                 width: 270,
@@ -341,7 +332,6 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
                 ),
               ),
             ),
-            // Bottom padding, sign out and edit profile buttons
             const SizedBox(height: 12),
             Row(
               children: [

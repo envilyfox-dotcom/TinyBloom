@@ -7,7 +7,6 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 
-// ── Specialists List ──────────────────────────────────────────────
 class SpecialistsListScreen extends StatefulWidget {
   const SpecialistsListScreen({super.key});
   @override
@@ -47,12 +46,7 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
       )..layout();
       if (painter.width > longest) longest = painter.width;
     }
-    // Room for the leading icon, trailing arrow and the field's own padding.
     const chrome = 18 + 12 + 24 + 24;
-    // Cap it well short of the screen edge so long specialization names
-    // (e.g. "Maternal-Fetal Medicine (Perinatologist)") don't force the
-    // filter to stretch across the whole page — they just wrap onto a
-    // second line inside the menu instead.
     final maxAllowed = MediaQuery.of(context).size.width - 40;
     return (longest + chrome).clamp(160.0, maxAllowed.clamp(160.0, 260.0));
   }
@@ -68,12 +62,8 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
     try {
       final data = await SupabaseService.getSpecialists();
 
-      // Show only timings from 9 AM - 6 PM that have not passed today and
-      // are not already booked by another user for the same specialist.
       final withAvailability = await attachAvailableTimingsForToday(data);
 
-      // Attach each specialist's average star rating so the card can show
-      // it next to their specialization.
       final ratingSummaries =
           await SupabaseService.getProviderRatingSummaries('specialist');
       final withRatings = withAvailability.map((s) {

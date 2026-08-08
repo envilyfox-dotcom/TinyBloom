@@ -5,10 +5,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-// ── FAQ (Next of Kin) ─────────────────────────────────────────────────
-// Same data source and layout language as the shared FaqScreen, but scoped
-// to the "Next of Kin" faqs category and with a search box instead of
-// category chips, since there's only one category to show here.
 class NextOfKinFaqScreen extends StatefulWidget {
   const NextOfKinFaqScreen({super.key});
   @override

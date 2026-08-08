@@ -8,14 +8,12 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import 'article_open_helper.dart';
 
-// ── Baby Development Screen ───────────────────────────────────────
-// patientUserId/patientName let a next-of-kin view a linked mum's
-// development details instead of the logged-in user's own (the default).
 class BabyDevelopmentScreen extends StatefulWidget {
   final String? patientUserId;
   final String? patientName;
 
-  const BabyDevelopmentScreen({super.key, this.patientUserId, this.patientName});
+  const BabyDevelopmentScreen(
+      {super.key, this.patientUserId, this.patientName});
 
   @override
   State<BabyDevelopmentScreen> createState() => _BabyDevelopmentScreenState();
@@ -47,8 +45,9 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     return 3;
   }
 
-  String get _possessive =>
-      widget.patientName != null ? "${widget.patientName!.split(' ').first}'s" : 'Your';
+  String get _possessive => widget.patientName != null
+      ? "${widget.patientName!.split(' ').first}'s"
+      : 'Your';
 
   @override
   void initState() {
@@ -57,8 +56,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
   }
 
   Future<void> _init() async {
-    // Load the current week first so article recommendations can be
-    // filtered by the right trimester from the start.
     await _loadWeek();
     await _loadArticles();
   }
@@ -66,10 +63,10 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
   Future<void> _loadWeek() async {
     try {
       final data = widget.patientUserId != null
-          ? await SupabaseService.getPregnancyProfileByUserId(widget.patientUserId!)
+          ? await SupabaseService.getPregnancyProfileByUserId(
+              widget.patientUserId!)
           : await SupabaseService.getPregnancyProfile();
       if (data != null && mounted) {
-        // Calculate week from due date if available
         if (data['due_date'] != null) {
           final due = sgtDateFrom(data['due_date'])!;
           final now = sgtNow();
@@ -82,7 +79,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
           });
           return;
         }
-        // Fall back to weeks_pregnant field if present
         if (data['weeks_pregnant'] != null) {
           setState(() {
             _currentWeek = (data['weeks_pregnant'] as int).clamp(1, 40);
@@ -99,7 +95,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     try {
       final all = await SupabaseService.getArticles();
 
-      // 1st choice: articles a specialist tagged for the mum's current trimester.
       final byTrimester =
           all.where((a) => a['trimester'] == _trimester).toList();
       if (byTrimester.isNotEmpty) {
@@ -107,7 +102,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
         return;
       }
 
-      // 2nd choice: untagged but pregnancy/baby-development related articles.
       final relevant = all.where((a) {
         final cat = (a['category'] as String? ?? '').toLowerCase();
         return cat.contains('pregnant') ||
@@ -115,7 +109,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
             cat.contains('develop');
       }).toList();
 
-      // 3rd choice: whatever is published, newest first.
       if (mounted) {
         setState(() => _articles =
             (relevant.isNotEmpty ? relevant : all).take(3).toList());
@@ -123,8 +116,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     } catch (_) {}
   }
 
-  // Splits a highlight sentence (or several) into short bullet points for
-  // the "Development Progress" card.
   List<String> _milestones(String highlight) {
     return highlight
         .split('. ')
@@ -189,7 +180,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Trimester badge
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -213,8 +203,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                             color: AppColors.textLight, fontSize: 12)),
                   ],
                   const SizedBox(height: 20),
-
-                  // Hero card
                   TBCard(
                     color: AppColors.blush,
                     child: Column(
@@ -246,7 +234,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        // Progress bar
                         LinearProgressIndicator(
                           value: _currentWeek / 40,
                           backgroundColor:
@@ -264,8 +251,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Baby Information — stats grid
                   Row(
                     children: [
                       Expanded(
@@ -290,8 +275,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Development Progress card
                   TBCard(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,8 +317,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Recommended Articles
                   if (_articles.isNotEmpty) ...[
                     TBCard(
                       child: Column(
@@ -388,10 +369,6 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
                               )),
                           const SizedBox(height: 4),
                           GestureDetector(
-                            // `go`, not `push` — `/education` lives inside the bottom-nav
-                            // ShellRoute, and pushing it from a screen outside the shell
-                            // (this one) would create a duplicate shell page with a
-                            // colliding key, crashing the Navigator.
                             onTap: () => context.go('/education'),
                             child: Container(
                               width: double.infinity,

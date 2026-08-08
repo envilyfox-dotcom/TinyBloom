@@ -185,31 +185,31 @@ class ViewLogScreen extends StatelessWidget {
               ),
             ),
             if (!isNextOfKin) ...[
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: pillButton(
-                    'Edit',
-                    bg: editColor,
-                    fg: Colors.white,
-                    onTap: () async {
-                      await context.push('/logs/$id/edit', extra: entry);
-                      if (context.mounted) context.pop();
-                    },
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: pillButton(
+                      'Edit',
+                      bg: editColor,
+                      fg: Colors.white,
+                      onTap: () async {
+                        await context.push('/logs/$id/edit', extra: entry);
+                        if (context.mounted) context.pop();
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: pillButton(
-                    'Delete',
-                    bg: deleteColor,
-                    fg: Colors.white,
-                    onTap: () => _delete(context, id),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: pillButton(
+                      'Delete',
+                      bg: deleteColor,
+                      fg: Colors.white,
+                      onTap: () => _delete(context, id),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             ],
           ],
         ),
@@ -268,5 +268,4 @@ class ViewLogScreen extends StatelessWidget {
       ],
     );
   }
-
 }
