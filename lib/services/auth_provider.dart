@@ -90,8 +90,8 @@ class AuthProvider extends ChangeNotifier {
         _needsOnboarding = pp == null;
       } else if (isSpecialist) {
         final sp = await SupabaseService.getMySpecialistProfile();
-        final hours = sp?['available_hours'] as String?;
-        _needsOnboarding = hours == null || hours.trim().isEmpty;
+        final schedule = sp?['available_schedule'];
+        _needsOnboarding = schedule is! Map || schedule.isEmpty;
       } else {
         _needsOnboarding = false;
       }

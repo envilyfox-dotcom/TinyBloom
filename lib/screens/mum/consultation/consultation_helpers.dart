@@ -8,6 +8,7 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/availability_format.dart';
 import '../../../utils/service_id.dart';
 import '../../../utils/singapore_time.dart';
+import '../../../utils/specialist_availability.dart';
 import '../../../widgets/common_widgets.dart';
 
 /// Shared minimum-notice cutoff: once a slot is this close (or closer), the
@@ -177,56 +178,6 @@ const List<String> defaultConsultationTimes = [
   '9:00 PM',
   '10:00 PM',
 ];
-
-/// Condenses selected times into range-compressed display text, mirroring
-/// how selected weekdays collapse into "Monday - Friday" style ranges, e.g.
-/// {9:00 AM, 10:00 AM, 11:00 AM, 3:00 PM} -> "9:00 AM - 11:00 AM, 3:00 PM".
-String formatSelectedTimeRanges(Set<String> selectedTimes) {
-  if (selectedTimes.isEmpty) return '';
-
-  final selectedIndexes = defaultConsultationTimes
-      .asMap()
-      .entries
-      .where((entry) => selectedTimes.contains(entry.value))
-      .map((entry) => entry.key)
-      .toList();
-
-  if (selectedIndexes.isEmpty) {
-    final fallback = selectedTimes.toList()..sort();
-    return fallback.join(', ');
-  }
-
-  if (selectedIndexes.length == 1) {
-    return defaultConsultationTimes[selectedIndexes.first];
-  }
-
-  final parts = <String>[];
-  int rangeStart = selectedIndexes.first;
-  int rangeEnd = rangeStart;
-
-  void addRange() {
-    if (rangeStart == rangeEnd) {
-      parts.add(defaultConsultationTimes[rangeStart]);
-    } else {
-      parts.add(
-        '${defaultConsultationTimes[rangeStart]} - ${defaultConsultationTimes[rangeEnd]}',
-      );
-    }
-  }
-
-  for (var i = 1; i < selectedIndexes.length; i++) {
-    final current = selectedIndexes[i];
-    if (current == rangeEnd + 1) {
-      rangeEnd = current;
-    } else {
-      addRange();
-      rangeStart = rangeEnd = current;
-    }
-  }
-
-  addRange();
-  return parts.join(', ');
-}
 
 String timeOnly(dynamic value) {
   if (value == null) return '';
@@ -431,15 +382,6 @@ Set<String> availableDaysFromHours(dynamic value) {
   return days;
 }
 
-/// Whether the provider's `available_hours` value covers the weekday of
-/// [date]. Correctly expands day ranges (e.g. "Monday - Sunday" means every
-/// day from Monday through Sunday, not just those two days).
-bool isDateAvailableForHours(dynamic value, DateTime date) {
-  final availableDays = availableDaysFromHours(value);
-  if (availableDays.isEmpty) return true;
-  return availableDays.contains(DateFormat('EEEE').format(date));
-}
-
 List<String> availableTimesOnly(dynamic value) {
   final parsed = <String>[];
 
@@ -514,9 +456,9 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
   }
 }
 
-/// Adds `available_today` to each provider using the specialist's saved
-/// availability days from `available_hours` and the actual time slots from
-/// `available_today`, while excluding slots that have already passed or been booked.
+/// Adds `available_today` to each provider - today's bookable hour-slots
+/// derived from their `available_schedule`, excluding slots that have
+/// already passed or been booked.
 Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
     List<Map<String, dynamic>> providers) async {
   final today = sgtNow();
@@ -529,15 +471,10 @@ Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
 
   return providers.map((provider) {
     final providerId = provider['user_id']?.toString() ?? '';
-    final providerTimes = availableTimesOnly(provider['available_today']);
-    final shouldShowToday = isDateAvailableForHours(
-      provider['available_hours'],
-      today,
-    );
+    final schedule = weeklyScheduleFromJson(provider['available_schedule']);
+    final providerTimes = slotsForDate(schedule, today);
 
-    final baseTimes = shouldShowToday ? providerTimes : <String>[];
-    final futureTimes =
-        shouldShowToday ? futureTimesForDate(baseTimes, today) : <String>[];
+    final futureTimes = futureTimesForDate(providerTimes, today);
     final bookedTimes = bookedByProvider[providerId] ?? <String>{};
 
     final available = futureTimes
@@ -546,7 +483,6 @@ Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
 
     return {
       ...provider,
-      'availability_slots': providerTimes,
       'available_today': available,
     };
   }).toList();

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/specialist_availability.dart';
 import '../../widgets/common_widgets.dart';
 
 class SpecialistProfileScreen extends StatefulWidget {
@@ -333,10 +334,17 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
+            Material(
+              color: AppColors.white,
+              elevation: 2,
+              shadowColor: AppColors.textDark.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _menuItem(
+                    Icons.edit_outlined,
+                    'Edit Profile',
                     onTap: () async {
                       await context.push(
                         '/specialist/edit-profile',
@@ -345,84 +353,16 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
                       setState(() => _loading = true);
                       _load();
                     },
-                    child: const TBCard(
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.edit_outlined,
-                                      size: 18, color: AppColors.textMid),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Edit Profile',
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                        color: AppColors.textDark,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.chevron_right,
-                                size: 18, color: AppColors.textMid),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
+                  _divider(),
+                  _menuItem(
+                    Icons.logout,
+                    'Sign Out',
+                    color: Colors.red,
                     onTap: _showLogoutDialog,
-                    child: const TBCard(
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.logout,
-                                      size: 18, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Sign Out',
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.chevron_right,
-                                size: 18, color: Colors.red),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 20),
           ],
@@ -457,12 +397,60 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
   }
 
   String _availableHoursText(Map<String, dynamic>? profile) {
-    final value = profile?['available_hours'] ?? profile?['available_today'];
-    if (value is String) return value;
-    if (value is List) {
-      return value.map((e) => e.toString()).join(', ');
-    }
-    return '';
+    return formatWeeklySchedule(
+      weeklyScheduleFromJson(profile?['available_schedule']),
+    );
+  }
+
+  Widget _menuItem(
+    IconData icon,
+    String label, {
+    VoidCallback? onTap,
+    Color? color,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: color ?? AppColors.textMid,
+                size: 22,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color ?? AppColors.textDark,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textLight,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _divider() {
+    return const Divider(
+      height: 1,
+      indent: 56,
+      color: AppColors.textLight,
+      thickness: 0.3,
+    );
   }
 
   void _showLogoutDialog() {

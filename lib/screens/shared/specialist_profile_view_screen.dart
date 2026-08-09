@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/specialist_availability.dart';
 import '../../widgets/common_widgets.dart';
 
 class SpecialistProfileViewScreen extends StatefulWidget {
@@ -48,12 +49,9 @@ class _SpecialistProfileViewScreenState
   }
 
   String _availableHoursText(Map<String, dynamic>? profile) {
-    final value = profile?['available_hours'] ?? profile?['available_today'];
-    if (value is String) return value;
-    if (value is List) {
-      return value.map((e) => e.toString()).join(', ');
-    }
-    return '';
+    return formatWeeklySchedule(
+      weeklyScheduleFromJson(profile?['available_schedule']),
+    );
   }
 
   Widget _credentialRow(String label, String value) {

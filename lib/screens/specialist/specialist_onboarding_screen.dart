@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
-import '../mum/consultation/consultation_helpers.dart';
+import '../../utils/specialist_availability.dart';
+import '../../widgets/specialist_availability_picker.dart';
 
 class SpecialistOnboardingScreen extends StatefulWidget {
   const SpecialistOnboardingScreen({super.key});
@@ -16,89 +17,22 @@ class SpecialistOnboardingScreen extends StatefulWidget {
 
 class _SpecialistOnboardingScreenState
     extends State<SpecialistOnboardingScreen> {
-  final Set<String> _selectedDays = {};
-  final Set<String> _selectedTimes = {};
+  WeeklySchedule _schedule = {};
   bool _saving = false;
   String? _error;
-
-  static const List<String> _weekDays = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
-
-  String _formatSelectedDays() {
-    if (_selectedDays.isEmpty) return '';
-
-    final selectedIndexes = _weekDays
-        .asMap()
-        .entries
-        .where((entry) => _selectedDays.contains(entry.value))
-        .map((entry) => entry.key)
-        .toList();
-
-    if (selectedIndexes.length == 1) {
-      return _weekDays[selectedIndexes.first];
-    }
-
-    final parts = <String>[];
-    int rangeStart = selectedIndexes.first;
-    int rangeEnd = rangeStart;
-
-    void addRange() {
-      if (rangeStart == rangeEnd) {
-        parts.add(_weekDays[rangeStart]);
-      } else {
-        parts.add('${_weekDays[rangeStart]} - ${_weekDays[rangeEnd]}');
-      }
-    }
-
-    for (var i = 1; i < selectedIndexes.length; i++) {
-      final current = selectedIndexes[i];
-      if (current == rangeEnd + 1) {
-        rangeEnd = current;
-      } else {
-        addRange();
-        rangeStart = rangeEnd = current;
-      }
-    }
-
-    addRange();
-    return parts.join(', ');
-  }
-
-  String _formatSelectedTimes() => formatSelectedTimeRanges(_selectedTimes);
-
-  String _availableHoursSummary() {
-    final days = _formatSelectedDays();
-    final times = _formatSelectedTimes();
-    if (days.isEmpty && times.isEmpty) return '';
-    if (days.isEmpty) return times;
-    if (times.isEmpty) return days;
-    return '$days\n$times';
-  }
 
   Future<void> _submit() async {
     setState(() => _error = null);
 
-    if (_selectedDays.isEmpty) {
+    if (_schedule.isEmpty) {
       setState(() => _error = 'Please select at least one available day.');
-      return;
-    }
-    if (_selectedTimes.isEmpty) {
-      setState(() => _error = 'Please select at least one available time.');
       return;
     }
 
     setState(() => _saving = true);
     try {
       await SupabaseService.updateSpecialistProfile({
-        'available_today': _selectedTimes.toList(),
-        'available_hours': _availableHoursSummary(),
+        'available_schedule': weeklyScheduleToJson(_schedule),
       });
 
       if (mounted) {
@@ -131,67 +65,15 @@ class _SpecialistOnboardingScreenState
                   children: [
                     _InfoCard(
                       icon: '📅',
-                      title: 'Available Days',
+                      title: 'Availability',
                       subtitle:
-                          'Choose the days mums can book a consultation with you.',
+                          'Choose the days mums can book a consultation with you, then set your hours for each day.',
                       children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _weekDays.map((day) {
-                            final selected = _selectedDays.contains(day);
-                            return _PrettyChip(
-                              label: day,
-                              selected: selected,
-                              onTap: () => setState(() {
-                                selected
-                                    ? _selectedDays.remove(day)
-                                    : _selectedDays.add(day);
-                              }),
-                            );
-                          }).toList(),
+                        WeeklyAvailabilityPicker(
+                          value: _schedule,
+                          onChanged: (schedule) =>
+                              setState(() => _schedule = schedule),
                         ),
-                        if (_selectedDays.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            'Selected: ${_formatSelectedDays()}',
-                            style: const TextStyle(
-                                color: AppColors.teal, fontSize: 12),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    _InfoCard(
-                      icon: '⏰',
-                      title: 'Available Time Slots',
-                      subtitle:
-                          'Choose the times you are typically free to consult.',
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: defaultConsultationTimes.map((slot) {
-                            final selected = _selectedTimes.contains(slot);
-                            return _PrettyChip(
-                              label: slot,
-                              selected: selected,
-                              onTap: () => setState(() {
-                                selected
-                                    ? _selectedTimes.remove(slot)
-                                    : _selectedTimes.add(slot);
-                              }),
-                            );
-                          }).toList(),
-                        ),
-                        if (_selectedTimes.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            'Selected: ${_formatSelectedTimes()}',
-                            style: const TextStyle(
-                                color: AppColors.teal, fontSize: 12),
-                          ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -435,56 +317,6 @@ class _InfoCard extends StatelessWidget {
           const SizedBox(height: 14),
           ...children,
         ],
-      ),
-    );
-  }
-}
-
-class _PrettyChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PrettyChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.blush : AppColors.background,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: selected
-                ? AppColors.rose
-                : AppColors.textLight.withValues(alpha: 0.25),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (selected) ...[
-              const Icon(Icons.check, size: 14, color: AppColors.roseDeep),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? AppColors.roseDeep : AppColors.textMid,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

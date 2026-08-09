@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
+import '../../../utils/specialist_availability.dart';
 import 'consultation_helpers.dart';
 
 class ConsultationBookingScreen extends StatefulWidget {
@@ -70,16 +71,19 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  WeeklySchedule get _providerSchedule =>
+      weeklyScheduleFromJson(widget.provider['available_schedule']);
+
   bool _isProviderAvailableOnDate(DateTime date) {
-    return isDateAvailableForHours(widget.provider['available_hours'], date);
+    final schedule = _providerSchedule;
+    if (schedule.isEmpty) return true;
+    return isDateAvailableForSchedule(schedule, date);
   }
 
-  List<String> get _providerTimeSlots {
-    final configured = widget.provider['availability_slots'];
-    final source =
-        configured is List ? configured : widget.provider['available_today'];
-    final times = availableTimesOnly(source);
-    return times.isEmpty ? _fallbackTimeSlots : times;
+  List<String> _slotsForDate(DateTime date) {
+    final schedule = _providerSchedule;
+    if (schedule.isEmpty) return _fallbackTimeSlots;
+    return slotsForDate(schedule, date);
   }
 
   bool _isPastDate(DateTime date) {
@@ -227,7 +231,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
 
     final now = sgtNow();
 
-    return _providerTimeSlots.where((time) {
+    return _slotsForDate(_selectedDate).where((time) {
       final normalised = _normaliseTime(time);
 
       if (_bookedTimes.contains(normalised)) return false;
