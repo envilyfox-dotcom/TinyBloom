@@ -550,98 +550,101 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   icon: Icons.email_outlined,
                 ),
               ),
-              const SizedBox(height: 24),
-              _sectionTitle('Pregnancy Information'),
-              const SizedBox(height: 12),
-              _ChoiceTile(
-                label: _pregnancyStatus.isEmpty ? 'Not set' : _pregnancyStatus,
-                selected: true,
-                disabled: true,
-                onTap: () {},
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _heightCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: _inputDecoration(
-                        label: 'Height',
-                        icon: Icons.height,
-                        suffixText: 'cm',
+              if (_isMum) ...[
+                const SizedBox(height: 24),
+                _sectionTitle('Pregnancy Information'),
+                const SizedBox(height: 12),
+                _ChoiceTile(
+                  label:
+                      _pregnancyStatus.isEmpty ? 'Not set' : _pregnancyStatus,
+                  selected: true,
+                  disabled: true,
+                  onTap: () {},
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _heightCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: _inputDecoration(
+                          label: 'Height',
+                          icon: Icons.height,
+                          suffixText: 'cm',
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _weightCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: _inputDecoration(
-                        label: 'Weight',
-                        icon: Icons.monitor_weight_outlined,
-                        suffixText: 'kg',
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _weightCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: _inputDecoration(
+                          label: 'Weight',
+                          icon: Icons.monitor_weight_outlined,
+                          suffixText: 'kg',
+                        ),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Medical Conditions',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _ChipWrap(
+                  options: _conditionOptions,
+                  selected: _conditions,
+                  onToggle: (c) => setState(() => _conditions.contains(c)
+                      ? _conditions.remove(c)
+                      : _conditions.add(c)),
+                ),
+                if (_conditions.contains('Other')) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _otherConditionCtrl,
+                    decoration: _inputDecoration(
+                      label: 'Describe your condition',
+                      icon: Icons.edit_note,
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Medical Conditions',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: AppColors.textDark,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _ChipWrap(
-                options: _conditionOptions,
-                selected: _conditions,
-                onToggle: (c) => setState(() => _conditions.contains(c)
-                    ? _conditions.remove(c)
-                    : _conditions.add(c)),
-              ),
-              if (_conditions.contains('Other')) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _otherConditionCtrl,
-                  decoration: _inputDecoration(
-                    label: 'Describe your condition',
-                    icon: Icons.edit_note,
+                const SizedBox(height: 20),
+                const Text(
+                  'Allergies',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.textDark,
                   ),
                 ),
-              ],
-              const SizedBox(height: 20),
-              const Text(
-                'Allergies',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: AppColors.textDark,
+                const SizedBox(height: 10),
+                _ChipWrap(
+                  options: _allergyOptions,
+                  selected: _allergies,
+                  onToggle: (a) => setState(() => _allergies.contains(a)
+                      ? _allergies.remove(a)
+                      : _allergies.add(a)),
                 ),
-              ),
-              const SizedBox(height: 10),
-              _ChipWrap(
-                options: _allergyOptions,
-                selected: _allergies,
-                onToggle: (a) => setState(() => _allergies.contains(a)
-                    ? _allergies.remove(a)
-                    : _allergies.add(a)),
-              ),
-              if (_allergies.contains('Other')) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _otherAllergyCtrl,
-                  decoration: _inputDecoration(
-                    label: 'Describe your allergy',
-                    icon: Icons.edit_note,
+                if (_allergies.contains('Other')) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _otherAllergyCtrl,
+                    decoration: _inputDecoration(
+                      label: 'Describe your allergy',
+                      icon: Icons.edit_note,
+                    ),
                   ),
-                ),
+                ],
               ],
               const SizedBox(height: 14),
               TextFormField(

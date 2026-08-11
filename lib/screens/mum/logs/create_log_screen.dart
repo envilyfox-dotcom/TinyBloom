@@ -66,6 +66,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       final options = await SupabaseService.getPregnancyLogOptions();
       final moods = (options['mood'] as List? ?? [])
           .map((m) => Map<String, String>.from(m as Map))
+          .toList();
+      primeMoodIcons(moods);
       if (mounted) {
         setState(() {
           _allMoods = moods;
