@@ -47,6 +47,19 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+
+    // Sign-out clears the profile (and role) a frame before GoRouter's own
+    // redirect finishes swapping this whole page out for the login screen.
+    // Picking a bottom-nav layout below is keyed off the role, so without
+    // this early return that in-between frame can fall into a branch with
+    // fewer tabs than the still-stale `selectedIndex` this widget was built
+    // with — e.g. next-of-kin's Profile tab is index 5, which is out of
+    // range once the role-less fallback branch's 5-item bar takes over,
+    // throwing a BottomNavigationBar assertion for one visible frame.
+    if (!auth.isLoggedIn) {
+      return const Scaffold(body: SizedBox.shrink());
+    }
+
     final isMum = auth.isMum;
     final isVolunteer = auth.isVolunteer;
     final isNextOfKin = auth.isNextOfKin;
