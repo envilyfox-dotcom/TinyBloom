@@ -95,6 +95,10 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   List<String> _allergyOptions = List.of(_defaultAllergyOptions);
   Map<String, String> _allergyDescriptions =
       Map.of(_defaultAllergyDescriptions);
+  // Labels that render as a free-text box instead of a plain checkbox.
+  // Sourced from onboarding_options.is_text_input; falls back to 'Other'
+  // if the live list can't be loaded.
+  Set<String> _textInputLabels = {'Other'};
 
   static const _interestOptions = [
     'Nutrition & Diet',
@@ -129,11 +133,14 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
       final allergies = List<String>.from(data['allergies'] ?? const []);
       final descriptions =
           Map<String, String>.from(data['allergyDescriptions'] ?? const {});
+      final textInputLabels =
+          Set<String>.from(data['textInputLabels'] ?? const <String>{});
       if (mounted && conditions.isNotEmpty && allergies.isNotEmpty) {
         setState(() {
           _conditionOptions = conditions;
           _allergyOptions = allergies;
           _allergyDescriptions = descriptions;
+          _textInputLabels = textInputLabels;
         });
       }
     } catch (_) {
@@ -193,14 +200,14 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
         return false;
       }
 
-      if (_conditions.contains('Other') &&
+      if (_conditions.any(_textInputLabels.contains) &&
           _otherConditionCtrl.text.trim().isEmpty) {
         setState(
             () => _error = 'Please describe your other medical condition.');
         return false;
       }
 
-      if (_allergies.contains('Other') &&
+      if (_allergies.any(_textInputLabels.contains) &&
           _otherAllergyCtrl.text.trim().isEmpty) {
         setState(() => _error = 'Please describe your other allergy.');
         return false;
@@ -253,8 +260,10 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
           if (_conditions.isEmpty) return null;
           final list = _conditions.toList();
           final otherText = _otherConditionCtrl.text.trim();
-          if (list.contains('Other') && otherText.isNotEmpty) {
-            list[list.indexOf('Other')] = 'Other: $otherText';
+          final textLabel =
+              list.firstWhere(_textInputLabels.contains, orElse: () => '');
+          if (textLabel.isNotEmpty && otherText.isNotEmpty) {
+            list[list.indexOf(textLabel)] = '$textLabel: $otherText';
           }
           return list.join(', ');
         }(),
@@ -262,8 +271,10 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
           if (_allergies.isEmpty) return null;
           final list = _allergies.toList();
           final otherText = _otherAllergyCtrl.text.trim();
-          if (list.contains('Other') && otherText.isNotEmpty) {
-            list[list.indexOf('Other')] = 'Other: $otherText';
+          final textLabel =
+              list.firstWhere(_textInputLabels.contains, orElse: () => '');
+          if (textLabel.isNotEmpty && otherText.isNotEmpty) {
+            list[list.indexOf(textLabel)] = '$textLabel: $otherText';
           }
           return list.join(', ');
         }(),
@@ -329,6 +340,7 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
                         _allergies.contains(a)
                             ? _allergies.remove(a)
                             : _allergies.add(a)),
+                    textInputLabels: _textInputLabels,
                   ),
                   _StepInterests(
                     interests: _interests,
@@ -727,6 +739,7 @@ class _StepHealthDetails extends StatelessWidget {
   final Map<String, String> allergyDescriptions;
   final TextEditingController otherAllergyCtrl;
   final ValueChanged<String> onAllergyToggled;
+  final Set<String> textInputLabels;
 
   const _StepHealthDetails({
     required this.heightCtrl,
@@ -740,6 +753,7 @@ class _StepHealthDetails extends StatelessWidget {
     required this.allergyDescriptions,
     required this.otherAllergyCtrl,
     required this.onAllergyToggled,
+    required this.textInputLabels,
   });
 
   @override
@@ -794,7 +808,7 @@ class _StepHealthDetails extends StatelessWidget {
               selectedBorderColor: AppColors.rose,
               onToggle: onConditionToggled,
             ),
-            if (conditions.contains('Other')) ...[
+            if (conditions.any(textInputLabels.contains)) ...[
               const SizedBox(height: 12),
               TextFormField(
                 controller: otherConditionCtrl,
@@ -817,6 +831,7 @@ class _StepHealthDetails extends StatelessWidget {
               descriptions: allergyDescriptions,
               onToggled: onAllergyToggled,
               otherController: otherAllergyCtrl,
+              textInputLabels: textInputLabels,
             ),
           ],
         ),
@@ -1129,6 +1144,7 @@ class _AllergyChips extends StatefulWidget {
   final Map<String, String> descriptions;
   final ValueChanged<String> onToggled;
   final TextEditingController otherController;
+  final Set<String> textInputLabels;
 
   const _AllergyChips({
     required this.selected,
@@ -1136,6 +1152,7 @@ class _AllergyChips extends StatefulWidget {
     required this.descriptions,
     required this.onToggled,
     required this.otherController,
+    required this.textInputLabels,
   });
 
   @override
@@ -1183,7 +1200,7 @@ class _AllergyChipsState extends State<_AllergyChips> {
             );
           }).toList(),
         ),
-        if (widget.selected.contains('Other')) ...[
+        if (widget.selected.any(widget.textInputLabels.contains)) ...[
           const SizedBox(height: 12),
           TextFormField(
             controller: widget.otherController,
