@@ -54,7 +54,7 @@ class _SpecialistReviewThreadScreenState
   String? _verificationChoice; // 'suggestion' | 'issues' | null
   final _suggestionCtrl = TextEditingController();
   final _issueReasonCtrl = TextEditingController();
-  String _issueCategory = 'clinical';
+  final _issueCategory = 'clinical';
 
   bool _historyExpanded = false;
 
@@ -598,20 +598,6 @@ class _SpecialistReviewThreadScreenState
             onTap: _acting ? null : () => _selectVerification('issues'),
           ),
           if (_verificationChoice == 'issues') ...[
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, children: [
-              ChoiceChip(
-                label: const Text('Clinical'),
-                selected: _issueCategory == 'clinical',
-                onSelected: (_) => setState(() => _issueCategory = 'clinical'),
-              ),
-              ChoiceChip(
-                label: const Text('Non-clinical'),
-                selected: _issueCategory == 'non_clinical',
-                onSelected: (_) =>
-                    setState(() => _issueCategory = 'non_clinical'),
-              ),
-            ]),
             const SizedBox(height: 8),
             TextField(
               controller: _issueReasonCtrl,
