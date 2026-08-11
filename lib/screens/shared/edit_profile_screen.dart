@@ -376,6 +376,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 4),
+            const Center(
+              child: Text('Maximum upload file size: 5MB',
+                  style: TextStyle(fontSize: 11, color: AppColors.textLight)),
+            ),
             if (_photoUrl != null) ...[
               const SizedBox(height: 6),
               Center(

@@ -4,6 +4,15 @@ import '../utils/app_theme.dart';
 import '../utils/singapore_time.dart';
 
 class SupabaseService {
+  static const int maxProfilePictureBytes = 5 * 1024 * 1024;
+  static const int maxArticleImageBytes = 10 * 1024 * 1024;
+  static const Set<String> allowedImageExtensions = {
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+  };
+
   static SupabaseClient get client => Supabase.instance.client;
 
   static Future<void> initialize() async {
@@ -75,8 +84,14 @@ class SupabaseService {
     if (user == null) throw Exception('Not signed in.');
 
     final ext = fileExt.toLowerCase();
+    _validateImageUpload(
+      bytes: bytes,
+      extension: ext,
+      maxBytes: maxProfilePictureBytes,
+      label: 'Profile picture',
+    );
     final path = '${user.id}/avatar.$ext';
-    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    final contentType = _imageContentType(ext);
     await client.storage.from('avatars').uploadBinary(path, bytes,
         fileOptions: FileOptions(upsert: true, contentType: contentType));
 
@@ -92,12 +107,44 @@ class SupabaseService {
     if (user == null) throw Exception('Not signed in.');
 
     final ext = fileExt.toLowerCase();
+    _validateImageUpload(
+      bytes: bytes,
+      extension: ext,
+      maxBytes: maxArticleImageBytes,
+      label: 'Educational post image',
+    );
     final path = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$ext';
-    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    final contentType = _imageContentType(ext);
     await client.storage.from('article-images').uploadBinary(path, bytes,
         fileOptions: FileOptions(contentType: contentType));
 
     return client.storage.from('article-images').getPublicUrl(path);
+  }
+
+  static String _imageContentType(String extension) {
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  static void _validateImageUpload({
+    required Uint8List bytes,
+    required String extension,
+    required int maxBytes,
+    required String label,
+  }) {
+    if (!allowedImageExtensions.contains(extension)) {
+      throw Exception('$label must be PNG, JPG, or WebP.');
+    }
+    if (bytes.length > maxBytes) {
+      final maxMb = maxBytes ~/ (1024 * 1024);
+      throw Exception('$label must be ${maxMb}MB or smaller.');
+    }
   }
 
   static Future<void> removeProfilePicture() async {

@@ -453,27 +453,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .select(
             'id,patient_id,specialist_id,status,consultation_type,scheduled_at,scheduled_date,scheduled_time,purpose,platform,meeting_link,notes,created_at')
         .eq('patient_id', userId)
-        .order('created_at', ascending: false)
-        .limit(12);
+        .order('created_at', ascending: false);
 
-    final now = sgtNow();
-    final kept = <Map<String, dynamic>>[];
-
-    for (final rawItem in List<Map<String, dynamic>>.from(data)) {
-      final item = Map<String, dynamic>.from(rawItem);
-
-      final effectiveStatus = effectiveConsultationStatus(item);
-      if (effectiveStatus == 'cancelled' || effectiveStatus == 'completed') {
-        continue;
-      }
-      final scheduledAt = _consultationReminderDateTime(item);
-      if (scheduledAt != null &&
-          scheduledAt.isBefore(now.subtract(const Duration(hours: 2)))) {
-        continue;
-      }
-
-      kept.add(item);
-    }
+    // Consultations are the durable log for specialist bookings.  Do not
+    // remove completed/cancelled or older rows here: opening a dashboard
+    // preview marks it as read, but must not erase it from View All >
+    // Consultation.
+    final kept = List<Map<String, dynamic>>.from(data);
 
     final specialistIds = kept
         .map((c) => c['specialist_id']?.toString())
