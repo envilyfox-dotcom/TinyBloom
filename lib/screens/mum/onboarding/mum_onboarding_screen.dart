@@ -1112,6 +1112,7 @@ class _AllergyChips extends StatefulWidget {
 
 class _AllergyChipsState extends State<_AllergyChips> {
   String? _activeDescription;
+  final List<String> _selectionOrder = [];
 
   @override
   Widget build(BuildContext context) {
@@ -1129,9 +1130,23 @@ class _AllergyChipsState extends State<_AllergyChips> {
               selectedTextColor: AppColors.roseDeep,
               selectedBorderColor: AppColors.rose,
               onTap: () {
+                final wasSelected = widget.selected.contains(option);
                 widget.onToggled(option);
-                setState(
-                    () => _activeDescription = widget.descriptions[option]);
+                setState(() {
+                  if (wasSelected) {
+                    // Deselecting: keep showing the most recently
+                    // selected allergy that's still selected, if any.
+                    _selectionOrder.remove(option);
+                    _activeDescription = _selectionOrder.isEmpty
+                        ? null
+                        : widget.descriptions[_selectionOrder.last];
+                  } else {
+                    _selectionOrder
+                      ..remove(option)
+                      ..add(option);
+                    _activeDescription = widget.descriptions[option];
+                  }
+                });
               },
             );
           }).toList(),
