@@ -1118,13 +1118,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }).toList();
 
     visible.sort((a, b) {
-      final aEmergency =
-          _normaliseNotificationType(a['type']) == 'emergency' ? 0 : 1;
-      final bEmergency =
-          _normaliseNotificationType(b['type']) == 'emergency' ? 0 : 1;
-      final emergencyCompare = aEmergency.compareTo(bEmergency);
-      if (emergencyCompare != 0) return emergencyCompare;
-
+      // Keep the dashboard preview in the same newest-first order as View
+      // All. Emergency notifications remain available in their own tab.
       return _notificationCreatedAt(b).compareTo(_notificationCreatedAt(a));
     });
 

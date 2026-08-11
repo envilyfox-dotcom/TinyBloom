@@ -616,63 +616,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return rows;
   }
 
-  DateTime? _consultationReminderDateTime(Map<String, dynamic> item) {
-    final scheduledAt = item['scheduled_at']?.toString().trim();
-    if (scheduledAt != null && scheduledAt.isNotEmpty) {
-      final parsed = sgtFrom(scheduledAt);
-      if (parsed != null) return parsed;
-    }
-
-    final date = item['scheduled_date']?.toString().trim();
-    if (date == null || date.isEmpty) return null;
-
-    final rawTime = item['scheduled_time']?.toString().trim() ?? '';
-    final cleanedTime = rawTime
-        .replaceAll(RegExp(r'^today\s*', caseSensitive: false), '')
-        .split('-')
-        .first
-        .trim();
-
-    final candidates = <String>[
-      if (cleanedTime.isNotEmpty) '$date $cleanedTime',
-      if (cleanedTime.isNotEmpty) '${date}T$cleanedTime',
-      date,
-    ];
-
-    for (final candidate in candidates) {
-      final parsed = DateTime.tryParse(candidate);
-      if (parsed != null) return asSgtWallClock(parsed);
-    }
-
-    try {
-      if (cleanedTime.isNotEmpty) {
-        final parsedDate = DateTime.tryParse(date);
-        if (parsedDate != null) {
-          final parsedTime = DateFormat.jm().parseLoose(cleanedTime);
-          return sgtWallClock(
-            parsedDate.year,
-            parsedDate.month,
-            parsedDate.day,
-            parsedTime.hour,
-            parsedTime.minute,
-          );
-        }
-      }
-    } catch (_) {}
-
-    final fallback = DateTime.tryParse(date);
-    return fallback == null ? null : asSgtWallClock(fallback);
-  }
-
-  DateTime? _upcomingConsultationSortDate(Map<String, dynamic> item) {
-    final sourceTable = item['source_table']?.toString();
-    if (sourceTable != 'consultations' &&
-        sourceTable != 'volunteer_call_reminder') {
-      return null;
-    }
-    return _consultationReminderDateTime(item);
-  }
-
   Future<List<Map<String, dynamic>>> _loadRowsFromAiRecommendationsTable(
       Map<String, dynamic>? profile) async {
     final isPremiumUser = _isPremiumProfile(profile);
@@ -1326,19 +1269,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }).toList();
 
       mergedWithReadState.sort((a, b) {
-        final aEmergency = _normaliseType(a['type']) == 'emergency' ? 0 : 1;
-        final bEmergency = _normaliseType(b['type']) == 'emergency' ? 0 : 1;
-        final emergencyCompare = aEmergency.compareTo(bEmergency);
-        if (emergencyCompare != 0) return emergencyCompare;
-
-        final aUpcoming = _upcomingConsultationSortDate(a);
-        final bUpcoming = _upcomingConsultationSortDate(b);
-        if (aUpcoming != null && bUpcoming != null) {
-          return aUpcoming.compareTo(bUpcoming);
-        }
-        if (aUpcoming != null) return -1;
-        if (bUpcoming != null) return 1;
-
+        // View All is a chronological notification history: newest first.
+        // Keep urgent items in their Emergency tab instead of reordering the
+        // whole list ahead of newer information.
         return _createdAt(b).compareTo(_createdAt(a));
       });
     } catch (e) {
