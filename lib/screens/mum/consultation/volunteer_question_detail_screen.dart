@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -32,6 +34,7 @@ class _VolunteerQuestionDetailScreenState
   String? _myPhotoUrl;
   String? _volunteerPhotoUrl;
   bool _respondingToCall = false;
+  Timer? _pollTimer;
 
   bool get _isClosed => widget.request['status'] == 'closed';
   String get _callStatus => widget.request['call_status'] as String? ?? 'none';
@@ -54,17 +57,20 @@ class _VolunteerQuestionDetailScreenState
     _ctrl = TextEditingController(
         text: widget.request['question'] as String? ?? '');
     _loadThread();
+    _pollTimer = Timer.periodic(
+        const Duration(seconds: 5), (_) => _loadThread(silent: true));
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _ctrl.dispose();
     _replyCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadThread() async {
+  Future<void> _loadThread({bool silent = false}) async {
     try {
       final fresh = await SupabaseService.client
           .from('volunteer_requests')
@@ -99,14 +105,20 @@ class _VolunteerQuestionDetailScreenState
         } catch (_) {}
       }
       if (mounted) {
+        final hasNewMessages = msgs.length > _messages.length;
+        final wasNearBottom = !_scrollCtrl.hasClients ||
+            _scrollCtrl.position.maxScrollExtent - _scrollCtrl.position.pixels <
+                80;
         setState(() {
           _messages = msgs;
           _loadingThread = false;
         });
-        _scrollToEnd();
+        if (!silent || (hasNewMessages && wasNearBottom)) {
+          _scrollToEnd();
+        }
       }
     } catch (_) {
-      if (mounted) setState(() => _loadingThread = false);
+      if (mounted && !silent) setState(() => _loadingThread = false);
     }
   }
 

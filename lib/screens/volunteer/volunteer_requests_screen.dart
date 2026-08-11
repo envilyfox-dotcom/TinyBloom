@@ -403,7 +403,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   void initState() {
     super.initState();
     _load();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) => _load());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _load());
   }
 
   @override
@@ -417,6 +417,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   Future<void> _load() async {
     final previousMessageCount = _messages.length;
+    final wasNearBottom = !_scrollCtrl.hasClients ||
+        _scrollCtrl.position.maxScrollExtent - _scrollCtrl.position.pixels <
+            80;
     try {
       final fresh = await SupabaseService.client
           .from('volunteer_requests')
@@ -454,7 +457,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           _messages = msgs;
           _loading = false;
         });
-        if (previousMessageCount == 0 || msgs.length > previousMessageCount) {
+        if (previousMessageCount == 0 ||
+            (msgs.length > previousMessageCount && wasNearBottom)) {
           _scrollToEnd();
         }
       }
