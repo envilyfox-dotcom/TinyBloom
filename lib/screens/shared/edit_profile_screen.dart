@@ -522,22 +522,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ],
                 ),
               ),
-<<<<<<< Updated upstream
-            ],
-            const SizedBox(height: 16),
-            _sectionTitle('Personal Information'),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: _inputDecoration(
-                label: 'Full Name',
-                icon: Icons.person_outline,
-=======
               const SizedBox(height: 4),
               const Center(
                 child: Text('Maximum upload file size: 5MB',
                     style: TextStyle(fontSize: 11, color: AppColors.textLight)),
->>>>>>> Stashed changes
               ),
               if (_photoUrl != null) ...[
                 const SizedBox(height: 6),
@@ -552,6 +540,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ],
               const SizedBox(height: 16),
+              _sectionTitle('Personal Information'),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _nameCtrl,
                 decoration: _inputDecoration(
@@ -568,7 +558,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   icon: Icons.email_outlined,
                 ),
               ),
-<<<<<<< Updated upstream
               const SizedBox(height: 24),
               _sectionTitle('Pregnancy Information'),
               const SizedBox(height: 12),
@@ -606,8 +595,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   }
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.white,
                     borderRadius: BorderRadius.circular(14),
@@ -658,8 +647,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _heightCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: _inputDecoration(
                         label: 'Height',
                         icon: Icons.height,
@@ -671,8 +660,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _weightCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: _inputDecoration(
                         label: 'Weight',
                         icon: Icons.monitor_weight_outlined,
@@ -736,7 +725,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
               ],
-=======
               const SizedBox(height: 14),
               TextFormField(
                 controller: _phoneCtrl,
@@ -813,7 +801,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 onPressed: _save,
                 loading: _loading,
               ),
->>>>>>> Stashed changes
             ],
           ),
         ),
