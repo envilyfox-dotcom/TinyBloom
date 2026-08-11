@@ -27,7 +27,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   List<String> _allSymptoms = [];
   final Set<String> _selectedSymptoms = {};
 
-  List<String> _allMoods = [];
+  List<Map<String, String>> _allMoods = [];
   String _selectedMood = '';
 
   List<String> _allMilestones = [];
@@ -64,11 +64,14 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   Future<void> _loadOptions() async {
     try {
       final options = await SupabaseService.getPregnancyLogOptions();
+      final moods = (options['mood'] as List? ?? [])
+          .map((m) => Map<String, String>.from(m as Map))
       if (mounted) {
         setState(() {
-          _allMoods = options['mood'] ?? [];
-          _allSymptoms = options['symptom'] ?? [];
-          _allMilestones = options['milestone'] ?? [];
+          _allMoods = moods;
+          _allSymptoms = (options['symptom'] as List?)?.cast<String>() ?? [];
+          _allMilestones =
+              (options['milestone'] as List?)?.cast<String>() ?? [];
           _optionsLoading = false;
         });
       }
@@ -200,12 +203,15 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                   children: [
                     ..._allMoods,
                     if (_selectedMood.isNotEmpty &&
-                        !_allMoods.contains(_selectedMood))
-                      _selectedMood,
-                  ].map((label) {
+                        !_allMoods.any((m) => m['label'] == _selectedMood))
+                      {'label': _selectedMood, 'icon': ''},
+                  ].map((m) {
+                    final label = m['label']!;
                     final sel = _selectedMood == label;
+                    final icon = m['icon'];
                     return _moodChip(
-                      emoji: moodEmoji(label),
+                      emoji:
+                          (icon != null && icon.isNotEmpty) ? icon : moodEmoji(label),
                       label: label,
                       selected: sel,
                       onTap: () =>

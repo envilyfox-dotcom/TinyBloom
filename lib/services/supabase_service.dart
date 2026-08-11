@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/app_theme.dart';
-import '../utils/availability_format.dart';
 import '../utils/singapore_time.dart';
 
 class SupabaseService {
@@ -317,18 +316,24 @@ class SupabaseService {
     }
   }
 
-  static Future<Map<String, List<String>>> getPregnancyLogOptions() async {
+  // Moods are returned as {'label': ..., 'icon': ...} maps (icon may be
+  // empty if the admin hasn't set one) so the UI can show the emoji the
+  // admin actually picked instead of guessing from the label text.
+  static Future<Map<String, dynamic>> getPregnancyLogOptions() async {
     final res = await client
         .from('pregnancy_log_options')
-        .select('category, label')
+        .select('category, label, icon')
         .order('category', ascending: true)
         .order('sort_order', ascending: true);
-    final moods = <String>[];
+    final moods = <Map<String, String>>[];
     final symptoms = <String>[];
     final milestones = <String>[];
     for (final row in List<Map<String, dynamic>>.from(res)) {
       if (row['category'] == 'mood') {
-        moods.add(row['label'] as String);
+        moods.add({
+          'label': row['label'] as String,
+          'icon': (row['icon'] as String?) ?? '',
+        });
       } else if (row['category'] == 'symptom') {
         symptoms.add(row['label'] as String);
       } else if (row['category'] == 'milestone') {
@@ -1417,9 +1422,7 @@ class SupabaseService {
           .select()
           .eq('volunteer_id', volunteerId)
           .eq('status', 'available');
-      return List<Map<String, dynamic>>.from(res)
-          .where((s) => !isAvailabilityExpired(s['availability'] as String?))
-          .toList();
+      return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
     }

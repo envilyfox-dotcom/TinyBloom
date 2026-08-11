@@ -26,6 +26,22 @@ class _LogsScreenState extends State<LogsScreen> {
     super.initState();
     _isNextOfKin = context.read<AuthProvider>().isNextOfKin;
     _load();
+    _loadMoodIcons();
+  }
+
+  // Primes the shared mood->icon cache (see logs_shared.dart) so mood
+  // emoji shown in this list, and in ViewLogScreen once the user taps into
+  // a log, reflect what the admin actually picked instead of falling back
+  // to the static moodOptions guess.
+  Future<void> _loadMoodIcons() async {
+    try {
+      final options = await SupabaseService.getPregnancyLogOptions();
+      final moods = (options['mood'] as List? ?? [])
+          .map((m) => Map<String, String>.from(m as Map))
+          .toList();
+      primeMoodIcons(moods);
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   Future<void> _load() async {
