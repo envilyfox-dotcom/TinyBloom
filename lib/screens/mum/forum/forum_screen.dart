@@ -280,7 +280,7 @@ class _ForumScreenState extends State<ForumScreen> {
     final id = post['id'] as String;
     final profile = post['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name'] as String? ?? 'Member';
-    final roleLabel = forumRoleLabel(profile?['role'] as String?);
+    final roleLabel = forumRoleSubtitle(profile);
     final content = post['content'] as String? ?? '';
     final createdAt = DateTime.tryParse(post['created_at'] as String? ?? '');
     final commentCount = _embeddedCount(post, 'forum_comments');
@@ -307,15 +307,13 @@ class _ForumScreenState extends State<ForumScreen> {
                     behavior: HitTestBehavior.opaque,
                     onTap: openDetail,
                     child: Row(children: [
-                      CircleAvatar(
-                          radius: 18,
-                          backgroundColor:
-                              AppColors.rose.withValues(alpha: 0.15),
-                          child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: const TextStyle(
-                                  color: AppColors.roseDeep,
-                                  fontWeight: FontWeight.w700))),
+                      forumAvatar(
+                        profile: profile,
+                        name: name,
+                        radius: 18,
+                        backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                        foregroundColor: AppColors.roseDeep,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                           child: Column(
@@ -326,6 +324,8 @@ class _ForumScreenState extends State<ForumScreen> {
                                   fontWeight: FontWeight.w700, fontSize: 14)),
                           if (roleLabel.isNotEmpty)
                             Text(roleLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     color: AppColors.textLight,
                                     fontSize: 11,

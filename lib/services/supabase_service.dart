@@ -1461,7 +1461,7 @@ class SupabaseService {
     final res = await client
         .from('forum_posts')
         .select(
-            '*, profiles!forum_posts_author_id_fkey(full_name, role), forum_comments(count), forum_likes(count)')
+            '*, profiles!forum_posts_author_id_fkey(full_name, role, profile_picture_url, volunteer_profiles(expertise)), forum_comments(count), forum_likes(count)')
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(res);
   }
@@ -1529,7 +1529,7 @@ class SupabaseService {
       String postId) async {
     final res = await client
         .from('forum_comments')
-        .select('*, profiles(full_name, role)')
+        .select('*, profiles(full_name, role, profile_picture_url)')
         .eq('post_id', postId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(res);

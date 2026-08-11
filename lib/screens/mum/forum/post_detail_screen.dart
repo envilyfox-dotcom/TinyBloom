@@ -68,7 +68,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final post = widget.post;
     final profile = post['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name'] as String? ?? 'Member';
-    final roleLabel = forumRoleLabel(profile?['role'] as String?);
+    final roleLabel = forumRoleSubtitle(profile);
     final content = post['content'] as String? ?? '';
     final createdAt = DateTime.tryParse(post['created_at'] as String? ?? '');
     final myId = SupabaseService.currentUser?.id;
@@ -92,17 +92,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(children: [
-                                CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor:
-                                        AppColors.rose.withValues(alpha: 0.15),
-                                    child: Text(
-                                        name.isNotEmpty
-                                            ? name[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                            color: AppColors.roseDeep,
-                                            fontWeight: FontWeight.w700))),
+                                forumAvatar(
+                                  profile: profile,
+                                  name: name,
+                                  radius: 18,
+                                  backgroundColor:
+                                      AppColors.rose.withValues(alpha: 0.15),
+                                  foregroundColor: AppColors.roseDeep,
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                     child: Column(
@@ -114,6 +111,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                             fontSize: 14)),
                                     if (roleLabel.isNotEmpty)
                                       Text(roleLabel,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
                                               color: AppColors.textLight,
                                               fontSize: 11,
@@ -217,14 +216,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-              radius: 14,
-              backgroundColor: AppColors.tealLight,
-              child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                      color: AppColors.teal,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11))),
+          forumAvatar(
+            profile: profile,
+            name: name,
+            radius: 14,
+            backgroundColor: AppColors.tealLight,
+            foregroundColor: AppColors.teal,
+            fontSize: 11,
+          ),
           const SizedBox(width: 10),
           Expanded(
               child: Column(

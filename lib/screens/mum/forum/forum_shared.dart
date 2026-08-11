@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/singapore_time.dart';
 
@@ -26,4 +28,53 @@ String forumRoleLabel(String? role) {
     default:
       return '';
   }
+}
+
+String? volunteerExpertise(Map<String, dynamic>? profile) {
+  final vp = profile?['volunteer_profiles'];
+  Map<String, dynamic>? row;
+  if (vp is Map) row = Map<String, dynamic>.from(vp);
+  if (vp is List && vp.isNotEmpty) row = Map<String, dynamic>.from(vp.first as Map);
+  final expertise = (row?['expertise'] as String?)?.trim();
+  return expertise != null && expertise.isNotEmpty ? expertise : null;
+}
+
+/// [forumRoleLabel], with a volunteer's expertise appended after a bullet
+/// (e.g. "Volunteer • Breastfeeding Support") so readers can see at a
+/// glance what they're likely to be helpful about.
+String forumRoleSubtitle(Map<String, dynamic>? profile) {
+  final label = forumRoleLabel(profile?['role'] as String?);
+  final expertise = volunteerExpertise(profile);
+  if (expertise == null) return label;
+  return '$label • $expertise';
+}
+
+/// Author avatar for a forum post/comment: the poster's real profile photo
+/// when they have one, falling back to their initial on a tinted circle.
+Widget forumAvatar({
+  required Map<String, dynamic>? profile,
+  required String name,
+  required double radius,
+  required Color backgroundColor,
+  required Color foregroundColor,
+  double? fontSize,
+}) {
+  final photoUrl = profile?['profile_picture_url'] as String?;
+  final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: backgroundColor,
+    backgroundImage:
+        hasPhoto ? CachedNetworkImageProvider(photoUrl, maxWidth: 200) : null,
+    child: hasPhoto
+        ? null
+        : Text(
+            name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: TextStyle(
+              color: foregroundColor,
+              fontWeight: FontWeight.w700,
+              fontSize: fontSize,
+            ),
+          ),
+  );
 }

@@ -209,8 +209,9 @@ class _ConsultationDetailScreenState extends State<ConsultationDetailScreen> {
     final c = widget.consultation;
     final status = effectiveConsultationStatus(c);
     final meetingLink = (c['meeting_link'] as String? ?? '').trim();
-    final showJoin =
-        !isNextOfKin && status == 'confirmed' && meetingLink.isNotEmpty;
+    // Joining a call doesn't change anything — next-of-kin can do this too,
+    // unlike Cancel/Reschedule which are the mum's own decisions to make.
+    final showJoin = status == 'confirmed' && meetingLink.isNotEmpty;
     final showCancel =
         !isNextOfKin && (status == 'confirmed' || status == 'pending');
     final scheduledAt = consultationScheduledDateTime(c);

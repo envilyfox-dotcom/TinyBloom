@@ -38,8 +38,15 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
   String _selectedFilter = 'All';
   Set<String> _selectedProviders = _providerOptions.toSet();
 
-  static const _typeFilterOptions = ['Pending', 'Confirmed', 'Volunteer Chats'];
-  final Set<String> _selectedTypeFilters = {};
+  // Next-of-kin's two tabs each get their own type-filter chips, since
+  // "Pending"/"Confirmed" only ever match items in My Consultations and
+  // "Completed"/"Cancelled" only ever match items in History — sharing one
+  // filter set across both tabs would let you pick a chip on one tab that
+  // silently (and confusingly) filters the other tab to nothing.
+  static const _activeTypeFilterOptions = ['Pending', 'Confirmed', 'Volunteer Chats'];
+  static const _historyTypeFilterOptions = ['Completed', 'Cancelled', 'Volunteer Chats'];
+  final Set<String> _activeTypeFilters = {};
+  final Set<String> _historyTypeFilters = {};
 
   @override
   void initState() {
@@ -47,7 +54,9 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     _isNextOfKin = context.read<AuthProvider>().isNextOfKin;
     _tabs = TabController(length: 2, vsync: this);
     if (widget.initialTypeFilters != null) {
-      _selectedTypeFilters.addAll(widget.initialTypeFilters!);
+      // Deep links (e.g. the dashboard's message icon) always land on the
+      // My Consultations tab, so seed that tab's filter.
+      _activeTypeFilters.addAll(widget.initialTypeFilters!);
     }
     _load();
   }
@@ -97,25 +106,22 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     }).toList();
   }
 
-  bool _matchesTypeFilter(Map<String, dynamic> item) {
-    if (_selectedTypeFilters.isEmpty) return true;
+  bool _matchesTypeFilter(Map<String, dynamic> item, Set<String> selected) {
+    if (selected.isEmpty) return true;
     if (_providerCategory(item) == 'Volunteer') {
-      return _selectedTypeFilters.contains('Volunteer Chats');
+      return selected.contains('Volunteer Chats');
     }
-    final status = _itemCategory(item); // 'pending' or 'confirmed' here
-    if (status == 'pending') return _selectedTypeFilters.contains('Pending');
-    if (status == 'confirmed') {
-      return _selectedTypeFilters.contains('Confirmed');
-    }
-    return false;
+    final status = _itemCategory(item); // pending/confirmed/completed/cancelled
+    final label = status[0].toUpperCase() + status.substring(1);
+    return selected.contains(label);
   }
 
   List<Map<String, dynamic>> get _activeConsultations => _consultations
-      .where((c) => !_isHistoryItem(c) && _matchesTypeFilter(c))
+      .where((c) => !_isHistoryItem(c) && _matchesTypeFilter(c, _activeTypeFilters))
       .toList();
 
   List<Map<String, dynamic>> get _historyConsultations => _consultations
-      .where((c) => _isHistoryItem(c) && _matchesTypeFilter(c))
+      .where((c) => _isHistoryItem(c) && _matchesTypeFilter(c, _historyTypeFilters))
       .toList();
 
   DateTime _sortKey(Map<String, dynamic> item) {
@@ -319,6 +325,8 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                   emptyTitle: 'No active consultations',
                   emptySubtitle:
                       "Consultations and questions currently in progress will show up here.",
+                  typeOptions: _activeTypeFilterOptions,
+                  selectedTypeFilters: _activeTypeFilters,
                 ),
                 _nextOfKinConsultationsList(
                   _historyConsultations,
@@ -326,6 +334,8 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
                   emptyTitle: 'No history yet',
                   emptySubtitle:
                       'Completed or cancelled consultations and questions will show up here.',
+                  typeOptions: _historyTypeFilterOptions,
+                  selectedTypeFilters: _historyTypeFilters,
                 ),
               ]
             : [
@@ -395,6 +405,8 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
     required String emptyEmoji,
     required String emptyTitle,
     required String emptySubtitle,
+    required List<String> typeOptions,
+    required Set<String> selectedTypeFilters,
   }) {
     if (_loading) return const TBLoading();
     if (_error != null) {
@@ -420,13 +432,13 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
           child: _itemCard(items[i]),
         ),
       );
-    } else if (_selectedTypeFilters.isNotEmpty) {
+    } else if (selectedTypeFilters.isNotEmpty) {
       content = TBEmptyState(
         emoji: '🔍',
         title: 'No matches',
         subtitle: 'Nothing here for this filter yet.',
         buttonLabel: 'Clear Filter',
-        onButton: () => setState(() => _selectedTypeFilters.clear()),
+        onButton: () => setState(() => selectedTypeFilters.clear()),
       );
     } else {
       content = TBEmptyState(
@@ -437,15 +449,15 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: _typeFilterRow(),
+          child: _typeFilterRow(typeOptions, selectedTypeFilters),
         ),
         Expanded(child: content),
       ],
     );
   }
 
-  Widget _typeFilterRow() {
-    final chips = ['All', ..._typeFilterOptions];
+  Widget _typeFilterRow(List<String> options, Set<String> selected) {
+    final chips = ['All', ...options];
     return SizedBox(
       height: 34,
       child: ListView.separated(
@@ -455,25 +467,24 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
         itemBuilder: (context, index) {
           final option = chips[index];
           final isAllChip = option == 'All';
-          final selected = isAllChip
-              ? _selectedTypeFilters.isEmpty
-              : _selectedTypeFilters.contains(option);
+          final isSelected =
+              isAllChip ? selected.isEmpty : selected.contains(option);
           return GestureDetector(
             onTap: () => setState(() {
               if (isAllChip) {
-                _selectedTypeFilters.clear();
-              } else if (!_selectedTypeFilters.remove(option)) {
-                _selectedTypeFilters.add(option);
+                selected.clear();
+              } else if (!selected.remove(option)) {
+                selected.add(option);
               }
             }),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? AppColors.teal : AppColors.white,
+                color: isSelected ? AppColors.teal : AppColors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: selected
+                  color: isSelected
                       ? AppColors.teal
                       : AppColors.textLight.withValues(alpha: 0.3),
                 ),
@@ -481,7 +492,7 @@ class _ConsultationListScreenState extends State<ConsultationListScreen>
               child: Text(
                 option,
                 style: TextStyle(
-                  color: selected ? Colors.white : AppColors.textDark,
+                  color: isSelected ? Colors.white : AppColors.textDark,
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
                 ),

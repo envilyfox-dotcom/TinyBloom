@@ -59,7 +59,10 @@ List<NextOfKinAlertSource> buildNextOfKinAlertSources({
     final status = (c['status'] as String? ?? '').toLowerCase();
     if (status != 'pending' && status != 'confirmed') continue;
     sources.add(NextOfKinAlertSource(
-      key: 'consultation-${c['id']}',
+      // Status is part of the key so a pending -> confirmed transition is
+      // treated as a brand new, unread alert instead of silently reusing an
+      // already-read "pending" key from before the status changed.
+      key: 'consultation-${c['id']}-$status',
       type: 'consultation',
       timestamp: DateTime.tryParse((c['scheduled_date'] ?? '').toString()) ??
           DateTime.now(),
