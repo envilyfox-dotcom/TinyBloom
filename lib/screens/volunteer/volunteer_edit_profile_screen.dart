@@ -285,6 +285,9 @@ class _VolunteerEditProfileScreenState
                   Text('Tap to change photo',
                       style: GoogleFonts.poppins(
                           fontSize: 12, color: AppColors.textLight)),
+                  Text('Maximum upload file size: 5MB',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, color: AppColors.textLight)),
                   if (_photoUrl != null && _photoUrl!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     TextButton.icon(

@@ -178,25 +178,43 @@ class _SpecialistEditArticleScreenState
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery, maxWidth: 1280, imageQuality: 85);
-    if (picked == null) return;
+    final existingCount = RegExp(r'!\[[^\]]*\]\([^)]*\)')
+        .allMatches(_contentCtrl.text)
+        .length;
+    final remaining = 5 - existingCount;
+    if (remaining <= 0) {
+      _showImageUploadMessage('You can upload a maximum of 5 images per post.');
+      return;
+    }
+    final picked = await ImagePicker().pickMultiImage(
+        maxWidth: 1280, imageQuality: 85);
+    if (picked.isEmpty) return;
+    if (picked.length > remaining) {
+      _showImageUploadMessage(
+          'You can add only $remaining more image${remaining == 1 ? '' : 's'} to this post.');
+      return;
+    }
 
     setState(() => _uploadingImage = true);
     try {
-      final bytes = await picked.readAsBytes();
-      final ext =
-          picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
-      final url = await SupabaseService.uploadArticleImage(
-          bytes, ext.length <= 4 ? ext : 'jpg');
-      _insertAtCursor('\n![image]($url)\n');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      for (final image in picked) {
+        final bytes = await image.readAsBytes();
+        final ext = image.path.contains('.')
+            ? image.path.split('.').last.toLowerCase()
+            : 'jpg';
+        final url = await SupabaseService.uploadArticleImage(bytes, ext);
+        _insertAtCursor('\n![image]($url)\n');
       }
+    } catch (e) {
+      _showImageUploadMessage('Error: $e');
     }
     if (mounted) setState(() => _uploadingImage = false);
+  }
+
+  void _showImageUploadMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red));
   }
 
   Future<void> _save({required bool submitForReview}) async {
@@ -489,6 +507,14 @@ class _SpecialistEditArticleScreenState
                                   height: 1,
                                   color: AppColors.textLight
                                       .withValues(alpha: 0.2)),
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                                child: Text(
+                                  'Maximum upload file size: 10MB • Up to 5 images per post • PNG, JPG, WebP',
+                                  style: TextStyle(
+                                      color: AppColors.textMid, fontSize: 11),
+                                ),
+                              ),
                               TextFormField(
                                 controller: _contentCtrl,
                                 focusNode: _contentFocus,
