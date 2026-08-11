@@ -42,7 +42,9 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     'Expecting Twins / Multiples',
   ];
 
-  static const _conditionOptions = [
+  // Fallback options shown while the live list loads from Supabase
+  // (onboarding_options table), or if that fetch fails.
+  static const _defaultConditionOptions = [
     'Gestational Diabetes',
     'Hypertension',
     'Anaemia',
@@ -53,7 +55,7 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     'Other',
   ];
 
-  static const _allergyOptions = [
+  static const _defaultAllergyOptions = [
     'Nuts',
     'Dairy',
     'Eggs',
@@ -69,7 +71,7 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     'Other',
   ];
 
-  static const _allergyDescriptions = {
+  static const _defaultAllergyDescriptions = {
     'Nuts':
         'Peanuts and all tree nuts (almonds, walnuts, cashews, pistachios, etc.)',
     'Dairy': 'Milk, cheese, yogurt, butter, cream',
@@ -88,6 +90,11 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     'Medications & Materials':
         'Penicillin, sulfa drugs, latex, nickel, adhesives, and other common medication or contact allergies',
   };
+
+  List<String> _conditionOptions = List.of(_defaultConditionOptions);
+  List<String> _allergyOptions = List.of(_defaultAllergyOptions);
+  Map<String, String> _allergyDescriptions =
+      Map.of(_defaultAllergyDescriptions);
 
   static const _interestOptions = [
     'Nutrition & Diet',
@@ -108,6 +115,31 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     'Lactation Consultant',
     'General Practitioner',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOnboardingOptions();
+  }
+
+  Future<void> _loadOnboardingOptions() async {
+    try {
+      final data = await SupabaseService.getOnboardingOptions();
+      final conditions = List<String>.from(data['conditions'] ?? const []);
+      final allergies = List<String>.from(data['allergies'] ?? const []);
+      final descriptions =
+          Map<String, String>.from(data['allergyDescriptions'] ?? const {});
+      if (mounted && conditions.isNotEmpty && allergies.isNotEmpty) {
+        setState(() {
+          _conditionOptions = conditions;
+          _allergyOptions = allergies;
+          _allergyDescriptions = descriptions;
+        });
+      }
+    } catch (_) {
+      // Keep the fallback defaults if the live list can't be loaded.
+    }
+  }
 
   @override
   void dispose() {

@@ -320,8 +320,8 @@ class SupabaseService {
     final res = await client
         .from('pregnancy_log_options')
         .select('category, label')
-        .order('category')
-        .order('sort_order');
+        .order('category', ascending: true)
+        .order('sort_order', ascending: true);
     final moods = <String>[];
     final symptoms = <String>[];
     final milestones = <String>[];
@@ -335,6 +335,32 @@ class SupabaseService {
       }
     }
     return {'mood': moods, 'symptom': symptoms, 'milestone': milestones};
+  }
+
+  static Future<Map<String, dynamic>> getOnboardingOptions() async {
+    final res = await client
+        .from('onboarding_options')
+        .select('category, label, description')
+        .order('category', ascending: true)
+        .order('sort_order', ascending: true);
+    final conditions = <String>[];
+    final allergies = <String>[];
+    final allergyDescriptions = <String, String>{};
+    for (final row in List<Map<String, dynamic>>.from(res)) {
+      final label = row['label'] as String;
+      if (row['category'] == 'medical_condition') {
+        conditions.add(label);
+      } else if (row['category'] == 'allergy') {
+        allergies.add(label);
+        final desc = row['description'] as String?;
+        if (desc != null && desc.isNotEmpty) allergyDescriptions[label] = desc;
+      }
+    }
+    return {
+      'conditions': conditions,
+      'allergies': allergies,
+      'allergyDescriptions': allergyDescriptions,
+    };
   }
 
   static Future<void> createLog(Map<String, dynamic> data) async {
@@ -363,13 +389,13 @@ class SupabaseService {
           .select('*')
           .eq('is_published', true)
           .eq('category', category)
-          .order('display_order');
+          .order('display_order', ascending: true);
     } else {
       res = await client
           .from('faqs')
           .select('*')
           .eq('is_published', true)
-          .order('display_order');
+          .order('display_order', ascending: true);
     }
     return res;
   }
@@ -409,7 +435,7 @@ class SupabaseService {
           .eq('content_id', contentId)
           .eq('decision', 'approve')
           .eq('superseded', false)
-          .order('stage');
+          .order('stage', ascending: true);
       return List<Map<String, dynamic>>.from(res);
     } catch (_) {
       return [];
@@ -448,12 +474,18 @@ class SupabaseService {
   }
 
   static Future<List<Map<String, dynamic>>> getReviewGroups() async {
-    final res = await client.from('review_groups').select('*').order('id');
+    final res = await client
+        .from('review_groups')
+        .select('*')
+        .order('id', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
   static Future<List<Map<String, dynamic>>> getSpecialties() async {
-    final res = await client.from('specialties').select('*').order('name');
+    final res = await client
+        .from('specialties')
+        .select('*')
+        .order('name', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }
 
