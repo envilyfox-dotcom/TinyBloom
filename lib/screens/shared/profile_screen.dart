@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   Map<String, dynamic>? _linkedMum;
+  Map<String, dynamic>? _pregnancyProfile;
   int? _age;
   bool _loading = true;
 
@@ -41,10 +43,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       int? age;
+      Map<String, dynamic>? pregnancyProfile;
       if (p?['role'] == 'free_user' || p?['role'] == 'premium_user') {
         try {
           final pp = await SupabaseService.getPregnancyProfile();
           age = (pp?['age'] as num?)?.toInt();
+          pregnancyProfile = pp;
         } catch (_) {}
       }
 
@@ -54,6 +58,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profile = p;
         _linkedMum = linkedMum;
         _age = age;
+        _pregnancyProfile = pregnancyProfile;
         _loading = false;
       });
     } catch (e) {
@@ -73,9 +78,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _roleLabel(String? role) {
     switch (role) {
       case 'free_user':
-        return 'Free Member';
+        return 'Free';
       case 'premium_user':
-        return 'Premium Member ⭐';
+        return 'Premium ⭐';
       case 'specialist':
         return 'Specialist / Doctor';
       case 'volunteer':
@@ -186,8 +191,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _infoRow('Full name', name),
                       _infoRow('Email', email),
                       if (phone.isNotEmpty) _infoRow('Phone number', phone),
-                      if (role == 'free_user' || role == 'premium_user')
+                      if (role == 'free_user' || role == 'premium_user') ...[
                         _infoRow('Age', _age != null ? '$_age' : 'Not set'),
+                        _infoRow(
+                          'Pregnancy status',
+                          (_pregnancyProfile?['pregnancy_status'] as String?)
+                                      ?.trim().isNotEmpty ==
+                                  true
+                              ? _pregnancyProfile!['pregnancy_status']
+                                  as String
+                              : 'Not set',
+                        ),
+                        _infoRow('Due date', _formatDueDate()),
+                        _infoRow('Pregnancy week', _formatWeek()),
+                        _infoRow('Height',
+                            _formatNumber(_pregnancyProfile?['height_cm'], 'cm')),
+                        _infoRow('Weight',
+                            _formatNumber(_pregnancyProfile?['weight_kg'], 'kg')),
+                        _infoRow(
+                          'Medical conditions',
+                          (_pregnancyProfile?['medical_conditions']
+                                      as String?)
+                                      ?.trim().isNotEmpty ==
+                                  true
+                              ? _pregnancyProfile!['medical_conditions']
+                                  as String
+                              : 'None reported',
+                        ),
+                        _infoRow(
+                          'Allergies',
+                          (_pregnancyProfile?['allergies'] as String?)
+                                      ?.trim().isNotEmpty ==
+                                  true
+                              ? _pregnancyProfile!['allergies'] as String
+                              : 'None reported',
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
@@ -403,6 +442,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  String _formatDueDate() {
+    final raw = _pregnancyProfile?['due_date'];
+    if (raw == null) return 'Not set';
+    final date = DateTime.tryParse(raw.toString());
+    if (date == null) return 'Not set';
+    return DateFormat('d MMMM yyyy').format(date);
+  }
+
+  String _formatWeek() {
+    final week = SupabaseService.pregnancyWeekFromProfile(_pregnancyProfile);
+    return week > 0 ? 'Week $week' : 'Not set';
+  }
+
+  String _formatNumber(dynamic value, String unit) {
+    if (value == null) return 'Not set';
+    return '$value $unit';
   }
 
   Widget _infoRow(String label, String value) {
@@ -659,6 +716,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: _nameCtrl,
+                enabled: false,
                 decoration: const InputDecoration(
                   labelText: 'Your Name',
                   prefixIcon: Icon(

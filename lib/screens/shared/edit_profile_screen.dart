@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -22,6 +24,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _phoneCtrl;
   final _ageCtrl = TextEditingController();
 
+  String _pregnancyStatus = '';
+  DateTime? _dueDate;
+  final _heightCtrl = TextEditingController();
+  final _weightCtrl = TextEditingController();
+  final Set<String> _conditions = {};
+  final Set<String> _allergies = {};
+  final _otherConditionCtrl = TextEditingController();
+  final _otherAllergyCtrl = TextEditingController();
+
   final _oldPasswordCtrl = TextEditingController();
   final _newPasswordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
@@ -31,6 +42,40 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _photoUrl;
   bool _photoBusy = false;
   bool _showPassword = false;
+
+  static const _statuses = [
+    'First Pregnancy',
+    'Second Pregnancy',
+    'Third+ Pregnancy',
+    'Expecting Twins / Multiples',
+  ];
+
+  static const _conditionOptions = [
+    'Gestational Diabetes',
+    'Hypertension',
+    'Anaemia',
+    'Thyroid Disorder',
+    'Asthma',
+    'Depression / Anxiety',
+    'Back Pain',
+    'Other',
+  ];
+
+  static const _allergyOptions = [
+    'Nuts',
+    'Dairy',
+    'Eggs',
+    'Seafood',
+    'Wheat & Gluten',
+    'Soy',
+    'Sesame',
+    'Fruits & Vegetables',
+    'Environmental',
+    'Animals',
+    'Insect Stings & Bites',
+    'Medications & Materials',
+    'Other',
+  ];
 
   bool get _isMum {
     final role = widget.profile?['role'] as String?;
@@ -45,17 +90,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailCtrl = TextEditingController(text: _originalEmail);
     _phoneCtrl = TextEditingController(text: widget.profile?['phone'] ?? '');
     _photoUrl = widget.profile?['profile_picture_url'] as String?;
-    if (_isMum) _loadAge();
+    if (_isMum) _loadPregnancyProfile();
   }
 
-  Future<void> _loadAge() async {
+  Future<void> _loadPregnancyProfile() async {
     try {
       final pp = await SupabaseService.getPregnancyProfile();
-      final age = pp?['age'];
-      if (mounted && age != null) {
-        setState(() => _ageCtrl.text = age.toString());
-      }
+      if (!mounted || pp == null) return;
+      setState(() {
+        final age = pp['age'];
+        if (age != null) _ageCtrl.text = age.toString();
+        _pregnancyStatus = (pp['pregnancy_status'] as String?) ?? '';
+        _dueDate = sgtDateFrom(pp['due_date']);
+        if (pp['height_cm'] != null) _heightCtrl.text = '${pp['height_cm']}';
+        if (pp['weight_kg'] != null) _weightCtrl.text = '${pp['weight_kg']}';
+        _parseIntoSet(pp['medical_conditions'] as String?, _conditionOptions,
+            _conditions, _otherConditionCtrl);
+        _parseIntoSet(pp['allergies'] as String?, _allergyOptions, _allergies,
+            _otherAllergyCtrl);
+      });
     } catch (_) {}
+  }
+
+  void _parseIntoSet(String? stored, List<String> knownOptions,
+      Set<String> target, TextEditingController otherCtrl) {
+    if (stored == null || stored.trim().isEmpty) return;
+    for (final part in stored.split(',')) {
+      final item = part.trim();
+      if (item.isEmpty) continue;
+      if (item.startsWith('Other: ')) {
+        target.add('Other');
+        otherCtrl.text = item.substring('Other: '.length);
+      } else if (knownOptions.contains(item)) {
+        target.add(item);
+      }
+    }
+  }
+
+  int get _pregnancyWeek {
+    if (_dueDate == null) return 0;
+    final conception =
+        asSgtWallClock(_dueDate!).subtract(const Duration(days: 280));
+    return sgtNow().difference(conception).inDays ~/ 7;
   }
 
   @override
@@ -64,6 +140,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _ageCtrl.dispose();
+    _heightCtrl.dispose();
+    _weightCtrl.dispose();
+    _otherConditionCtrl.dispose();
+    _otherAllergyCtrl.dispose();
     _oldPasswordCtrl.dispose();
     _newPasswordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -159,6 +239,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     }
 
+    double? height;
+    double? weight;
+    if (_isMum) {
+      if (_heightCtrl.text.trim().isNotEmpty) {
+        height = double.tryParse(_heightCtrl.text.trim());
+        if (height == null || height < 100 || height > 220) {
+          _showSnack('Please enter a valid height in cm.');
+          return;
+        }
+      }
+
+      if (_weightCtrl.text.trim().isNotEmpty) {
+        weight = double.tryParse(_weightCtrl.text.trim());
+        if (weight == null || weight < 30 || weight > 200) {
+          _showSnack('Please enter a valid weight in kg.');
+          return;
+        }
+      }
+
+      if (_conditions.contains('Other') &&
+          _otherConditionCtrl.text.trim().isEmpty) {
+        _showSnack('Please describe your other medical condition.');
+        return;
+      }
+
+      if (_allergies.contains('Other') &&
+          _otherAllergyCtrl.text.trim().isEmpty) {
+        _showSnack('Please describe your other allergy.');
+        return;
+      }
+    }
+
     final changingPassword = oldPassword.isNotEmpty ||
         newPassword.isNotEmpty ||
         confirmPassword.isNotEmpty;
@@ -189,8 +301,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'email': newEmail,
       });
 
-      if (_isMum && age != null) {
-        await SupabaseService.savePregnancyProfile({'age': age});
+      if (_isMum) {
+        await SupabaseService.savePregnancyProfile({
+          'age': age,
+          'pregnancy_status':
+              _pregnancyStatus.isEmpty ? null : _pregnancyStatus,
+          'due_date': _dueDate == null ? null : dateOnly(_dueDate!),
+          'pregnancy_week': _dueDate != null ? _pregnancyWeek : null,
+          'height_cm': height,
+          'weight_kg': weight,
+          'medical_conditions': () {
+            if (_conditions.isEmpty) return null;
+            final list = _conditions.toList();
+            final otherText = _otherConditionCtrl.text.trim();
+            if (list.contains('Other') && otherText.isNotEmpty) {
+              list[list.indexOf('Other')] = 'Other: $otherText';
+            }
+            return list.join(', ');
+          }(),
+          'allergies': () {
+            if (_allergies.isEmpty) return null;
+            final list = _allergies.toList();
+            final otherText = _otherAllergyCtrl.text.trim();
+            if (list.contains('Other') && otherText.isNotEmpty) {
+              list[list.indexOf('Other')] = 'Other: $otherText';
+            }
+            return list.join(', ');
+          }(),
+        });
       }
 
       final messages = <String>[];
@@ -254,7 +392,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _sectionTitle(String title, String subtitle) {
+  Widget _sectionTitle(String title, [String? subtitle]) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Column(
@@ -268,14 +406,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               color: AppColors.textDark,
             ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              color: AppColors.textLight,
-              fontSize: 12,
+          if (subtitle != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: AppColors.textLight,
+                fontSize: 12,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -285,9 +425,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required String label,
     required IconData icon,
     Widget? suffixIcon,
+    String? suffixText,
   }) {
     return InputDecoration(
       labelText: label,
+      suffixText: suffixText,
       prefixIcon: Icon(icon, color: AppColors.textLight),
       suffixIcon: suffixIcon,
       filled: true,
@@ -394,6 +536,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ],
             const SizedBox(height: 16),
+            _sectionTitle('Personal Information'),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _nameCtrl,
               decoration: _inputDecoration(
@@ -429,6 +573,173 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   icon: Icons.cake_outlined,
                 ),
               ),
+              const SizedBox(height: 24),
+              _sectionTitle('Pregnancy Information'),
+              const SizedBox(height: 12),
+              ..._statuses.map((s) {
+                final sel = _pregnancyStatus == s;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ChoiceTile(
+                    label: s,
+                    selected: sel,
+                    onTap: () => setState(() => _pregnancyStatus = s),
+                  ),
+                );
+              }),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate:
+                        _dueDate ?? sgtNow().add(const Duration(days: 140)),
+                    firstDate: sgtNow().subtract(const Duration(days: 280)),
+                    lastDate: sgtNow().add(const Duration(days: 300)),
+                    builder: (ctx, child) => Theme(
+                      data: Theme.of(ctx).copyWith(
+                        colorScheme: const ColorScheme.light(
+                          primary: AppColors.rose,
+                        ),
+                      ),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) {
+                    setState(() => _dueDate = asSgtWallClock(picked));
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.textLight.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today_outlined,
+                          color: AppColors.roseDeep, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _dueDate != null
+                              ? DateFormat('d MMMM yyyy').format(_dueDate!)
+                              : 'Select your due date',
+                          style: TextStyle(
+                            fontWeight: _dueDate != null
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                            fontSize: 14,
+                            color: _dueDate != null
+                                ? AppColors.textDark
+                                : AppColors.textLight,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right,
+                          color: AppColors.textLight, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+              if (_dueDate != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Week ${_pregnancyWeek.clamp(1, 42)} of pregnancy',
+                  style: const TextStyle(
+                      color: AppColors.textMid,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                ),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _heightCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: _inputDecoration(
+                        label: 'Height',
+                        icon: Icons.height,
+                        suffixText: 'cm',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _weightCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: _inputDecoration(
+                        label: 'Weight',
+                        icon: Icons.monitor_weight_outlined,
+                        suffixText: 'kg',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Medical Conditions',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _ChipWrap(
+                options: _conditionOptions,
+                selected: _conditions,
+                onToggle: (c) => setState(() => _conditions.contains(c)
+                    ? _conditions.remove(c)
+                    : _conditions.add(c)),
+              ),
+              if (_conditions.contains('Other')) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _otherConditionCtrl,
+                  decoration: _inputDecoration(
+                    label: 'Describe your condition',
+                    icon: Icons.edit_note,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              const Text(
+                'Allergies',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _ChipWrap(
+                options: _allergyOptions,
+                selected: _allergies,
+                onToggle: (a) => setState(() => _allergies.contains(a)
+                    ? _allergies.remove(a)
+                    : _allergies.add(a)),
+              ),
+              if (_allergies.contains('Other')) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _otherAllergyCtrl,
+                  decoration: _inputDecoration(
+                    label: 'Describe your allergy',
+                    icon: Icons.edit_note,
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 24),
             _sectionTitle(
@@ -489,6 +800,115 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ChoiceTile extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ChoiceTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.blush : AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? AppColors.rose
+                : AppColors.textLight.withValues(alpha: 0.25),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected ? AppColors.roseDeep : AppColors.textDark,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            Icon(
+              selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: selected ? AppColors.roseDeep : AppColors.textLight,
+              size: 19,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChipWrap extends StatelessWidget {
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  const _ChipWrap({
+    required this.options,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((option) {
+        final sel = selected.contains(option);
+        return InkWell(
+          onTap: () => onToggle(option),
+          borderRadius: BorderRadius.circular(22),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: sel ? AppColors.blush : AppColors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: sel
+                    ? AppColors.rose
+                    : AppColors.textLight.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (sel) ...[
+                  const Icon(Icons.check, size: 14, color: AppColors.roseDeep),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  option,
+                  style: TextStyle(
+                    color: sel ? AppColors.roseDeep : AppColors.textMid,
+                    fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

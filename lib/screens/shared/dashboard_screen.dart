@@ -28,6 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _consultations = [];
   List<Map<String, dynamic>> _notifications = [];
   List<Map<String, dynamic>> _myQuestions = [];
+  bool _hasAnyQuestions = false;
   Map<String, String> _providerNames = {};
   bool _loading = true;
   DateTime? _lastNavTime;
@@ -1511,12 +1512,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {}
 
     List<Map<String, dynamic>> myQuestions = [];
+    bool hasAnyQuestions = false;
     try {
       final rawQuestions = await SupabaseService.getMyVolunteerQuestions();
       await SupabaseService.autoCloseStaleRequests(rawQuestions);
-      myQuestions = await enrichQuickChatQuestions(
+      final enriched = await enrichQuickChatQuestions(
         List<Map<String, dynamic>>.from(rawQuestions),
       );
+      hasAnyQuestions = enriched.isNotEmpty;
+      myQuestions = enriched.where((q) => !quickChatIsEnded(q)).toList();
     } catch (e) {
       debugPrint('Failed to load quick chat volunteer questions: $e');
     }
@@ -1554,6 +1558,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _consultations = consultations;
         _notifications = notifications;
         _myQuestions = myQuestions;
+        _hasAnyQuestions = hasAnyQuestions;
         _providerNames = providerNames;
         _loading = false;
       });
@@ -1734,7 +1739,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 20),
                     ],
                     _buildActiveAlerts(),
-                    if (isMum && _myQuestions.isNotEmpty) ...[
+                    if (isMum && _hasAnyQuestions) ...[
                       _buildMyQuestions(),
                     ],
                     const TBSectionTitle(

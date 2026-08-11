@@ -508,8 +508,6 @@ class QuickChatVolunteerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (questions.isEmpty) return const SizedBox.shrink();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -543,8 +541,30 @@ class QuickChatVolunteerSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        for (final q in questions.take(3))
-          QuickChatPreviewCard(question: q, onReload: onReload),
+        if (questions.isEmpty)
+          TBCard(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: const Row(
+              children: [
+                Icon(Icons.chat_bubble_outline,
+                    color: AppColors.textLight, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'No ongoing chats with a volunteer right now.',
+                    style: TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          for (final q in questions.take(3))
+            QuickChatPreviewCard(question: q, onReload: onReload),
         const SizedBox(height: 8),
       ],
     );
