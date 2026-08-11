@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/singapore_time.dart';
@@ -42,13 +41,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _photoUrl;
   bool _photoBusy = false;
   bool _showPassword = false;
-
-  static const _statuses = [
-    'First Pregnancy',
-    'Second Pregnancy',
-    'Third+ Pregnancy',
-    'Expecting Twins / Multiples',
-  ];
 
   static const _conditionOptions = [
     'Gestational Diabetes',
@@ -561,86 +553,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 24),
               _sectionTitle('Pregnancy Information'),
               const SizedBox(height: 12),
-              ..._statuses.map((s) {
-                final sel = _pregnancyStatus == s;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _ChoiceTile(
-                    label: s,
-                    selected: sel,
-                    onTap: () => setState(() => _pregnancyStatus = s),
-                  ),
-                );
-              }),
-              const SizedBox(height: 4),
-              GestureDetector(
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate:
-                        _dueDate ?? sgtNow().add(const Duration(days: 140)),
-                    firstDate: sgtNow().subtract(const Duration(days: 280)),
-                    lastDate: sgtNow().add(const Duration(days: 300)),
-                    builder: (ctx, child) => Theme(
-                      data: Theme.of(ctx).copyWith(
-                        colorScheme: const ColorScheme.light(
-                          primary: AppColors.rose,
-                        ),
-                      ),
-                      child: child!,
-                    ),
-                  );
-                  if (picked != null) {
-                    setState(() => _dueDate = asSgtWallClock(picked));
-                  }
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.textLight.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today_outlined,
-                          color: AppColors.roseDeep, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _dueDate != null
-                              ? DateFormat('d MMMM yyyy').format(_dueDate!)
-                              : 'Select your due date',
-                          style: TextStyle(
-                            fontWeight: _dueDate != null
-                                ? FontWeight.w700
-                                : FontWeight.normal,
-                            fontSize: 14,
-                            color: _dueDate != null
-                                ? AppColors.textDark
-                                : AppColors.textLight,
-                          ),
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right,
-                          color: AppColors.textLight, size: 18),
-                    ],
-                  ),
-                ),
+              _ChoiceTile(
+                label: _pregnancyStatus.isEmpty ? 'Not set' : _pregnancyStatus,
+                selected: true,
+                disabled: true,
+                onTap: () {},
               ),
-              if (_dueDate != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Week ${_pregnancyWeek.clamp(1, 42)} of pregnancy',
-                  style: const TextStyle(
-                      color: AppColors.textMid,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
-                ),
-              ],
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -728,6 +646,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 14),
               TextFormField(
                 controller: _phoneCtrl,
+                enabled: !_isMum,
                 keyboardType: TextInputType.phone,
                 decoration: _inputDecoration(
                   label: 'Phone Number',
@@ -738,6 +657,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _ageCtrl,
+                  enabled: false,
                   keyboardType: TextInputType.number,
                   decoration: _inputDecoration(
                     label: 'Age',
@@ -813,49 +733,54 @@ class _ChoiceTile extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool disabled;
 
   const _ChoiceTile({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.blush : AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected
-                ? AppColors.rose
-                : AppColors.textLight.withValues(alpha: 0.25),
-            width: selected ? 1.4 : 1,
+    return Opacity(
+      opacity: disabled ? 0.55 : 1,
+      child: InkWell(
+        onTap: disabled ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.blush : AppColors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? AppColors.rose
+                  : AppColors.textLight.withValues(alpha: 0.25),
+              width: selected ? 1.4 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                  color: selected ? AppColors.roseDeep : AppColors.textDark,
-                  fontSize: 14,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                    color: selected ? AppColors.roseDeep : AppColors.textDark,
+                    fontSize: 14,
+                  ),
                 ),
               ),
-            ),
-            Icon(
-              selected ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: selected ? AppColors.roseDeep : AppColors.textLight,
-              size: 19,
-            ),
-          ],
+              Icon(
+                selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: selected ? AppColors.roseDeep : AppColors.textLight,
+                size: 19,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -917,3 +842,4 @@ class _ChipWrap extends StatelessWidget {
     );
   }
 }
+

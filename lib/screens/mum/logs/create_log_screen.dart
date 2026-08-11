@@ -22,6 +22,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   final _notesCtrl = TextEditingController();
   final _otherSymptomCtrl = TextEditingController();
   final _otherMilestoneCtrl = TextEditingController();
+  final _weightCtrl = TextEditingController();
 
   List<String> _allSymptoms = [];
   final Set<String> _selectedSymptoms = {};
@@ -43,8 +44,21 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       _selectedMilestones.addAll(asStringList(log['milestones']));
       final existingDate = sgtDateFrom(log['log_date']);
       if (existingDate != null) _date = existingDate;
+      if (log['weight_kg'] != null) _weightCtrl.text = '${log['weight_kg']}';
+    } else {
+      _prefillWeightFromProfile();
     }
     _loadOptions();
+  }
+
+  Future<void> _prefillWeightFromProfile() async {
+    try {
+      final profile = await SupabaseService.getPregnancyProfile();
+      final weight = profile?['weight_kg'];
+      if (mounted && weight != null && _weightCtrl.text.isEmpty) {
+        setState(() => _weightCtrl.text = '$weight');
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadOptions() async {
@@ -68,6 +82,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     _notesCtrl.dispose();
     _otherSymptomCtrl.dispose();
     _otherMilestoneCtrl.dispose();
+    _weightCtrl.dispose();
     super.dispose();
   }
 
@@ -105,6 +120,16 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       return;
     }
 
+    double? weight;
+    if (_weightCtrl.text.trim().isNotEmpty) {
+      weight = double.tryParse(_weightCtrl.text.trim());
+      if (weight == null || weight < 30 || weight > 200) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Please enter a valid weight in kg.')));
+        return;
+      }
+    }
+
     setState(() => _loading = true);
 
     final data = <String, dynamic>{
@@ -114,6 +139,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       'milestones':
           _selectedMilestones.isEmpty ? null : _selectedMilestones.toList(),
       'log_date': dateOnly(_date),
+      'weight_kg': weight,
     };
 
     try {
@@ -121,6 +147,9 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
         await SupabaseService.updateLog(widget.existing!['id'], data);
       } else {
         await SupabaseService.createLog(data);
+      }
+      if (weight != null) {
+        await SupabaseService.savePregnancyProfile({'weight_kg': weight});
       }
       if (mounted) context.pop();
     } catch (e) {
@@ -184,6 +213,22 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                     );
                   }).toList(),
                 ),
+            ]),
+            _sectionCard('⚖️ Weight (Optional)', [
+              TextFormField(
+                controller: _weightCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  hintText: 'Enter your weight',
+                  suffixText: 'kg',
+                  border: InputBorder.none,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'This updates the weight shown on your profile.',
+                style: TextStyle(color: AppColors.textLight, fontSize: 11),
+              ),
             ]),
             _sectionCard('🤒 Symptoms', [
               if (_optionsLoading)

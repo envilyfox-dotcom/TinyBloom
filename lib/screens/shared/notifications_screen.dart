@@ -260,11 +260,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final data = await SupabaseService.client
         .from('notifications')
         .select(
-            'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id')
+            'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id,service_availability')
         .or('user_id.eq.$userId,user_id.is.null')
         .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(data).map((item) {
+    return List<Map<String, dynamic>>.from(data)
+        .where((item) => !isStaleServiceNotification(item))
+        .map((item) {
       return {
         ...item,
         'source_table': 'notifications',
@@ -709,28 +711,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
   }
 
-  bool _volunteerServiceHasEnded(String availability) {
-    if (!availability.contains(' | ')) return false;
-    final parts = availability.split(' | ');
-    final date = DateTime.tryParse(parts[0]);
-    if (date == null) return false;
-
-    final timing = parts.length > 1 ? parts[1] : '';
-    final match =
-        RegExp(r'-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*$').firstMatch(timing);
-    if (match == null) return false;
-
-    try {
-      final parsedTime =
-          DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      final endsAt = sgtWallClock(
-          date.year, date.month, date.day, parsedTime.hour, parsedTime.minute);
-      return sgtNow().isAfter(endsAt);
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<List<Map<String, dynamic>>> _loadRowsFromVolunteerServicesTable(
       Map<String, dynamic>? profile) async {
     if (!_isMumProfile(profile)) return [];
@@ -744,7 +724,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .limit(20);
 
     return List<Map<String, dynamic>>.from(data)
-        .where((item) => !_volunteerServiceHasEnded(
+        .where((item) => !isAvailabilityExpired(
             (item['availability'] ?? '').toString().trim()))
         .map((item) {
       final volunteer = item['volunteer'] is Map<String, dynamic>

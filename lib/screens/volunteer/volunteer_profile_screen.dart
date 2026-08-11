@@ -89,6 +89,7 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
     final expertise = _volunteerProfile?['expertise'] as String? ?? '';
     final certification = _volunteerProfile?['certification'] as String? ?? '';
     final avatarUrl = _profile?['profile_picture_url'] as String?;
+    final isVerified = _volunteerProfile?['is_verified'] == true;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -129,6 +130,37 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
                           ? const Icon(Icons.person,
                               size: 52, color: AppColors.rose)
                           : null,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.teal.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(
+                            color: AppColors.teal.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                              isVerified
+                                  ? Icons.verified
+                                  : Icons.volunteer_activism,
+                              color: AppColors.teal,
+                              size: 13),
+                          const SizedBox(width: 4),
+                          Text(
+                              isVerified
+                                  ? 'Verified Volunteer'
+                                  : 'Volunteer',
+                              style: GoogleFonts.poppins(
+                                  color: AppColors.teal,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 24),
                     Container(

@@ -115,6 +115,7 @@ class ViewLogScreen extends StatelessWidget {
     final symptoms = asStringList(entry['symptoms']);
     final milestones = asStringList(entry['milestones']);
     final notes = (entry['notes'] as String?) ?? '';
+    final weight = entry['weight_kg'];
     final date =
         entry['log_date'] != null ? DateTime.parse(entry['log_date']) : null;
 
@@ -165,6 +166,20 @@ class ViewLogScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _detailHeader(mood),
+                  if (weight != null) ...[
+                    const SizedBox(height: 18),
+                    _section(
+                      'Weight',
+                      Text(
+                        '$weight kg',
+                        style: const TextStyle(
+                          color: AppColors.textMid,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   _section('Symptoms', _bulletList(symptoms)),
                   const SizedBox(height: 18),

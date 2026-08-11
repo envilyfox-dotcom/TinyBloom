@@ -44,26 +44,6 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     super.dispose();
   }
 
-  static const _timingEndHour = {
-    'Morning (9AM - 12PM)': 12,
-    'Afternoon (12PM - 3PM)': 15,
-    'Evening (3PM - 6PM)': 18,
-    'Night (6PM - 9PM)': 21,
-  };
-
-  static DateTime? _parseFreeFormEndTime(DateTime date, String timing) {
-    final match =
-        RegExp(r'-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*$').firstMatch(timing);
-    if (match == null) return null;
-    try {
-      final parsed = DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      return sgtWallClock(
-          date.year, date.month, date.day, parsed.hour, parsed.minute);
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _load() async {
     try {
       final data = await SupabaseService.client
@@ -85,31 +65,19 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
   }
 
   Future<void> _autoMarkExpired(List<Map<String, dynamic>> services) async {
-    final now = sgtNow();
     for (final service in services) {
       if ((service['status'] as String? ?? 'available') != 'available') {
         continue;
       }
-      final availability = service['availability'] as String?;
-      if (availability == null || !availability.contains(' | ')) continue;
-      final parts = availability.split(' | ');
-      final date = DateTime.tryParse(parts[0]);
-      final timing = parts.length > 1 ? parts[1] : '';
-      if (date == null) continue;
-      final endsAt = _parseFreeFormEndTime(date, timing) ??
-          (_timingEndHour.containsKey(timing)
-              ? sgtWallClock(
-                  date.year, date.month, date.day, _timingEndHour[timing]!)
-              : null);
-      if (endsAt == null) continue;
-      if (now.isAfter(endsAt)) {
-        try {
-          await SupabaseService.client
-              .from('volunteer_services')
-              .update({'status': 'done'}).eq('id', service['id']);
-          service['status'] = 'done';
-        } catch (_) {}
+      if (!isAvailabilityExpired(service['availability'] as String?)) {
+        continue;
       }
+      try {
+        await SupabaseService.client
+            .from('volunteer_services')
+            .update({'status': 'done'}).eq('id', service['id']);
+        service['status'] = 'done';
+      } catch (_) {}
     }
   }
 
@@ -148,6 +116,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
           'title': 'Service cancelled',
           'message': '"${service['title']}" is no longer available.',
           'type': 'services',
+          'service_availability': service['availability'],
           'volunteer_name':
               volunteerName?.isNotEmpty == true ? volunteerName : null,
           'volunteer_photo_url':
@@ -847,6 +816,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                 ? '"${_titleCtrl.text.trim()}" now scheduled for ${formatAvailabilityDisplay(availability)}.'
                 : '"${_titleCtrl.text.trim()}" has been updated.',
             'type': 'services',
+            'service_availability': availability,
             'volunteer_name':
                 volunteerName?.isNotEmpty == true ? volunteerName : null,
             'volunteer_photo_url': volunteerPhotoUrl?.isNotEmpty == true

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/availability_format.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
@@ -521,28 +522,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return 'Time not confirmed yet';
   }
 
-  bool _volunteerServiceHasEnded(String availability) {
-    if (!availability.contains(' | ')) return false;
-    final parts = availability.split(' | ');
-    final date = DateTime.tryParse(parts[0]);
-    if (date == null) return false;
-
-    final timing = parts.length > 1 ? parts[1] : '';
-    final match =
-        RegExp(r'-\s*(\d{1,2}:\d{2}\s?[AaPp][Mm])\s*$').firstMatch(timing);
-    if (match == null) return false;
-
-    try {
-      final parsedTime =
-          DateFormat('h:mm a').parse(match.group(1)!.toUpperCase());
-      final endsAt = sgtWallClock(
-          date.year, date.month, date.day, parsedTime.hour, parsedTime.minute);
-      return sgtNow().isAfter(endsAt);
-    } catch (_) {
-      return false;
-    }
-  }
-
   bool _isUpcomingConsultationStatus(String status) {
     final clean = status.trim().toLowerCase();
     return ![
@@ -825,7 +804,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final rows = <Map<String, dynamic>>[];
 
     for (final item in List<Map<String, dynamic>>.from(data)) {
-      if (_volunteerServiceHasEnded(
+      if (isAvailabilityExpired(
           (item['availability'] ?? '').toString().trim())) {
         continue;
       }
@@ -907,12 +886,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final data = await SupabaseService.client
             .from('notifications')
             .select(
-                'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id')
+                'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id,service_availability')
             .or('user_id.eq.$userId,user_id.is.null')
             .order('created_at', ascending: false)
             .limit(12);
 
-        merged.addAll(List<Map<String, dynamic>>.from(data).map((item) {
+        merged.addAll(List<Map<String, dynamic>>.from(data)
+            .where((item) => !isStaleServiceNotification(item))
+            .map((item) {
           return {
             ...item,
             'source_table': 'notifications',

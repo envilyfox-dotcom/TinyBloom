@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/app_theme.dart';
+import '../utils/availability_format.dart';
 import '../utils/singapore_time.dart';
 
 class SupabaseService {
@@ -1416,7 +1417,9 @@ class SupabaseService {
           .select()
           .eq('volunteer_id', volunteerId)
           .eq('status', 'available');
-      return List<Map<String, dynamic>>.from(res);
+      return List<Map<String, dynamic>>.from(res)
+          .where((s) => !isAvailabilityExpired(s['availability'] as String?))
+          .toList();
     } catch (_) {
       return [];
     }

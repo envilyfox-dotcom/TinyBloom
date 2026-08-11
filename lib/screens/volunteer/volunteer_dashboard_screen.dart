@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +10,6 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/service_id.dart';
-import '../../widgets/review_widgets.dart';
 import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
@@ -32,16 +33,24 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   List<Map<String, dynamic>> _upcomingSessions = [];
   List<Map<String, dynamic>> _myServices = [];
   List<Map<String, dynamic>> _pendingRequests = [];
-  List<Map<String, dynamic>> _providerRatings = [];
   int _totalServicesCount = 0;
   int _totalConsultationsCount = 0;
   int _totalOngoingRequestsCount = 0;
   bool _loading = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 30), (_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -72,7 +81,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .order('scheduled_date');
       final now = sgtNow();
       final upcoming = List<Map<String, dynamic>>.from(data).where((r) {
-        final date = DateTime.tryParse(r['scheduled_date']?.toString() ?? '');
+        final date = sgtDateFrom(r['scheduled_date']);
         if (date == null) return false;
         final timeStr = r['scheduled_time'] as String?;
         final at = timeStr != null ? slotDateTime(date, timeStr) : null;
@@ -103,7 +112,9 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .select()
           .eq('volunteer_id', SupabaseService.currentUser!.id)
           .eq('status', 'available');
-      final rows = List<Map<String, dynamic>>.from(data);
+      final rows = List<Map<String, dynamic>>.from(data)
+          .where((s) => !isAvailabilityExpired(s['availability'] as String?))
+          .toList();
       rows.sort((a, b) {
         final aDate = DateTime.tryParse(
             (a['availability'] as String? ?? '').split(' | ').first);
@@ -151,14 +162,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .toList();
     } catch (_) {}
 
-    List<Map<String, dynamic>> providerRatings = [];
-    try {
-      final myId = SupabaseService.currentUser?.id;
-      if (myId != null) {
-        providerRatings = await SupabaseService.getProviderRatings(myId);
-      }
-    } catch (_) {}
-
     if (mounted) {
       setState(() {
         _profile = profile;
@@ -166,7 +169,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         _upcomingSessions = sessions;
         _myServices = myServices;
         _pendingRequests = requests;
-        _providerRatings = providerRatings;
         _totalServicesCount = totalServicesCount;
         _totalConsultationsCount = totalConsultationsCount;
         _totalOngoingRequestsCount = totalOngoingRequestsCount;
@@ -207,15 +209,6 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
                       _buildUpcomingSessions(context),
                       const SizedBox(height: 24),
                       _buildPendingRequests(context),
-                      const SizedBox(height: 24),
-                      providerReviewsSection(
-                        context,
-                        ratings: _providerRatings,
-                        providerId: SupabaseService.currentUser?.id ?? '',
-                        providerName:
-                            _profile?['full_name'] as String? ?? 'You',
-                        providerType: 'volunteer',
-                      ),
                     ],
                   ),
                 ),
@@ -566,7 +559,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
         ),
         const SizedBox(height: 8),
         if (_pendingRequests.isEmpty)
-          _emptyCard('No ongoing requests right now. 🎉')
+          _emptyCard('No ongoing requests right now.')
         else
           ..._pendingRequests.map((r) => _requestCard(context, r)),
       ],

@@ -357,6 +357,7 @@ class _LogCard extends StatelessWidget {
     final symptoms = asStringList(log['symptoms']);
     final milestones = asStringList(log['milestones']);
     final notes = (log['notes'] as String?)?.trim();
+    final weight = log['weight_kg'];
     final rawDate = log['log_date'] ?? log['created_at'];
     final date = rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
 
@@ -420,6 +421,15 @@ class _LogCard extends StatelessWidget {
               chips: [mood],
               color: moodColor(mood),
             ),
+          if (weight != null) ...[
+            const SizedBox(height: 10),
+            _SectionChips(
+              label: 'Weight',
+              icon: Icons.monitor_weight_outlined,
+              chips: ['$weight kg'],
+              color: AppColors.teal,
+            ),
+          ],
           if (symptoms.isNotEmpty) ...[
             const SizedBox(height: 10),
             _SectionChips(
