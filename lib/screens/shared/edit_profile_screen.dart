@@ -470,70 +470,59 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundColor: AppColors.rose.withValues(alpha: 0.15),
-                    backgroundImage: _photoUrl != null
-                        ? CachedNetworkImageProvider(_photoUrl!, maxWidth: 400)
-                        : null,
-                    child: _photoBusy
-                        ? const CircularProgressIndicator(color: AppColors.rose)
-                        : (_photoUrl == null
-                            ? Text(
-                                _nameCtrl.text.isNotEmpty
-                                    ? _nameCtrl.text[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                    color: AppColors.roseDeep,
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w700))
-                            : null),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: _photoBusy ? null : _pickPhoto,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.rose,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.white, width: 2),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundColor: AppColors.rose.withValues(alpha: 0.15),
+                      backgroundImage: _photoUrl != null
+                          ? CachedNetworkImageProvider(_photoUrl!,
+                              maxWidth: 400)
+                          : null,
+                      child: _photoBusy
+                          ? const CircularProgressIndicator(
+                              color: AppColors.rose)
+                          : (_photoUrl == null
+                              ? Text(
+                                  _nameCtrl.text.isNotEmpty
+                                      ? _nameCtrl.text[0].toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(
+                                      color: AppColors.roseDeep,
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w700))
+                              : null),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _photoBusy ? null : _pickPhoto,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.rose,
+                            shape: BoxShape.circle,
+                            border:
+                                Border.all(color: AppColors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white, size: 16),
                         ),
-                        child: const Icon(Icons.camera_alt,
-                            color: Colors.white, size: 16),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Center(
-              child: Text('Maximum upload file size: 5MB',
-                  style: TextStyle(fontSize: 11, color: AppColors.textLight)),
-            ),
-            if (_photoUrl != null) ...[
-              const SizedBox(height: 6),
-              Center(
-                child: TextButton.icon(
-                  onPressed: _photoBusy ? null : _confirmRemovePhoto,
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.red, size: 18),
-                  label: const Text('Remove Photo',
-                      style: TextStyle(color: Colors.red)),
+                  ],
                 ),
               ),
+<<<<<<< Updated upstream
             ],
             const SizedBox(height: 16),
             _sectionTitle('Personal Information'),
@@ -543,36 +532,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               decoration: _inputDecoration(
                 label: 'Full Name',
                 icon: Icons.person_outline,
+=======
+              const SizedBox(height: 4),
+              const Center(
+                child: Text('Maximum upload file size: 5MB',
+                    style: TextStyle(fontSize: 11, color: AppColors.textLight)),
+>>>>>>> Stashed changes
               ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: _inputDecoration(
-                label: 'Email Address',
-                icon: Icons.email_outlined,
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: _inputDecoration(
-                label: 'Phone Number',
-                icon: Icons.phone_outlined,
-              ),
-            ),
-            if (_isMum) ...[
-              const SizedBox(height: 14),
+              if (_photoUrl != null) ...[
+                const SizedBox(height: 6),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _photoBusy ? null : _confirmRemovePhoto,
+                    icon: const Icon(Icons.delete_outline,
+                        color: Colors.red, size: 18),
+                    label: const Text('Remove Photo',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
               TextFormField(
-                controller: _ageCtrl,
-                keyboardType: TextInputType.number,
+                controller: _nameCtrl,
                 decoration: _inputDecoration(
-                  label: 'Age',
-                  icon: Icons.cake_outlined,
+                  label: 'Full Name',
+                  icon: Icons.person_outline,
                 ),
               ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: _inputDecoration(
+                  label: 'Email Address',
+                  icon: Icons.email_outlined,
+                ),
+              ),
+<<<<<<< Updated upstream
               const SizedBox(height: 24),
               _sectionTitle('Pregnancy Information'),
               const SizedBox(height: 12),
@@ -740,64 +736,86 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
               ],
-            ],
-            const SizedBox(height: 24),
-            _sectionTitle(
-              'Change Password',
-              'Enter your current password before setting a new one.',
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _oldPasswordCtrl,
-              obscureText: !_showPassword,
-              decoration: _inputDecoration(
-                label: 'Current Password',
-                icon: Icons.lock_outline,
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _newPasswordCtrl,
-              obscureText: !_showPassword,
-              decoration: _inputDecoration(
-                label: 'New Password',
-                icon: Icons.lock_reset_outlined,
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _confirmPasswordCtrl,
-              obscureText: !_showPassword,
-              decoration: _inputDecoration(
-                label: 'Confirm New Password',
-                icon: Icons.verified_user_outlined,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showPassword ? Icons.visibility_off : Icons.visibility,
-                    color: AppColors.textLight,
-                  ),
-                  onPressed: () {
-                    setState(() => _showPassword = !_showPassword);
-                  },
+=======
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: _inputDecoration(
+                  label: 'Phone Number',
+                  icon: Icons.phone_outlined,
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Password must be at least 8 characters. Leave password fields blank if you do not want to change it.',
-              style: TextStyle(
-                color: AppColors.textLight,
-                fontSize: 12,
-                height: 1.4,
+              if (_isMum) ...[
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _ageCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: _inputDecoration(
+                    label: 'Age',
+                    icon: Icons.cake_outlined,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              _sectionTitle(
+                'Change Password',
+                'Enter your current password before setting a new one.',
               ),
-            ),
-            const SizedBox(height: 26),
-            TBButton(
-              label: 'Save Changes',
-              onPressed: _save,
-              loading: _loading,
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _oldPasswordCtrl,
+                obscureText: !_showPassword,
+                decoration: _inputDecoration(
+                  label: 'Current Password',
+                  icon: Icons.lock_outline,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _newPasswordCtrl,
+                obscureText: !_showPassword,
+                decoration: _inputDecoration(
+                  label: 'New Password',
+                  icon: Icons.lock_reset_outlined,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _confirmPasswordCtrl,
+                obscureText: !_showPassword,
+                decoration: _inputDecoration(
+                  label: 'Confirm New Password',
+                  icon: Icons.verified_user_outlined,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showPassword ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.textLight,
+                    ),
+                    onPressed: () {
+                      setState(() => _showPassword = !_showPassword);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Password must be at least 8 characters. Leave password fields blank if you do not want to change it.',
+                style: TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 26),
+              TBButton(
+                label: 'Save Changes',
+                onPressed: _save,
+                loading: _loading,
+              ),
+>>>>>>> Stashed changes
+            ],
+          ),
         ),
       ),
     );
