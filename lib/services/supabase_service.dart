@@ -340,14 +340,16 @@ class SupabaseService {
   static Future<Map<String, dynamic>> getOnboardingOptions() async {
     final res = await client
         .from('onboarding_options')
-        .select('category, label, description')
+        .select('category, label, description, is_text_input')
         .order('category', ascending: true)
         .order('sort_order', ascending: true);
     final conditions = <String>[];
     final allergies = <String>[];
     final allergyDescriptions = <String, String>{};
+    final textInputLabels = <String>{};
     for (final row in List<Map<String, dynamic>>.from(res)) {
       final label = row['label'] as String;
+      if (row['is_text_input'] == true) textInputLabels.add(label);
       if (row['category'] == 'medical_condition') {
         conditions.add(label);
       } else if (row['category'] == 'allergy') {
@@ -360,6 +362,7 @@ class SupabaseService {
       'conditions': conditions,
       'allergies': allergies,
       'allergyDescriptions': allergyDescriptions,
+      'textInputLabels': textInputLabels,
     };
   }
 
