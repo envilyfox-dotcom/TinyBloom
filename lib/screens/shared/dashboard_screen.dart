@@ -907,7 +907,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final data = await SupabaseService.client
             .from('notifications')
             .select(
-                'id,user_id,title,message,type,is_read,created_at,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id')
+                'id,user_id,title,message,type,is_read,created_at,volunteer_name,volunteer_photo_url,rating_provider_id,rating_provider_type,rating_source_type,rating_source_id')
             .or('user_id.eq.$userId,user_id.is.null')
             .order('created_at', ascending: false)
             .limit(12);
@@ -1946,7 +1946,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String? _dashboardAlertPhotoUrl(Map<String, dynamic> item) {
-    final url = (item['provider_photo_url'] ?? '').toString().trim();
+    final type = _normaliseNotificationType(item['type']);
+    final url = type == 'session'
+        ? (item['provider_photo_url'] ?? item['volunteer_photo_url'] ?? '')
+            .toString()
+            .trim()
+        : (item['provider_photo_url'] ?? '').toString().trim();
     return url.isEmpty ? null : url;
   }
 

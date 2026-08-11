@@ -97,7 +97,7 @@ class _SpecialistEditArticleScreenState
       _loadError = null;
     });
     try {
-      final categories = await SupabaseService.getArticleCategories();
+      final categories = await SupabaseService.getLearnTags();
       final groups = await SupabaseService.getReviewGroups();
       final group = groups.firstWhere(
         (g) => g['id'] == widget.article['primary_group_id'],

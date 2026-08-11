@@ -26,6 +26,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   List<String> _allSymptoms = [];
   final Set<String> _selectedSymptoms = {};
 
+  List<String> _allMoods = [];
   String _selectedMood = '';
 
   List<String> _allMilestones = [];
@@ -51,6 +52,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       final options = await SupabaseService.getPregnancyLogOptions();
       if (mounted) {
         setState(() {
+          _allMoods = options['mood'] ?? [];
           _allSymptoms = options['symptom'] ?? [];
           _allMilestones = options['milestone'] ?? [];
           _optionsLoading = false;
@@ -153,21 +155,35 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionCard('😊 Mood', [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: moodOptions.map((m) {
-                  final label = m['label'] as String;
-                  final sel = _selectedMood == label;
-                  return _moodChip(
-                    emoji: m['emoji'] as String,
-                    label: label,
-                    selected: sel,
-                    onTap: () =>
-                        setState(() => _selectedMood = sel ? '' : label),
-                  );
-                }).toList(),
-              ),
+              if (_optionsLoading)
+                const Center(
+                    child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                ))
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ..._allMoods,
+                    if (_selectedMood.isNotEmpty &&
+                        !_allMoods.contains(_selectedMood))
+                      _selectedMood,
+                  ].map((label) {
+                    final sel = _selectedMood == label;
+                    return _moodChip(
+                      emoji: moodEmoji(label),
+                      label: label,
+                      selected: sel,
+                      onTap: () =>
+                          setState(() => _selectedMood = sel ? '' : label),
+                    );
+                  }).toList(),
+                ),
             ]),
             _sectionCard('🤒 Symptoms', [
               if (_optionsLoading)

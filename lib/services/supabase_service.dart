@@ -322,16 +322,19 @@ class SupabaseService {
         .select('category, label')
         .order('category')
         .order('sort_order');
+    final moods = <String>[];
     final symptoms = <String>[];
     final milestones = <String>[];
     for (final row in List<Map<String, dynamic>>.from(res)) {
-      if (row['category'] == 'symptom') {
+      if (row['category'] == 'mood') {
+        moods.add(row['label'] as String);
+      } else if (row['category'] == 'symptom') {
         symptoms.add(row['label'] as String);
       } else if (row['category'] == 'milestone') {
         milestones.add(row['label'] as String);
       }
     }
-    return {'symptom': symptoms, 'milestone': milestones};
+    return {'mood': moods, 'symptom': symptoms, 'milestone': milestones};
   }
 
   static Future<void> createLog(Map<String, dynamic> data) async {
@@ -517,25 +520,14 @@ class SupabaseService {
     return (category, trimester);
   }
 
-  static Future<List<String>> getArticleCategories() async {
-    final articles = await getArticles();
-    final cats = <String>{};
-    for (final a in articles) {
-      final tags = (a['tags'] as List?)?.whereType<String>().toList() ?? [];
-      if (tags.isEmpty) {
-        final c = a['category'] as String?;
-        if (c != null && c.trim().isNotEmpty) cats.add(c.trim());
-      } else {
-        for (final t in tags) {
-          final trimmed = t.trim();
-          if (trimmed.isNotEmpty && !trimesterTags.contains(trimmed)) {
-            cats.add(trimmed);
-          }
-        }
-      }
-    }
-    final list = cats.toList()..sort();
-    return list;
+  static Future<List<String>> getLearnTags() async {
+    final res = await client
+        .from('learn_tags')
+        .select('label')
+        .order('sort_order');
+    return List<Map<String, dynamic>>.from(res)
+        .map((r) => r['label'] as String)
+        .toList();
   }
 
   static Future<Map<String, dynamic>> createArticleDraft({

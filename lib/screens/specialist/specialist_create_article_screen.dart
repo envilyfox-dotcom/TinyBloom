@@ -71,7 +71,7 @@ class _SpecialistCreateArticleScreenState
     });
     try {
       final group = await SupabaseService.getMyPrimaryGroup();
-      final categories = await SupabaseService.getArticleCategories();
+      final categories = await SupabaseService.getLearnTags();
       if (mounted) {
         setState(() {
           _myGroup = group;
