@@ -5,6 +5,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/checklist_data.dart';
 import '../../widgets/common_widgets.dart';
 
+// Shared to-do list a next-of-kin can check off (and edit) to help prep
+// for the pregnancy, grouped by trimester phase.
 class NextOfKinChecklistScreen extends StatefulWidget {
   const NextOfKinChecklistScreen({super.key});
   @override
@@ -72,6 +74,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
     }
   }
 
+  // Keep a copy of the current state so we can restore it if edits get
+  // cancelled.
   void _startEditing() {
     setState(() {
       _phasesSnapshot = _phases.map((p) => p.copy()).toList();
@@ -87,6 +91,8 @@ class _NextOfKinChecklistScreenState extends State<NextOfKinChecklistScreen> {
     });
   }
 
+  // Diffs the edited list against the snapshot to figure out what's new,
+  // changed or removed, then pushes just those changes to Supabase.
   Future<void> _saveEditing() async {
     final snapshotById = <String, ChecklistItem>{};
     for (final p in _phasesSnapshot!) {

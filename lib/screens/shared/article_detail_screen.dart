@@ -33,6 +33,8 @@ List<String> _articleTags(Map<String, dynamic> article) {
 
 const _approvedGreen = Color(0xFF2E9E5B);
 
+// Full article view with likes, comments/replies, and a panel showing
+// which specialists approved the article (for reviewed content).
 class ArticleDetailScreen extends StatefulWidget {
   final Map<String, dynamic> article;
   const ArticleDetailScreen({super.key, required this.article});
@@ -86,6 +88,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     } catch (_) {}
   }
 
+  // Update the UI immediately, then sync to Supabase — roll back the
+  // like/count if the request fails so we don't show a false state.
   Future<void> _toggleLike() async {
     final id = _articleId;
     if (id == null) return;
@@ -156,6 +160,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     }
   }
 
+  // Replies are flattened to one level — replying to a reply still attaches
+  // to the original top-level comment, not the reply itself.
   String _topLevelParentId(Map<String, dynamic> comment) =>
       (comment['parent_comment_id'] as String?) ?? comment['id'] as String;
 

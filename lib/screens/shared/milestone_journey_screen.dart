@@ -4,6 +4,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// Hardcoded timeline of pregnancy milestones by week, grouped by trimester.
 const _milestoneJourney = [
   {
     'week': 4,
@@ -111,6 +112,8 @@ const _milestoneJourney = [
   },
 ];
 
+// Full timeline view of pregnancy milestones, with the user's current
+// week highlighted along the way.
 class MilestoneJourneyScreen extends StatefulWidget {
   const MilestoneJourneyScreen({super.key});
   @override
@@ -161,6 +164,8 @@ class _MilestoneJourneyScreenState extends State<MilestoneJourneyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Find the latest milestone at or before the current week — that's the
+    // one we tag as "Current" in the timeline.
     int? currentMilestoneWeek;
     for (final m in _milestoneJourney) {
       if ((m['week'] as int) <= _currentWeek) {

@@ -9,6 +9,8 @@ import '../../utils/service_id.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
 
+// Lists a volunteer's video call consultations (accepted requests), split
+// into Upcoming and Completed tabs.
 class VolunteerSessionsScreen extends StatefulWidget {
   final int initialTab;
   final bool completedOnly;
@@ -49,6 +51,7 @@ class _VolunteerSessionsScreenState extends State<VolunteerSessionsScreen>
           .eq('call_status', 'accepted')
           .order('last_activity_at', ascending: false);
       final calls = List<Map<String, dynamic>>.from(callRows);
+      // Pull in each mum's profile + pregnancy info so the card can show name/age/week.
       await Future.wait(calls.map((c) async {
         final patientId = c['patient_id'] as String?;
         if (patientId == null) return;
@@ -188,6 +191,8 @@ class _VideoCallSessionCard extends StatelessWidget {
 
   static final _urlPattern = RegExp(r'https?://\S+');
 
+  // The meeting_link field can contain extra text (e.g. meeting ID/passcode),
+  // so pull out just the URL before launching it.
   Future<void> _joinCall(BuildContext context) async {
     final text = session['meeting_link']?.toString().trim() ?? '';
     final match = _urlPattern.firstMatch(text)?.group(0);

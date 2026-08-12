@@ -69,6 +69,8 @@ import 'shared/notifications_screen.dart';
 final router = GoRouter(
   initialLocation: '/splash',
   refreshListenable: authProvider,
+  // Auth gate: bounces people to login/onboarding/home depending on session
+  // state. Runs on every navigation since it's wired to authProvider above.
   redirect: (context, state) {
     final auth = context.read<AuthProvider>();
     final loc = state.matchedLocation;
@@ -97,6 +99,9 @@ final router = GoRouter(
           if (auth.isSpecialist) return const SpecialistOnboardingScreen();
           return const MumOnboardingScreen();
         }),
+    // Everything inside here gets the bottom-nav shell. We figure out which
+    // tab should be highlighted from the current URL since each role has a
+    // different tab layout (see AppShell).
     ShellRoute(
       builder: (context, state, child) {
         final location = state.matchedLocation;
@@ -394,6 +399,9 @@ final router = GoRouter(
   ],
 );
 
+// The /consultation/detail/:id route only gets an id, not the full record
+// (e.g. from a push notification), so this fetches it from Supabase first
+// before handing off to the real detail screen.
 class _ConsultationDetailLoaderScreen extends StatefulWidget {
   final String consultationId;
 
@@ -470,6 +478,7 @@ class _ConsultationDetailLoaderScreenState
   }
 }
 
+// Shown when a consultation link/id doesn't resolve to anything.
 class _ConsultationNotFoundScreen extends StatelessWidget {
   const _ConsultationNotFoundScreen();
 
@@ -515,6 +524,7 @@ class _ConsultationNotFoundScreen extends StatelessWidget {
   }
 }
 
+// Just a spinner while we check if there's a logged-in session.
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
   @override

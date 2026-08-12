@@ -39,9 +39,8 @@ String? volunteerExpertise(Map<String, dynamic>? profile) {
   return expertise != null && expertise.isNotEmpty ? expertise : null;
 }
 
-/// [forumRoleLabel], with a volunteer's expertise appended after a bullet
-/// (e.g. "Volunteer • Breastfeeding Support") so readers can see at a
-/// glance what they're likely to be helpful about.
+// Role label with a volunteer's expertise tacked on, e.g.
+// "Volunteer • Breastfeeding Support".
 String forumRoleSubtitle(Map<String, dynamic>? profile) {
   final label = forumRoleLabel(profile?['role'] as String?);
   final expertise = volunteerExpertise(profile);
@@ -49,8 +48,8 @@ String forumRoleSubtitle(Map<String, dynamic>? profile) {
   return '$label • $expertise';
 }
 
-/// Author avatar for a forum post/comment: the poster's real profile photo
-/// when they have one, falling back to their initial on a tinted circle.
+// Author avatar for a post/comment: their profile photo if they have one,
+// otherwise their initial on a tinted circle.
 Widget forumAvatar({
   required Map<String, dynamic>? profile,
   required String name,

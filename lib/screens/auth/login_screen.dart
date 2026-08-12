@@ -5,6 +5,8 @@ import '../../services/auth_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// The sign-in screen. Also doubles as a guard against admins logging into
+// the mobile app - admins are meant to use the website instead.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -41,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
       return;
     }
+    // Admins aren't meant to use the app - sign them back out immediately.
     if (auth.isAdmin) {
       await auth.signOut();
       if (!mounted) return;

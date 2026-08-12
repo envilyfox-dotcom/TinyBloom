@@ -7,6 +7,7 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
 import 'consultation_helpers.dart';
 
+// Final review screen before actually booking (or rescheduling) a consultation.
 class ConfirmConsultationScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
@@ -38,6 +39,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
 
   bool get _isReschedule => widget.consultationId != null;
 
+  // Either creates a new consultation or updates the existing one, depending
+  // on whether we got here from a reschedule flow.
   Future<void> _confirm() async {
     setState(() => _submitting = true);
     try {

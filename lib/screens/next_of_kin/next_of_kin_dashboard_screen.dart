@@ -13,6 +13,8 @@ import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/quick_chat_volunteer.dart';
 
+// Home screen for next-of-kin users: shows the linked mum's pregnancy
+// progress, active alerts, the shared checklist, and quick links.
 class NextOfKinDashboardScreen extends StatefulWidget {
   const NextOfKinDashboardScreen({super.key});
 
@@ -36,6 +38,7 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
   bool _loading = true;
   DateTime? _lastNavTime;
 
+  // Simple debounce so double-tapping a card doesn't push the same route twice.
   bool _canNav() {
     final now = DateTime.now();
     if (_lastNavTime != null &&
@@ -201,6 +204,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
         (pregnancyWeekData[week]?['highlight'] ?? 'Growing strong');
   }
 
+  // Trimesters are weeks 1-12, 13-27, 28-40 — progress is relative to
+  // whichever trimester the current week falls into.
   double get _trimesterProgress {
     final week = _linkedMumWeek;
     if (week <= 12) return week / 12;
@@ -739,6 +744,8 @@ class _NextOfKinDashboardScreenState extends State<NextOfKinDashboardScreen> {
     String subtitle,
     VoidCallback onTap,
   }) _previewFieldsForSource(NextOfKinAlertSource s) {
+    // Same idea as the alerts screen's alert-building switch, but returns
+    // just the bits needed for the compact dashboard preview card.
     switch (s.type) {
       case 'emergency':
         final log = s.log!;

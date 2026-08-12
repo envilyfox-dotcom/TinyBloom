@@ -32,6 +32,9 @@ class ChecklistPhase {
   List<ChecklistItem> get allItems => [for (final c in categories) ...c.items];
 }
 
+// Supabase gives us a flat list of checklist item rows; this groups them
+// back into phases -> categories -> items, keeping the order things first
+// appear in (not alphabetical) so it matches how they were set up in the db.
 List<ChecklistPhase> phasesFromRows(List<Map<String, dynamic>> rows) {
   final phaseOrder = <String>[];
   final phaseEmojis = <String, String>{};
@@ -79,6 +82,7 @@ int phaseTotal(ChecklistPhase phase) =>
 int phaseDone(ChecklistPhase phase) => phase.categories
     .fold(0, (sum, c) => sum + c.items.where((i) => i.isCompleted).length);
 
+// Remembers which checklist phase tab the user last had open.
 const _kCurrentPhaseIndexKey = 'next_of_kin_current_checklist_phase_index';
 
 Future<int> getCurrentChecklistPhaseIndex() async {

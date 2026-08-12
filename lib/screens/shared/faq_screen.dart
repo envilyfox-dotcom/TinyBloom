@@ -3,6 +3,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// General FAQ list (all categories), filterable by category chips.
 class FaqScreen extends StatefulWidget {
   const FaqScreen({super.key});
   @override

@@ -1,6 +1,8 @@
 import 'package:intl/intl.dart';
 import 'singapore_time.dart';
 
+// Availability strings are stored as "yyyy-MM-dd | <timing>"; this reformats
+// just the date part to dd/MM/yyyy for display, leaving the timing as-is.
 String formatAvailabilityDisplay(String? availability) {
   if (availability == null || availability.isEmpty) return availability ?? '';
   if (!availability.contains(' | ')) return availability;
@@ -20,10 +22,10 @@ const _availabilityTimingEndHour = {
   'Night (6PM - 9PM)': 21,
 };
 
-/// Parses a `yyyy-MM-dd | <timing>` availability string into the Singapore
-/// wall-clock instant it ends, or null if it can't be parsed. `<timing>`
-/// is either a free-form range like `9:00 AM - 10:00 AM` or one of the
-/// named blocks in [_availabilityTimingEndHour].
+// Parses a "yyyy-MM-dd | <timing>" availability string into the Singapore
+// wall-clock instant it ends, or null if it can't be parsed. <timing> is
+// either a free-form range like "9:00 AM - 10:00 AM" or one of the named
+// blocks in _availabilityTimingEndHour.
 DateTime? parseAvailabilityEndTime(String? availability) {
   if (availability == null || !availability.contains(' | ')) return null;
   final parts = availability.split(' | ');
@@ -51,19 +53,19 @@ DateTime? parseAvailabilityEndTime(String? availability) {
   return null;
 }
 
-/// True once the slot described by [availability] has ended, relative to
-/// [now] (defaults to the current Singapore time). Used to hide/exclude
-/// listings that a volunteer hasn't manually marked as done yet.
+// True once the slot described by `availability` has ended, relative to
+// `now` (defaults to the current Singapore time). Used to hide listings a
+// volunteer hasn't manually marked as done yet but whose time has passed.
 bool isAvailabilityExpired(String? availability, {DateTime? now}) {
   final endsAt = parseAvailabilityEndTime(availability);
   if (endsAt == null) return false;
   return (now ?? sgtNow()).isAfter(endsAt);
 }
 
-/// True when a `type: 'services'` notification row should no longer be
-/// shown: either its snapshotted slot has expired, or it predates the
-/// `service_availability` column and carries no snapshot to check at all
-/// (a legacy row that can never be verified as still relevant).
+// True when a `type: 'services'` notification row should no longer be
+// shown: either its snapshotted slot has expired, or it's a legacy row from
+// before the service_availability column existed, so there's no snapshot
+// to check and we can't tell if it's still relevant.
 bool isStaleServiceNotification(Map<String, dynamic> item) {
   if (item['type'] != 'services') return false;
   final availability = item['service_availability'] as String?;

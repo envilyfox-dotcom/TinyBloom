@@ -5,6 +5,7 @@
 -- Without this, an edit would fail the same way pregnancy_logs inserts used
 -- to: RLS silently rejects rows with no policy covering the command.
 
+-- lets a user edit their own forum posts, nobody else's
 create policy "Users can update their own posts"
 on public.forum_posts
 for update

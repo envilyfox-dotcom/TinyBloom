@@ -6,6 +6,7 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
 import 'logs_shared.dart';
 
+// Form for creating or editing a daily health log (mood, symptoms, milestones, weight, notes).
 class CreateLogScreen extends StatefulWidget {
   final Map<String, dynamic>? existing;
   const CreateLogScreen({super.key, this.existing});
@@ -51,6 +52,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     _loadOptions();
   }
 
+  // Prefills weight from the pregnancy profile so she doesn't have to
+  // retype it for every new log.
   Future<void> _prefillWeightFromProfile() async {
     try {
       final profile = await SupabaseService.getPregnancyProfile();

@@ -5,6 +5,8 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import '../consultation/consultation_helpers.dart';
 
+// Star-rating screen shown after a completed consultation/question, reached
+// from a "Rate Dr X" / "Rate [volunteer]" notification.
 class RateProviderScreen extends StatefulWidget {
   final Map<String, dynamic> notification;
   const RateProviderScreen({super.key, required this.notification});

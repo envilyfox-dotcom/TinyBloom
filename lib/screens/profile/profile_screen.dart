@@ -7,6 +7,8 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// Profile tab: avatar/name/role card, user ID (for linking next-of-kin
+// accounts), and the menu of account actions.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
   @override
@@ -220,6 +222,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+// Edit name/email/phone, and optionally change password. Email and password
+// changes go through Supabase auth separately from the profile table update.
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? profile;
   const EditProfileScreen({super.key, this.profile});
@@ -380,6 +384,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
+// Bottom sheet for submitting a star rating + written feedback. Saved as an
+// unpublished testimonial until an admin approves it.
 class _FeedbackSheet extends StatefulWidget {
   const _FeedbackSheet();
 

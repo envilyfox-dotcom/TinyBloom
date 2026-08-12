@@ -4,6 +4,8 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// Lets a user request a password reset email. Just an email form that
+// swaps to a "check your email" state once Supabase confirms it sent one.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
   @override

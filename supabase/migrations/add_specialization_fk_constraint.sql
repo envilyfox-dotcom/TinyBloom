@@ -1,5 +1,5 @@
--- Run in the Supabase SQL editor, AFTER fix_specialty_id_matching.sql, and
--- only once that file's final diagnostic query returns zero rows.
+-- Run after fix_specialty_id_matching.sql, and only once that file's final
+-- diagnostic query returns zero rows.
 --
 -- Guarantees the "?" (Unassigned) group bug can't silently recur: any
 -- future insert/update that sets specialist_profiles.specialization to

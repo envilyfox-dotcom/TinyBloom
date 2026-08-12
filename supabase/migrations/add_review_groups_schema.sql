@@ -1,17 +1,17 @@
 -- Run in the Supabase SQL editor.
--- Part 1 of the specialist article review pipeline: formalizes specialties
--- into the 5 review groups described in Article_System_specialist.md §2.
--- `specialist_profiles.specialization` is a fixed dropdown value written by
--- the website's registration/edit flow (no free text, no typos) — this adds
--- a `specialty_id` FK derived from it via exact match, kept in sync
--- automatically by a trigger below, so review-group membership is never
--- computed by ad-hoc string matching at query time (required by §7.6).
+-- First part of the specialist article review pipeline: sets up the 5
+-- review groups from Article_System_specialist.md §2.
+-- specialist_profiles.specialization is a fixed dropdown (no free text, no
+-- typos), so we can map it to a specialty_id FK via exact match and keep it
+-- synced with a trigger below, instead of matching strings at query time.
 
+-- master list of specialties (matches the registration form's dropdown)
 create table if not exists public.specialties (
   id serial primary key,
   name text not null unique
 );
 
+-- the 5 groups doctors get bucketed into for review purposes
 create table if not exists public.review_groups (
   id serial primary key,
   name text not null unique
@@ -32,6 +32,7 @@ create table if not exists public.group_secondary_map (
   primary key (primary_group_id, secondary_group_id)
 );
 
+-- points each specialist at their derived review-group specialty
 alter table public.specialist_profiles
   add column if not exists specialty_id integer references public.specialties(id);
 

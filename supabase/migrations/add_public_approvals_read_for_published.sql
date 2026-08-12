@@ -1,11 +1,10 @@
--- Run in the Supabase SQL editor, after add_content_review_pipeline.sql.
+-- Run after add_content_review_pipeline.sql.
 -- Lets any authenticated user (not just review-scope doctors) see who
 -- approved a *published* article, for the "Approved by" panel on the public
 -- Educational Post detail screen. Postgres ORs every permissive policy for
--- the same command together, so this only ever ADDS visibility — approvals
+-- the same command together, so this only ever adds visibility — approvals
 -- on content that hasn't published yet stay restricted to review-scope
 -- doctors via the existing "Review-scope doctors can view approvals" policy.
-
 drop policy if exists "Anyone can view approvals on published articles" on public.approvals;
 create policy "Anyone can view approvals on published articles"
 on public.approvals for select to authenticated

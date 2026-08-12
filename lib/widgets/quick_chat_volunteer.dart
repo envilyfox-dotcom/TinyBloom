@@ -7,6 +7,9 @@ import '../utils/app_theme.dart';
 import '../utils/singapore_time.dart';
 import 'common_widgets.dart';
 
+// Volunteer question rows can come from a few different queries/views that
+// don't all use the same column names, so most helpers below just try a
+// list of possible keys and take whichever one is actually populated.
 String firstNonEmptyText(List<dynamic> values) {
   for (final value in values) {
     final text = value?.toString().trim() ?? '';
@@ -34,6 +37,8 @@ String _joinPreviewParts(List<String> parts) {
       .join(' • ');
 }
 
+// Which column actually holds the volunteer's id depends on which query
+// produced this row - try them in order.
 String? quickChatVolunteerId(Map<String, dynamic> q) {
   final id = firstNonEmptyText([
     q['volunteer_id'],
@@ -49,6 +54,9 @@ String? quickChatVolunteerId(Map<String, dynamic> q) {
   return id.isEmpty ? null : id;
 }
 
+// Same idea as quickChatVolunteerId: try a flat column first, then fall
+// back to digging through whichever joined/nested object this row has
+// (some queries embed "profiles" a level deeper than others).
 String quickChatVolunteerName(Map<String, dynamic> q) {
   final direct = firstNonEmptyText([
     q['volunteer_name'],
@@ -134,6 +142,7 @@ String? quickChatVolunteerPhotoUrl(Map<String, dynamic> q) {
   return null;
 }
 
+// The mum's original question text, whichever column it's stored under.
 String quickChatQuestionText(Map<String, dynamic> q) {
   final text = firstNonEmptyText([
     q['question'],
@@ -145,6 +154,9 @@ String quickChatQuestionText(Map<String, dynamic> q) {
   return text.isEmpty ? 'No question details available.' : text;
 }
 
+// The volunteer's latest reply, if any. Some rows echo the question back
+// into what would otherwise look like a "reply" field, so we treat that
+// as no reply rather than showing the question twice.
 String quickChatLatestReplyText(Map<String, dynamic> q) {
   final question = quickChatQuestionText(q);
   final reply = firstNonEmptyText([
@@ -163,6 +175,8 @@ String quickChatLatestReplyText(Map<String, dynamic> q) {
   return reply;
 }
 
+// Human-readable status label. Different backends/flows use different
+// status strings for the same state, so this groups the synonyms together.
 String quickChatStatusText(Map<String, dynamic> q) {
   final status = (q['status'] ?? '').toString().trim().toLowerCase();
   final reply = quickChatLatestReplyText(q);
@@ -188,6 +202,8 @@ bool quickChatIsEnded(Map<String, dynamic> q) {
   return status == 'closed' || status == 'completed' || status == 'resolved';
 }
 
+// Colour to match quickChatStatusText - keep the two in sync if you change
+// either.
 Color quickChatStatusColor(Map<String, dynamic> q) {
   final status = (q['status'] ?? '').toString().trim().toLowerCase();
   final reply = quickChatLatestReplyText(q);
@@ -222,6 +238,8 @@ String quickChatTimeText(Map<String, dynamic> q) {
   return DateFormat('d MMM, h:mm a').format(parsed);
 }
 
+// One-line preview shown in list cards: status, time, and either the
+// latest reply or the original question if there's no reply yet.
 String quickChatPreviewText(Map<String, dynamic> q) {
   final question = quickChatQuestionText(q);
   final reply = quickChatLatestReplyText(q);
@@ -235,6 +253,10 @@ String quickChatPreviewText(Map<String, dynamic> q) {
   ]);
 }
 
+// Looks up a volunteer's display name/photo by id, for rows where that
+// wasn't already embedded in the query result. Tries the dedicated provider
+// profile endpoint first, then falls back to querying `profiles` directly
+// if that comes back empty.
 Future<Map<String, String?>> loadQuickChatProviderDisplay(
   String? providerId, {
   required String fallbackName,
@@ -292,6 +314,8 @@ Future<Map<String, String?>> loadQuickChatProviderDisplay(
   return {'name': fallbackName, 'photo_url': null};
 }
 
+// Fills in missing volunteer name/photo for each question (by looking them
+// up when needed) and sorts the list newest-activity-first.
 Future<List<Map<String, dynamic>>> enrichQuickChatQuestions(
   List<Map<String, dynamic>> questions,
 ) async {
@@ -352,6 +376,9 @@ Future<List<Map<String, dynamic>>> enrichQuickChatQuestions(
   return enriched;
 }
 
+// List-item card for a single quick-chat question, shown on the home/
+// consultation screens. Tapping it opens the full chat and reloads on
+// return in case the volunteer replied while it was open.
 class QuickChatPreviewCard extends StatelessWidget {
   final Map<String, dynamic> question;
   final Future<void> Function() onReload;
@@ -500,6 +527,8 @@ class QuickChatPreviewCard extends StatelessWidget {
   }
 }
 
+// "Quick Chat with Volunteer" section on the home screen: a short list of
+// the most recent quick-chat questions, or an empty state if none.
 class QuickChatVolunteerSection extends StatelessWidget {
   final List<Map<String, dynamic>> questions;
   final Future<void> Function() onReload;

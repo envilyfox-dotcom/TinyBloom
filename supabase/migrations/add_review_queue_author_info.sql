@@ -43,6 +43,7 @@ as $$
         ))
       ))
     ) as needs_action,
+    -- author's name/photo/specialization, bundled up for the list item header
     jsonb_build_object(
       'full_name', p.full_name,
       'profile_picture_url', p.profile_picture_url,

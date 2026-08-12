@@ -1,21 +1,14 @@
--- Run in the Supabase SQL editor.
---
--- Superseded approach: the original version of this file added a plain
--- UPDATE policy letting a linked next-of-kin update the mum's profiles row.
--- That's broader than intended — RLS filters which ROWS a policy applies
--- to, not which COLUMNS get written, and column-level GRANTs are shared by
--- every caller of that table (including the mum editing her own profile),
--- so there's no way to say "self-edits can touch any column, but a linked
--- next-of-kin may only touch subscription_plan/role" using RLS + GRANT
--- alone without also breaking the mum's own Edit Profile screen.
---
--- Instead, this exposes a single narrow RPC function that performs exactly
--- the gifting operation (and nothing else), checks the link itself, and
--- runs as SECURITY DEFINER so it can write the target row without needing a
--- general-purpose UPDATE policy on profiles at all.
+-- A plain RLS UPDATE policy can't limit a next-of-kin to only touching
+-- subscription_plan/role on the mum's profile without also affecting the
+-- mum's own Edit Profile screen (RLS controls which rows, not which columns).
+-- So instead we drop that policy and use a narrow function that only does
+-- the gifting update, checks the link itself, and runs as security definer
+-- so it doesn't need a general UPDATE policy on profiles at all.
 
+-- remove the old, too-broad update policy
 drop policy if exists "Next of kin can gift subscription to linked mum" on public.profiles;
 
+-- lets a next-of-kin gift a plan to the mum they're linked to, nothing else
 create or replace function public.gift_subscription_to_linked_mum(mum_id uuid, plan text)
 returns void
 language plpgsql
@@ -40,5 +33,6 @@ begin
 end;
 $$;
 
+-- lock it down so only signed-in users can call it
 revoke all on function public.gift_subscription_to_linked_mum(uuid, text) from public;
 grant execute on function public.gift_subscription_to_linked_mum(uuid, text) to authenticated;

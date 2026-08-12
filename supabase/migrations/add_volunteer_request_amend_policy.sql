@@ -5,6 +5,7 @@
 -- from under their answer would be confusing, so this policy (and the app)
 -- both block edits once status = 'responded'.
 
+-- mum can edit her own question's text, but only before a volunteer has replied
 create policy "Users can amend their own pending question"
 on public.volunteer_requests
 for update

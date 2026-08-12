@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// Debounced so a double-tap doesn't open the same article/link twice.
 DateTime? _lastArticleOpen;
+
+// Articles with an external URL open in the browser; everything else opens
+// in our own article detail screen.
 Future<void> openArticle(
     BuildContext context, Map<String, dynamic> article) async {
   final now = DateTime.now();

@@ -1,8 +1,4 @@
--- Run in the Supabase SQL editor.
---
--- Allow specialists to update their own consultation rows, for example when
--- approving a pending appointment.
-
+-- lets a specialist update only the consultations assigned to them, e.g. approving a pending appointment
 create policy "Specialists can update their own consultations"
   on public.consultations
   for update

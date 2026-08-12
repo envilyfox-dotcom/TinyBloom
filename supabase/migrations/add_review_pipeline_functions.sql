@@ -1,13 +1,14 @@
 -- Run in the Supabase SQL editor, after add_content_review_pipeline.sql.
--- Part 3 of the specialist article review pipeline: the RPC functions the
--- Flutter app calls for every state transition, plus the scheduled job for
--- the 24h publish buffer. These are the ONLY way approvals/rejects/
--- emergency-pending rows get written or `articles.status` moves between
--- review states — the app never writes those directly, so every rule in
--- Article_System_specialist.md §7 is enforced here, not just in the UI.
+-- Third part of the specialist article review pipeline: the RPC functions
+-- the Flutter app calls for every review step (approve/reject/resubmit/
+-- emergency recall), plus the scheduled job for the 24h publish buffer.
+-- The app never writes to approvals/articles.status directly — it always
+-- goes through these, so the rules in Article_System_specialist.md §7 are
+-- enforced here in the DB, not just in the UI.
 
--- ── Safety-net triggers (defense in depth even though the RPCs below are the
---    only insert path today) ─────────────────────────────────────────────
+-- ── Safety-net triggers (belt and braces — the RPCs below already check this,
+--    but this catches it even if something inserts into approvals directly) ──
+-- blocks the same doctor from approving both stage 1 and stage 2 of the same article
 create or replace function public.enforce_reviewer_2_distinct()
 returns trigger
 language plpgsql
@@ -33,6 +34,7 @@ create trigger approvals_enforce_reviewer_2_distinct
 before insert on public.approvals
 for each row execute function public.enforce_reviewer_2_distinct();
 
+-- stops the same doctor from flagging the same article for emergency recall twice
 create or replace function public.enforce_emergency_click_distinct()
 returns trigger
 language plpgsql
@@ -54,6 +56,8 @@ before insert on public.emergency_pending_clicks
 for each row execute function public.enforce_emergency_click_distinct();
 
 -- ── Approval 1 / Approval 2 ──────────────────────────────────────────────
+-- stage 1: only a primary-group doctor can approve. stage 2: any primary or
+-- secondary group doctor can approve, as long as they're not the stage-1 reviewer
 create or replace function public.approve_content(p_content_id uuid, p_stage smallint)
 returns void
 language plpgsql
@@ -122,6 +126,8 @@ begin
 end;
 $$;
 
+-- same reviewer rules as approve_content, but sends the article back to changes_requested
+-- (or, for a stage-2 clinical reject, all the way back to pending_approval_1 — see below)
 create or replace function public.reject_content(
   p_content_id uuid,
   p_stage smallint,
@@ -239,6 +245,8 @@ end;
 $$;
 
 -- ── Emergency pending (recall during the publish buffer) ────────────────
+-- any primary/secondary group doctor can flag an article mid-buffer; needs
+-- 2 different doctors to actually pull it back for re-review (see below)
 create or replace function public.trigger_emergency_pending(
   p_content_id uuid,
   p_category text,
@@ -313,6 +321,7 @@ end;
 $$;
 
 -- ── Scheduled 24h auto-publish ───────────────────────────────────────────
+-- cron job: auto-publishes anything that's sat in the buffer 24h+ without a second emergency flag
 create or replace function public.process_buffer_expirations()
 returns void
 language plpgsql

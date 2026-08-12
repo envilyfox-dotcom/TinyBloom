@@ -7,6 +7,7 @@ import '../../services/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 
+// Read-only account details screen for a volunteer, with edit and sign-out entry points.
 class VolunteerProfileScreen extends StatefulWidget {
   const VolunteerProfileScreen({super.key});
 

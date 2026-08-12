@@ -5,6 +5,8 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 
+// Lists community volunteers a mum can book — same idea as the specialists
+// list but free to everyone, no premium gate.
 class VolunteersListScreen extends StatefulWidget {
   const VolunteersListScreen({super.key});
   @override

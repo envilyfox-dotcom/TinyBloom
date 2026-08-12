@@ -8,6 +8,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/specialist_availability.dart';
 import '../../widgets/common_widgets.dart';
 
+// Specialist's own profile page - credentials, bio, available hours, and
+// article activity stats, with links to edit profile and sign out.
 class SpecialistProfileScreen extends StatefulWidget {
   const SpecialistProfileScreen({super.key});
 
@@ -29,6 +31,7 @@ class _SpecialistProfileScreenState extends State<SpecialistProfileScreen> {
     _load();
   }
 
+  // Loads the profile, specialist-specific profile, and article counts shown on screen.
   Future<void> _load() async {
     Map<String, dynamic>? profile;
     Map<String, dynamic>? specialistProfile;

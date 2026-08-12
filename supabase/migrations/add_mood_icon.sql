@@ -11,9 +11,12 @@
 -- moods using the emoji they already had in moodOptions so nothing visibly
 -- changes for them.
 
+-- new column so each mood option carries its own emoji
 alter table public.pregnancy_log_options
   add column if not exists icon text;
 
+-- backfill the emoji the existing default moods already had, so nothing
+-- visibly changes for them
 update public.pregnancy_log_options set icon = case label
   when 'Happy' then '😊'
   when 'Excited' then '🥰'

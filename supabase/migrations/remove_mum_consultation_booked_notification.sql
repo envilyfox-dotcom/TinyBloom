@@ -9,6 +9,7 @@
 -- notifications_screen.dart's _loadRowsFromConsultationsTable) — and mums
 -- don't want it. The specialist-facing notification is untouched.
 
+-- redefine the trigger so it only notifies the specialist, not the mum
 create or replace function public.create_consultation_notification()
 returns trigger
 language plpgsql

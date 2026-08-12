@@ -10,6 +10,7 @@
 -- public-read policies already gate on it, so nothing else needs to change
 -- for public visibility) and only needs these 5 new intermediate states.
 
+-- the 5 new stages an article moves through between draft and published
 alter type public.content_status add value if not exists 'pending_approval_1';
 alter type public.content_status add value if not exists 'pending_approval_2';
 alter type public.content_status add value if not exists 'publish_buffer';

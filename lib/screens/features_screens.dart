@@ -11,6 +11,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 
+// Opens an article - either an external link or the in-app detail screen.
+// The timestamp guard below stops a fast double-tap from opening it twice.
 DateTime? _lastArticleOpen;
 void _openArticle(BuildContext context, Map<String, dynamic> article) {
   final now = DateTime.now();
@@ -28,6 +30,7 @@ void _openArticle(BuildContext context, Map<String, dynamic> article) {
   }
 }
 
+// FAQ list, grouped into category filter chips.
 class FaqScreen extends StatefulWidget {
   const FaqScreen({super.key});
   @override
@@ -147,6 +150,7 @@ class _FaqScreenState extends State<FaqScreen> {
   }
 }
 
+// Browsable/searchable list of educational articles.
 class EducationScreen extends StatefulWidget {
   const EducationScreen({super.key});
   @override
@@ -166,6 +170,8 @@ class _EducationScreenState extends State<EducationScreen> {
     _load();
   }
 
+  // Waits 250ms after typing stops before actually filtering, so we're not
+  // re-filtering on every keystroke.
   void _onSearchChanged(String v) {
     _searchDebounce?.cancel();
     _searchDebounce =
@@ -353,6 +359,8 @@ class _EducationScreenState extends State<EducationScreen> {
   }
 }
 
+// Full article view for articles that have their own content (as opposed to
+// link-out articles, which open externally via _openArticle instead).
 class ArticleDetailScreen extends StatelessWidget {
   final Map<String, dynamic> article;
   const ArticleDetailScreen({super.key, required this.article});
@@ -413,6 +421,8 @@ class ArticleDetailScreen extends StatelessWidget {
   }
 }
 
+// Two-tab screen: a list of the user's consultations, and a "book new one"
+// tab for picking a specialist or volunteer.
 class ConsultationScreen extends StatefulWidget {
   const ConsultationScreen({super.key});
   @override
@@ -676,6 +686,10 @@ String _consultationTypeLabel(String? type) {
   return '${type[0].toUpperCase()}${type.substring(1)} Consultation 1-1';
 }
 
+// NOTE: this is a separate, simpler chatbot screen with hardcoded
+// keyword-matched replies (see _getResponse below) - not the one actually
+// wired up in router.dart, which is premium/chatbot_screen.dart and calls
+// a real AI backend.
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
   @override
@@ -721,6 +735,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     }
   }
 
+  // Not a real AI call - just keyword matching against a handful of canned answers.
   String _getResponse(String q) {
     if (q.contains('food') || q.contains('eat') || q.contains('avoid')) {
       return 'During pregnancy, avoid raw fish/sushi, unpasteurised cheeses, deli meats, high-mercury fish, and undercooked eggs. Focus on folate-rich foods, lean proteins, dairy, and plenty of fruits and vegetables. 🥗';
@@ -983,6 +998,8 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
       child: const CircleAvatar(radius: 4, backgroundColor: AppColors.teal));
 }
 
+// Shows current plan (free/premium) and lets the user subscribe, switch
+// plans, or cancel.
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
   @override
@@ -1256,6 +1273,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 }
 
+// Card for a specialist or volunteer, used by both list screens below.
 Widget _providerCard(
     BuildContext context, Map<String, dynamic> provider, String type) {
   final profile = provider['profiles'] as Map<String, dynamic>? ?? {};
@@ -1387,6 +1405,7 @@ Widget _providerCard(
   );
 }
 
+// Browsable list of specialists to book a consultation with (premium-only).
 class SpecialistsListScreen extends StatefulWidget {
   const SpecialistsListScreen({super.key});
   @override
@@ -1493,6 +1512,7 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
   }
 }
 
+// Same idea as SpecialistsListScreen but for volunteers, and free for everyone.
 class VolunteersListScreen extends StatefulWidget {
   const VolunteersListScreen({super.key});
   @override
@@ -1591,6 +1611,7 @@ class _VolunteersListScreenState extends State<VolunteersListScreen> {
   }
 }
 
+// Pick a date and time slot with the chosen provider, then move on to confirm.
 class ConsultationBookingScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
@@ -1744,6 +1765,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     );
   }
 
+  // Builds a simple month-grid calendar. leadingBlanks pads the start of the
+  // grid so the 1st of the month lands under the right weekday column.
   Widget _buildCalendar() {
     final firstDayOfMonth = DateTime(_month.year, _month.month, 1);
     final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
@@ -1835,6 +1858,7 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
   }
 }
 
+// Final review step before actually creating the consultation booking.
 class ConfirmConsultationScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
@@ -2049,6 +2073,8 @@ class _ConfirmConsultationScreenState extends State<ConfirmConsultationScreen> {
   }
 }
 
+// Week-by-week baby development info (size, weight, milestones) based on
+// the mum's due date. Premium-only feature.
 class BabyDevelopmentScreen extends StatefulWidget {
   const BabyDevelopmentScreen({super.key});
 
@@ -2098,6 +2124,7 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
       final data = await SupabaseService.getPregnancyProfile();
       if (data != null && mounted) {
         if (data['due_date'] != null) {
+          // Pregnancy runs ~280 days; days-until-due tells us how far along we are.
           final due = DateTime.parse(data['due_date']);
           final now = DateTime.now();
           final daysUntilDue = due.difference(now).inDays;
@@ -2538,6 +2565,8 @@ const _milestoneJourney = [
   },
 ];
 
+// Timeline view of the whole pregnancy journey's key milestones, with the
+// current week's milestone highlighted. Premium-only feature.
 class MilestoneJourneyScreen extends StatefulWidget {
   const MilestoneJourneyScreen({super.key});
   @override

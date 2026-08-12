@@ -15,6 +15,9 @@ import '../mum/consultation/consultation_helpers.dart';
 import 'volunteer_requests_screen.dart';
 import 'volunteer_services_screen.dart';
 
+// The volunteer's home screen: greeting, quick stats, and previews of their
+// upcoming sessions, posted services, and ongoing requests. Auto-refreshes
+// every 30s so new requests from mums show up without a manual pull.
 class VolunteerDashboardScreen extends StatefulWidget {
   const VolunteerDashboardScreen({super.key});
 
@@ -80,6 +83,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .neq('status', 'closed')
           .order('scheduled_date');
       final now = sgtNow();
+      // Only count sessions that haven't happened yet (compare against SGT,
+      // since that's the timezone all scheduling is done in).
       final upcoming = List<Map<String, dynamic>>.from(data).where((r) {
         final date = sgtDateFrom(r['scheduled_date']);
         if (date == null) return false;
@@ -112,6 +117,8 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .select()
           .eq('volunteer_id', SupabaseService.currentUser!.id)
           .eq('status', 'available');
+      // Services flip to "done" via a separate job, but filter out anything
+      // whose slot has already passed just in case that hasn't run yet.
       final rows = List<Map<String, dynamic>>.from(data)
           .where((s) => !isAvailabilityExpired(s['availability'] as String?))
           .toList();
@@ -135,6 +142,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
           .not('volunteer_id', 'is', null)
           .order('created_at', ascending: false);
       final allRows = List<Map<String, dynamic>>.from(data);
+      // Sweep for stale requests/call offers before counting what's left open.
       await SupabaseService.autoCloseStaleRequests(allRows);
       await SupabaseService.expireStaleCallRequests(allRows);
       allRows.removeWhere((r) => r['status'] == 'closed');
@@ -217,6 +225,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
     );
   }
 
+  // Time-of-day greeting, based on Singapore time.
   String get _greeting {
     final hour = sgtNow().hour;
     if (hour < 12) return 'Good morning';

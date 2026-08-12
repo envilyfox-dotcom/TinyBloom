@@ -6,6 +6,7 @@
 -- mum/source), read by both the specialist and volunteer dashboards'
 -- "User Review" section and the "View All" reviews screen.
 
+-- one row per rating, tied to either a consultation or a chat
 create table if not exists public.provider_ratings (
   id uuid primary key default gen_random_uuid(),
   mum_id uuid not null references public.profiles(id) on delete cascade,
@@ -20,10 +21,12 @@ create table if not exists public.provider_ratings (
 
 alter table public.provider_ratings enable row level security;
 
+-- a mum can only submit ratings under her own name
 create policy "Mums can insert their own ratings"
   on public.provider_ratings for insert
   with check (auth.uid() = mum_id);
 
+-- any logged-in user can read ratings (needed for the dashboards/reviews screen)
 create policy "Ratings are readable by authenticated users"
   on public.provider_ratings for select
   using (auth.role() = 'authenticated');

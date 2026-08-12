@@ -1,18 +1,17 @@
 -- Run in the Supabase SQL editor, after add_reviewer_distinctness_to_reject.sql.
--- Article_System_specialist.md §3.3 previously had `clinical` stage-2
--- rejects do a "full reset": void approval 1 and send status straight back
--- to pending_approval_1, skipping the author's edit step entirely. That
--- diverged from every other reject path (stage 1, and non_clinical stage 2)
--- and needed its own reply/visibility handling on the review thread.
---
--- Simplified: a stage-2 reject now always behaves like a stage-1 reject,
--- regardless of category — status goes to changes_requested, approval 1 is
--- left untouched. The author resolves the issue and resubmits; since
--- approval 1 is still active, resubmit_content already sends it straight
--- back to pending_approval_2 (not approval 1) for the one remaining
--- approval before publish_buffer. reject_category is still recorded on the
--- approval row, just no longer changes the reset behavior.
+-- A clinical stage-2 reject used to do a "full reset": void approval 1 and
+-- send the article all the way back to pending_approval_1, skipping the
+-- author's edit step. That was different from every other reject path
+-- (stage 1, and non-clinical stage 2) and needed its own handling on the
+-- review thread, so this simplifies it: a stage-2 reject now always
+-- behaves like a stage-1 reject regardless of category — status goes to
+-- changes_requested, approval 1 stays untouched. The author fixes it and
+-- resubmits; since approval 1 is still active, resubmit_content sends it
+-- straight back to pending_approval_2, not all the way to approval 1.
+-- reject_category is still recorded, it just no longer changes what
+-- happens next.
 
+-- stage-2 reject (any category) now just requests changes instead of resetting approval 1
 create or replace function public.reject_content(
   p_content_id uuid,
   p_stage smallint,

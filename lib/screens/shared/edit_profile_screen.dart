@@ -8,6 +8,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 
+// Shared edit form for both mum and non-mum profiles — mums get the extra
+// pregnancy-info fields, everyone gets name/email/phone + password change.
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? profile;
 
@@ -104,6 +106,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (_) {}
   }
 
+  // Conditions/allergies are stored as one comma-separated string, with a
+  // free-text "Other: ..." entry mixed in among the known checkbox options.
   void _parseIntoSet(String? stored, List<String> knownOptions,
       Set<String> target, TextEditingController otherCtrl) {
     if (stored == null || stored.trim().isEmpty) return;
@@ -203,6 +207,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   bool _isStrongPassword(String password) => password.length >= 8;
 
+  // Validates everything up front, then saves profile + pregnancy info,
+  // and only touches email/password on Supabase auth if they actually
+  // changed (changing password requires re-verifying the old one first).
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     final newEmail = _emailCtrl.text.trim();

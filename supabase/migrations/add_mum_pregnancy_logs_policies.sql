@@ -7,6 +7,7 @@
 -- violation) regardless of app-side code. Mirrors the mum-owner policies
 -- already on pregnancy_profiles.
 
+-- a mum can add log entries for herself (must be a free_user/premium_user)
 create policy "Mums can insert own pregnancy logs"
 on public.pregnancy_logs
 for insert
@@ -20,6 +21,7 @@ with check (
   )
 );
 
+-- a mum can read only her own log entries
 create policy "Mums can view own pregnancy logs"
 on public.pregnancy_logs
 for select
@@ -33,6 +35,7 @@ using (
   )
 );
 
+-- a mum can edit only her own log entries
 create policy "Mums can update own pregnancy logs"
 on public.pregnancy_logs
 for update
@@ -54,6 +57,7 @@ with check (
   )
 );
 
+-- a mum can delete only her own log entries
 create policy "Mums can delete own pregnancy logs"
 on public.pregnancy_logs
 for delete

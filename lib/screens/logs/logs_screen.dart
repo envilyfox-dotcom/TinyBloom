@@ -71,6 +71,7 @@ const _viewColor = AppColors.rose;
 const _editColor = Color(0xFF6B5B56);
 const _deleteColor = Color(0xFF7A1F1F);
 
+// List of a mum's health logs (symptoms, mood, milestones etc).
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
   @override
@@ -205,6 +206,7 @@ class _LogsScreenState extends State<LogsScreen> {
   }
 }
 
+// One log entry card with view/edit/delete buttons, shown in the logs list.
 class _LogCard extends StatelessWidget {
   final Map<String, dynamic> log;
   final VoidCallback onView;
@@ -292,6 +294,7 @@ class _LogCard extends StatelessWidget {
   }
 }
 
+// Read-only detail view of a single log entry.
 class ViewLogScreen extends StatelessWidget {
   final Map<String, dynamic>? log;
   const ViewLogScreen({super.key, this.log});
@@ -463,6 +466,7 @@ class ViewLogScreen extends StatelessWidget {
   }
 }
 
+// Form for creating a new log, or editing an existing one when `existing` is set.
 class CreateLogScreen extends StatefulWidget {
   final Map<String, dynamic>? existing;
   const CreateLogScreen({super.key, this.existing});

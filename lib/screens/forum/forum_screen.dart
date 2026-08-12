@@ -14,12 +14,15 @@ String _timeAgo(DateTime date) {
   return DateFormat('d MMM').format(date);
 }
 
+// Supabase returns aggregate counts (likes, comments) as a nested list like
+// [{'count': 3}] rather than a plain number, so this just unwraps that.
 int _embeddedCount(Map<String, dynamic> row, String key) {
   final list = row[key] as List?;
   if (list == null || list.isEmpty) return 0;
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
+// Community forum feed - list of posts with like/comment counts.
 class ForumScreen extends StatefulWidget {
   const ForumScreen({super.key});
   @override
@@ -60,6 +63,8 @@ class _ForumScreenState extends State<ForumScreen> {
     }
   }
 
+  // Updates the like count in the UI immediately, then syncs with the
+  // server in the background (falls back to a refetch if that fails).
   Future<void> _toggleLike(Map<String, dynamic> post) async {
     final id = post['id'] as String;
     final wasLiked = _likedIds.contains(id);
@@ -292,6 +297,7 @@ class _ForumScreenState extends State<ForumScreen> {
   }
 }
 
+// A single forum post plus its comment thread.
 class PostDetailScreen extends StatefulWidget {
   final Map<String, dynamic> post;
   const PostDetailScreen({super.key, required this.post});

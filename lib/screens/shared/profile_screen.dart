@@ -12,6 +12,8 @@ import '../../utils/singapore_time.dart';
 import '../../utils/next_of_kin_relationship.dart';
 import '../../widgets/common_widgets.dart';
 
+// The user's own profile page. What shows up (pregnancy info, user code,
+// linked mum, menu items) depends heavily on their role.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -32,6 +34,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _load();
   }
 
+  // Extra data (linked mum, pregnancy profile) only gets fetched for the
+  // roles that actually need it, to avoid pointless queries.
   Future<void> _load() async {
     try {
       final p = await SupabaseService.getProfile();
@@ -588,6 +592,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+// Bottom sheet for leaving a star rating + feedback, saved as an
+// unpublished testimonial for the team to review later.
 class _FeedbackSheet extends StatefulWidget {
   const _FeedbackSheet();
 
@@ -620,6 +626,8 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
     super.dispose();
   }
 
+  // Saves as unpublished so it doesn't show on the public testimonials
+  // list until someone on the team approves it.
   Future<void> _submit() async {
     if (_rating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(

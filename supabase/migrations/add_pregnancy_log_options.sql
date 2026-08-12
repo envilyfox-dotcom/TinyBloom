@@ -5,6 +5,7 @@
 -- so they can be added/renamed/reordered/removed directly from the Table
 -- Editor instead of requiring an app release.
 
+-- new table to hold the symptom/milestone chip choices
 create table public.pregnancy_log_options (
   id uuid primary key default gen_random_uuid(),
   category text not null check (category in ('symptom', 'milestone')),
@@ -14,6 +15,7 @@ create table public.pregnancy_log_options (
   unique (category, label)
 );
 
+-- turn on RLS so the read policy below actually applies
 alter table public.pregnancy_log_options enable row level security;
 
 -- Read-only from the app; edits happen via the Supabase dashboard (which
@@ -25,6 +27,7 @@ for select
 to authenticated
 using (true);
 
+-- seed the initial symptom and milestone options
 insert into public.pregnancy_log_options (category, label, sort_order) values
   ('symptom', 'Morning sickness', 0),
   ('symptom', 'Nausea', 1),

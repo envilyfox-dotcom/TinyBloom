@@ -19,6 +19,8 @@ String _timeAgo(DateTime date) {
   return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
+// Article review queue - what needs this specialist's review, everything
+// visible to their group, and their own submissions.
 class SpecialistReviewScreen extends StatefulWidget {
   const SpecialistReviewScreen({super.key});
   @override
@@ -106,6 +108,8 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
     }
   }
 
+  // Loads which review group(s) this specialist belongs to. Cached in
+  // SpecialistGroupCache so re-opening this screen doesn't refetch every time.
   Future<void> _loadGroupInfo() async {
     final userId = SupabaseService.currentUser?.id;
     if (userId != null && SpecialistGroupCache.isValidFor(userId)) {
@@ -504,6 +508,8 @@ class _SpecialistReviewScreenState extends State<SpecialistReviewScreen> {
   }
 }
 
+// Popup explaining the specialist's primary vs secondary review groups and
+// which specialties each one covers.
 class _GroupInfoDialog extends StatelessWidget {
   final String? name;
   final String? specialization;
@@ -707,6 +713,7 @@ class _GroupInfoDialog extends StatelessWidget {
   }
 }
 
+// Expandable row showing a group's name and the list of specialties in it.
 class _GroupDropdown extends StatefulWidget {
   final Map<String, dynamic> group;
   final List<String> specialties;

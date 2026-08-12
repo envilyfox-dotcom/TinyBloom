@@ -1,5 +1,3 @@
--- Run in the Supabase SQL editor.
---
 -- Daily reminders for next-of-kin were previously just static cards the
 -- Flutter app regenerated fresh every time the Notifications Centre was
 -- opened (timestamped "now" on every load, so they never felt like a real
@@ -16,6 +14,7 @@
 -- would be a separate, larger addition (FCM + device tokens + a scheduled
 -- Edge Function).
 
+-- catalog of possible reminders (title, subtitle, icon)
 create table if not exists public.daily_reminder_templates (
   id uuid primary key default gen_random_uuid(),
   title text not null unique,
@@ -29,6 +28,7 @@ create table if not exists public.daily_reminder_templates (
   created_at timestamptz not null default now()
 );
 
+-- log of which reminders have already gone out to which user on which day
 create table if not exists public.daily_reminder_sends (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -41,10 +41,12 @@ create table if not exists public.daily_reminder_sends (
 alter table public.daily_reminder_templates enable row level security;
 alter table public.daily_reminder_sends enable row level security;
 
+-- anyone logged in can see which reminder templates are currently active
 create policy "Authenticated users can view active reminder templates"
 on public.daily_reminder_templates for select to authenticated
 using (is_active);
 
+-- a user can only see their own reminder send history, not anyone else's
 create policy "Users can view their own reminder sends"
 on public.daily_reminder_sends for select to authenticated
 using (user_id = auth.uid());

@@ -8,6 +8,8 @@ import '../../utils/pregnancy_week_data.dart';
 import '../../widgets/common_widgets.dart';
 import 'package:intl/intl.dart';
 
+// Home tab for mums: greeting, pregnancy progress card, alerts, and the
+// grid of feature shortcuts (baby development, chatbot, consultations...).
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -23,6 +25,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   DateTime? _lastNavTime;
 
+  // Simple debounce so a double-tap on a card doesn't push the same route twice.
   bool _canNav() {
     final now = DateTime.now();
     if (_lastNavTime != null &&
@@ -95,6 +98,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (dueDateStr != null) {
       final dueDate = DateTime.tryParse(dueDateStr);
       if (dueDate != null) {
+        // Full-term pregnancy is ~280 days, so working backwards from the
+        // due date gives us an estimated conception date to count weeks from.
         final conception = dueDate.subtract(const Duration(days: 280));
         final week = DateTime.now().difference(conception).inDays ~/ 7;
         return week.clamp(1, 42);

@@ -1,11 +1,11 @@
 -- Run in the Supabase SQL editor, after add_review_pipeline_functions.sql.
--- Article_System_specialist.md §3.3/§7.1: the "approval 2 reviewer must
--- differ from the approval 1 reviewer" rule applies to the whole approval-2
--- reviewer pool, not just the approve path. approve_content already
--- enforced this; reject_content's stage-2 branch didn't, so the stage-1
--- approver could reject their own approval at stage 2. Also widens the
--- safety-net trigger to cover rejects, matching the approve path.
+-- The "approval 2 reviewer must differ from the approval 1 reviewer" rule
+-- (Article_System_specialist.md §3.3/§7.1) was only being enforced on the
+-- approve path — reject_content's stage-2 branch let the stage-1 approver
+-- turn around and reject their own approval at stage 2. This closes that
+-- gap and widens the safety-net trigger to cover rejects too.
 
+-- now fires on rejects as well as approvals, not just approvals
 create or replace function public.enforce_reviewer_2_distinct()
 returns trigger
 language plpgsql
@@ -26,6 +26,7 @@ begin
 end;
 $$;
 
+-- stage-2 reject now also checks the reviewer isn't the same doctor who approved stage 1
 create or replace function public.reject_content(
   p_content_id uuid,
   p_stage smallint,

@@ -1,3 +1,4 @@
+// Turns a raw sequence number into a display id like "SVC-00042".
 String _formatSequentialId(String prefix, dynamic number) {
   final n =
       number is num ? number.toInt() : int.tryParse(number?.toString() ?? '');

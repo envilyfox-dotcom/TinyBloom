@@ -5,6 +5,7 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import '../../../widgets/quick_chat_volunteer.dart';
 
+// Shows the mum's ongoing "ask a volunteer" chats (closed ones are filtered out).
 class VolunteerChatListScreen extends StatefulWidget {
   const VolunteerChatListScreen({super.key});
 

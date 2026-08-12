@@ -8,6 +8,9 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import 'article_open_helper.dart';
 
+// Shows what's happening at the current pregnancy week (size, stats,
+// milestones) plus a few related articles. Works for both the mum viewing
+// her own pregnancy and a next-of-kin viewing their linked mum's.
 class BabyDevelopmentScreen extends StatefulWidget {
   final String? patientUserId;
   final String? patientName;
@@ -68,6 +71,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
           : await SupabaseService.getPregnancyProfile();
       if (data != null && mounted) {
         if (data['due_date'] != null) {
+          // A full pregnancy is ~280 days, so working backwards from the due
+          // date tells us how many days have passed and thus which week we're on.
           final due = sgtDateFrom(data['due_date'])!;
           final now = sgtNow();
           final daysUntilDue = due.difference(now).inDays;
@@ -91,6 +96,8 @@ class _BabyDevelopmentScreenState extends State<BabyDevelopmentScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  // Prefers articles tagged for the current trimester; falls back to
+  // anything pregnancy/baby related, then just the first few articles.
   Future<void> _loadArticles() async {
     try {
       final all = await SupabaseService.getArticles();

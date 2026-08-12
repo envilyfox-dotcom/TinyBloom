@@ -4,6 +4,7 @@ import '../../../services/supabase_service.dart';
 import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 
+// Simple form for posting a question that any community volunteer can pick up and answer.
 class PostVolunteerQuestionScreen extends StatefulWidget {
   const PostVolunteerQuestionScreen({super.key});
 

@@ -11,18 +11,14 @@ import '../../../utils/singapore_time.dart';
 import '../../../utils/specialist_availability.dart';
 import '../../../widgets/common_widgets.dart';
 
-/// Shared minimum-notice cutoff: once a slot is this close (or closer), the
-/// specialist no longer has reasonable notice. Used to grey out the
-/// Reschedule button once the *current* appointment is this close
-/// (consultation_detail_screen.dart), and to grey out any slot being picked
-/// that's this close — for a first-time booking as well as a reschedule
-/// (consultation_booking_screen.dart).
+// Once a slot is this close, there's no longer reasonable notice for the
+// provider — used both to grey out picking a too-soon slot and to grey out
+// the Reschedule button on an appointment that's about to start.
 const Duration minBookingNotice = Duration(minutes: 30);
 
-/// Pops back to the previous screen when possible; otherwise falls back to
-/// the consultations hub ("My Consultations" / "Book New"). Needed on
-/// screens reachable via a booking confirmation's context.go() redirect,
-/// which clears navigation history and leaves nothing left to pop.
+// Pops back if possible, otherwise goes to the consultations hub. Needed
+// because a booking confirmation's context.go() redirect wipes navigation
+// history, so some screens have nothing left to pop back to.
 void backOrToHub(BuildContext context) {
   if (context.canPop()) {
     context.pop();
@@ -31,9 +27,8 @@ void backOrToHub(BuildContext context) {
   }
 }
 
-/// Opens the provider's read-only public profile (same screen the app uses
-/// from article authors, reviews, and chat threads), routing to the
-/// specialist or volunteer variant depending on [isSpecialist].
+// Opens the provider's read-only public profile — same screen used from
+// article authors, reviews, and chat threads.
 void openProviderProfile(
     BuildContext context, Map<String, dynamic> provider, bool isSpecialist) {
   final id = provider['user_id']?.toString();
@@ -73,9 +68,8 @@ String statusEmoji(String status) {
   }
 }
 
-/// Same status glyph as [statusEmoji], except "expired" gets a red question
-/// mark instead of the hourglass it'd otherwise share with "pending" — the
-/// two looked identical at a glance.
+// Same as statusEmoji, but "expired" gets a red question mark instead of
+// an hourglass — it looked too similar to "pending" otherwise.
 Widget statusIconWidget(String status, {double size = 20}) {
   if (status.toLowerCase() == 'expired') {
     return Icon(Icons.question_mark_rounded, color: Colors.red, size: size);
@@ -110,9 +104,8 @@ String trimesterLabel(int week) {
   return 'Unknown Trimester';
 }
 
-/// Deterministic 6-digit number derived from a consultation row's database
-/// id, so the same appointment always displays the same number for both
-/// parties without needing a round trip to the server.
+// Turns a consultation row's db id into a stable 6-digit number, so both
+// sides of the appointment see the same number without a server round trip.
 int _appointmentIdNumber(dynamic id) {
   final text = id?.toString() ?? '';
   if (text.isEmpty) return 0;
@@ -123,10 +116,8 @@ int _appointmentIdNumber(dynamic id) {
   return 100000 + (hash % 900000);
 }
 
-/// Shortens a consultation row's database id into a readable identifier,
-/// prefixed by which kind of actor is running the meeting: "VOL-482913" for
-/// volunteer consultations, "SPC-482913" for specialist ones. Support can
-/// then tell at a glance which actor initiated the meeting from the id alone.
+// e.g. "VOL-482913" for a volunteer consultation, "SPC-482913" for a
+// specialist one, so support can tell which at a glance.
 String appointmentIdLabel(dynamic id, [String? consultationType]) {
   final prefix = (consultationType ?? 'specialist').toLowerCase() == 'volunteer'
       ? 'VOL'
@@ -134,9 +125,7 @@ String appointmentIdLabel(dynamic id, [String? consultationType]) {
   return '$prefix-${_appointmentIdNumber(id)}';
 }
 
-/// Displays the shared appointment id (same value for both the patient and
-/// the provider, since both are derived from the same consultation row's
-/// id) with a tap-to-copy affordance for quoting to support.
+// Tappable appointment id that copies itself to the clipboard.
 Widget appointmentIdValue(BuildContext context, dynamic id,
     [String? consultationType]) {
   final label = appointmentIdLabel(id, consultationType);
@@ -225,14 +214,10 @@ String _normaliseTime(String value) {
   return value.trim();
 }
 
-/// Combines a [date] with a time-of-day string (e.g. "9:00 AM", "9am",
-/// "09:00") into a concrete [DateTime], or null if [time] can't be parsed.
-///
-/// Both inputs are wall-clock values — `scheduled_date` is a `date` column
-/// and `scheduled_time` is free text — so the result is tagged as Singapore
-/// wall clock. Compare it against [sgtNow], never a bare `DateTime.now()`,
-/// or the two sit in different frames and the comparison is off by the
-/// device's UTC offset.
+// Combines a date with a time-of-day string ("9:00 AM", "9am", "09:00")
+// into a concrete DateTime, or null if it can't be parsed. Both inputs are
+// Singapore wall-clock values, so compare the result against sgtNow() —
+// never a bare DateTime.now(), or you'll be off by the device's UTC offset.
 DateTime? slotDateTime(DateTime date, String time) {
   final clean = timeOnly(time).toUpperCase().replaceAll('.', '').trim();
 
@@ -258,8 +243,8 @@ DateTime? slotDateTime(DateTime date, String time) {
   return null;
 }
 
-/// Combines a consultation row's `scheduled_date` + `scheduled_time` into a
-/// concrete [DateTime], or null if either is missing/unparseable.
+// Combines a consultation row's scheduled_date + scheduled_time into one
+// DateTime, or null if either is missing/unparseable.
 DateTime? consultationScheduledDateTime(Map<String, dynamic> c) {
   final scheduled = c['scheduled_date'];
   if (scheduled == null) return null;
@@ -276,15 +261,13 @@ DateTime? consultationScheduledDateTime(Map<String, dynamic> c) {
   }
 }
 
-/// A confirmed consultation is never written back to 'completed' in the
-/// database once its slot passes — nothing in the app does that server-side.
-/// So the meeting time itself is the source of truth: once it's in the past,
-/// this reports 'completed' instead of leaving the row looking "Confirmed"
-/// forever with a dead join-meeting button. The same applies if the
-/// specialist never responded at all — a 'pending' request whose slot has
-/// passed is treated as cancelled rather than sitting as "Pending Approval"
-/// indefinitely. ('expired' is folded in too, for any older row a specialist
-/// screen already flipped to that status before this behaviour changed.)
+// Nothing server-side ever flips a consultation's status to 'completed' once
+// its slot passes, so we derive that here instead: a confirmed appointment
+// whose time has passed shows as completed rather than staying "Confirmed"
+// with a dead join button forever. Likewise a 'pending' request whose slot
+// has passed means the specialist never responded, so it reads as cancelled.
+// ('expired' rows, from an older status some screens used, are folded into
+// cancelled too.)
 String effectiveConsultationStatus(Map<String, dynamic> c) {
   final status = (c['status'] as String? ?? 'pending').toLowerCase();
   if (status == 'expired') return 'cancelled';
@@ -333,8 +316,8 @@ String _parseWeekDay(String text) {
   return _weekDayAliases[clean] ?? '';
 }
 
-/// Parses the day-line of an `available_hours` value (e.g. "Monday - Sunday"
-/// or "Mon, Wed, Fri") into the full set of weekday names it covers.
+// Parses a day range/list like "Monday - Sunday" or "Mon, Wed, Fri" into
+// the full set of weekday names it covers.
 Set<String> availableDaysFromHours(dynamic value) {
   if (value is! String || value.trim().isEmpty) return {};
 
@@ -421,6 +404,7 @@ List<String> futureTimesForDate(List<String> times, DateTime date) {
   }).toList();
 }
 
+// Which time slots are already booked (pending or confirmed) today, per provider.
 Future<Map<String, Set<String>>> _bookedTimesForToday(
     Iterable<String> providerUserIds) async {
   final ids = providerUserIds.where((id) => id.isNotEmpty).toSet();
@@ -456,9 +440,8 @@ Future<Map<String, Set<String>>> _bookedTimesForToday(
   }
 }
 
-/// Adds `available_today` to each provider - today's bookable hour-slots
-/// derived from their `available_schedule`, excluding slots that have
-/// already passed or been booked.
+// Adds `available_today` to each provider: today's open slots from their
+// schedule, minus whatever's already passed or already booked.
 Future<List<Map<String, dynamic>>> attachAvailableTimingsForToday(
     List<Map<String, dynamic>> providers) async {
   final today = sgtNow();

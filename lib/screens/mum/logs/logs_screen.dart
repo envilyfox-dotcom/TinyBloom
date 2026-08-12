@@ -8,6 +8,7 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'logs_shared.dart';
 
+// Log list — a mum sees her own entries, a next-of-kin sees their linked mum's (read-only).
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
 
@@ -29,10 +30,8 @@ class _LogsScreenState extends State<LogsScreen> {
     _loadMoodIcons();
   }
 
-  // Primes the shared mood->icon cache (see logs_shared.dart) so mood
-  // emoji shown in this list, and in ViewLogScreen once the user taps into
-  // a log, reflect what the admin actually picked instead of falling back
-  // to the static moodOptions guess.
+  // Loads the mood->icon mapping the admin actually set up, so the emoji
+  // we show isn't just a guess from the static moodOptions list.
   Future<void> _loadMoodIcons() async {
     try {
       final options = await SupabaseService.getPregnancyLogOptions();

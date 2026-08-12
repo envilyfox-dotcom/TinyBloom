@@ -1,3 +1,7 @@
+// In-memory cache of a specialist's review group + specialties, so screens
+// that need this don't have to re-fetch it on every navigation. Cleared on
+// sign-out and keyed off userId so a stale cache from a previous user never
+// leaks in.
 class SpecialistGroupCache {
   static String? userId;
   static String? name;
@@ -6,6 +10,7 @@ class SpecialistGroupCache {
   static List<Map<String, dynamic>> secondaryGroups = [];
   static Map<int, List<String>> groupSpecialties = {};
 
+  // True if the cached data belongs to the currently signed-in user.
   static bool isValidFor(String currentUserId) => userId == currentUserId;
 
   static void save({

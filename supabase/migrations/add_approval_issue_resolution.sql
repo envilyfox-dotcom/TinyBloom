@@ -1,13 +1,14 @@
--- Run in the Supabase SQL editor, after add_review_pipeline_functions.sql.
+-- Run after add_review_pipeline_functions.sql.
 -- Lets an author resolve individual rejection issues (reply + mark solved)
--- before resubmitting, instead of a single blanket "resubmit as-is"/"edit
--- and resubmit" choice. `resubmit_content` now refuses to run while any
--- reject row on the content is still unresolved.
+-- before resubmitting, instead of one blanket "resubmit as-is" choice.
+-- `resubmit_content` now refuses to run while any reject is still unresolved.
 
+-- tracks whether a rejection has been dealt with, and what the author replied
 alter table public.approvals
   add column if not exists resolved boolean not null default false,
   add column if not exists resolution_reply text;
 
+-- lets the article's author reply to and resolve one rejection, but only while it's actually awaiting changes
 create or replace function public.resolve_review_issue(p_approval_id uuid, p_reply text)
 returns void
 language plpgsql

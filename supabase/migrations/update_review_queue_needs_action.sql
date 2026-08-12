@@ -1,12 +1,12 @@
 -- Run in the Supabase SQL editor, after add_review_pipeline_functions.sql.
--- Two changes to the specialist Review tab's "Needs Action" grouping:
--- 1. publish_buffer no longer flags needs_action for primary/secondary
---    reviewers — there's nothing to do during the buffer window itself
---    (emergency-pending is still reachable from the thread), so it now
---    only shows up under "All Visible".
--- 2. changes_requested now flags needs_action for the author — they're the
---    one who has to edit and resubmit, not a reviewer.
+-- Two tweaks to the specialist Review tab's "Needs Action" grouping:
+-- publish_buffer no longer flags needs_action for reviewers (there's
+-- nothing to do during the buffer window itself — emergency-pending is
+-- still reachable from the thread — so it now just shows under "All
+-- Visible"), and changes_requested now flags needs_action for the author
+-- instead, since they're the one who has to edit and resubmit.
 
+-- needs_action is true for the author while changes are requested, or for an eligible reviewer while it's awaiting their stage
 create or replace function public.get_review_queue()
 returns table (
   id uuid,

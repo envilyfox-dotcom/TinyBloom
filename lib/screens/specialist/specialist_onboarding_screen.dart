@@ -7,6 +7,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/specialist_availability.dart';
 import '../../widgets/specialist_availability_picker.dart';
 
+// First-time setup screen where a new specialist sets their weekly
+// availability before they can use the rest of the app.
 class SpecialistOnboardingScreen extends StatefulWidget {
   const SpecialistOnboardingScreen({super.key});
 
@@ -21,6 +23,8 @@ class _SpecialistOnboardingScreenState
   bool _saving = false;
   String? _error;
 
+  // Saves the chosen schedule, then refreshes the auth profile so the router
+  // knows onboarding is complete and sends the specialist to the home screen.
   Future<void> _submit() async {
     setState(() => _error = null);
 

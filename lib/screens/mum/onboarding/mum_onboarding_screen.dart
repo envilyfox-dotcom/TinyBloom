@@ -7,6 +7,8 @@ import '../../../utils/app_theme.dart';
 import '../../../utils/singapore_time.dart';
 import 'package:intl/intl.dart';
 
+// Multi-step onboarding form (about you -> due date -> health details ->
+// interests) that saves everything to the pregnancy profile at the end.
 class MumOnboardingScreen extends StatefulWidget {
   const MumOnboardingScreen({super.key});
 

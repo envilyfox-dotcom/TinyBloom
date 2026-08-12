@@ -1,13 +1,8 @@
--- Run in the Supabase SQL editor.
---
--- Cancelling a consultation does an UPDATE on consultations.status, but
--- there's likely no RLS policy letting a patient update their own
--- consultation row — Postgres/PostgREST doesn't error in that case, it just
--- silently updates zero rows, which looks like cancel "did nothing."
---
--- This lets a patient cancel (or otherwise update) only their own
--- consultations.
+-- Cancelling a consultation is an UPDATE on consultations.status, but
+-- without an RLS policy for it, Postgres just silently updates zero rows
+-- instead of erroring — cancel button looks like it does nothing.
 
+-- lets a patient update (e.g. cancel) only their own consultations
 create policy "Patients can update their own consultations"
 on public.consultations
 for update

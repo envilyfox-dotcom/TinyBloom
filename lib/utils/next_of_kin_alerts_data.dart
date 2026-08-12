@@ -23,6 +23,9 @@ class NextOfKinAlertSource {
   });
 }
 
+// Pulls together everything the next-of-kin alerts feed can show (danger
+// symptoms in a log, pregnancy milestones, consultations, reminders,
+// volunteer replies) into one flat, sortable list of alert sources.
 List<NextOfKinAlertSource> buildNextOfKinAlertSources({
   required int linkedMumWeek,
   required List<Map<String, dynamic>> consultations,
@@ -97,6 +100,7 @@ List<NextOfKinAlertSource> buildNextOfKinAlertSources({
   return sources;
 }
 
+// Maps the reminder icon name stored in the db to an actual Flutter icon.
 IconData iconForReminderName(String? name) {
   switch (name) {
     case 'favorite_border':

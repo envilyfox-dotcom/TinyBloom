@@ -30,10 +30,8 @@ const moodOptions = [
   {'emoji': '💪', 'label': 'Strong', 'color': AppColors.teal},
 ];
 
-// Populated from pregnancy_log_options.icon (see SupabaseService.
-// getPregnancyLogOptions) whenever a logs screen loads, so moodEmoji can
-// show the emoji an admin actually picked for a mood instead of only
-// recognising the ~25 labels baked into [moodOptions] below.
+// Filled in from the admin-configured mood options whenever a logs screen
+// loads, so moodEmoji isn't limited to the ~25 labels hardcoded below.
 Map<String, String> _moodIconCache = {};
 
 void primeMoodIcons(List<Map<String, String>> moods) {

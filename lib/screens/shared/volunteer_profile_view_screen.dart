@@ -5,6 +5,8 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// Read-only public profile for a volunteer — credentials, what they help
+// with, and their availability. Mirrors the specialist profile screen.
 class VolunteerProfileViewScreen extends StatefulWidget {
   final String volunteerId;
   const VolunteerProfileViewScreen({super.key, required this.volunteerId});

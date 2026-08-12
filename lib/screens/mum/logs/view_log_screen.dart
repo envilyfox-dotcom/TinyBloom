@@ -8,6 +8,7 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'logs_shared.dart';
 
+// Read-only view of one health log entry; edit/delete are only shown to the mum herself.
 class ViewLogScreen extends StatelessWidget {
   final Map<String, dynamic>? log;
   const ViewLogScreen({super.key, this.log});

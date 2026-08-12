@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../utils/app_theme.dart';
 import '../shared/education_screen.dart';
 
+// Reuses the shared education/articles feed, but adds a FAB for specialists
+// to write a new article.
 class SpecialistLearnScreen extends StatelessWidget {
   const SpecialistLearnScreen({super.key});
 

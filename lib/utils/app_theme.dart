@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// Colour palette used across the whole app.
 class AppColors {
   static const Color rose = Color(0xFFC97B75);
   static const Color roseDeep = Color(0xFFB05A53);
@@ -21,6 +22,7 @@ class AppColors {
   static const Color cardBg = Color(0xFFFFFFFF);
 }
 
+// The app's global Material theme (fonts, buttons, inputs, etc).
 class AppTheme {
   static ThemeData get theme {
     return ThemeData(
@@ -123,6 +125,7 @@ class AppTheme {
   }
 }
 
+// App-wide constants, including the Supabase project credentials.
 class AppConstants {
   static const String supabaseUrl = 'https://yznzzhecpbhqtgozxpfg.supabase.co';
   static const String supabaseAnonKey =

@@ -4,6 +4,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/next_of_kin_relationship.dart';
 import '../../widgets/common_widgets.dart';
 
+// Lets a next-of-kin enter a mum's user code to link their accounts
+// together, after verifying the code actually belongs to someone.
 class LinkToMumScreen extends StatefulWidget {
   const LinkToMumScreen({super.key});
   @override
@@ -58,6 +60,8 @@ class _LinkToMumScreenState extends State<LinkToMumScreen> {
     }
   }
 
+  // Checks the code is real and belongs to a mum before we let the user
+  // actually submit the link request.
   Future<void> _verify() async {
     final code = _userCodeCtrl.text.trim().toUpperCase();
     if (code.isEmpty) {

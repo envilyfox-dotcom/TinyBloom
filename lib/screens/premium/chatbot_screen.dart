@@ -35,6 +35,8 @@ class GuidedQuestion {
   });
 }
 
+// Premium AI assistant chat. Sends questions to the "tinybloom-chat" Supabase
+// Edge Function (which calls OpenAI) rather than answering anything locally.
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
 
@@ -264,6 +266,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     _scrollDown();
   }
 
+  // Calls the Edge Function with the question plus some context (recent
+  // messages, profile, pregnancy info) so replies can be personalised.
   Future<String> _callChatbotApi(
     String question, {
     GuidedQuestion? guidedQuestion,
@@ -445,6 +449,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     return '${cleaned.substring(0, 700)}...';
   }
 
+  // Tack on the medical disclaimer unless the AI already included one.
   String _ensureDisclaimer(String text) {
     final lower = text.toLowerCase();
 
@@ -987,6 +992,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 }
 
+// One dot of the "..." typing indicator - fades in/out on a delay so the
+// three dots pulse in sequence.
 class _Dot extends StatefulWidget {
   final int delay;
 

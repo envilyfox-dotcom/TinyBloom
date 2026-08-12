@@ -1,6 +1,12 @@
 # TinyBloom Flutter App
 
-A pregnancy support mobile application built with Flutter, connected to the same Supabase backend as the TinyBloom website.
+TinyBloom is a pregnancy support mobile app built with Flutter. It connects to the same Supabase backend as the TinyBloom website, so data (accounts, articles, consultations, etc.) is shared between the app and the site.
+
+The app supports four user roles, each with its own dashboard and navigation:
+- **Mum** (free or premium) — tracks pregnancy progress, logs health data, books consultations, reads articles
+- **Specialist** — manages consultations, publishes/reviews articles, sets availability
+- **Volunteer** — offers services/sessions to mums, answers volunteer questions
+- **Next of kin** — linked to a mum's account to view alerts, gift subscriptions, and a shared checklist
 
 ## Setup Instructions
 
@@ -17,11 +23,11 @@ flutter doctor  # verify setup
 ```
 
 ### 2. Clone / extract the project
-Extract the tinybloom_app folder to your computer.
+Extract the TinyBloom folder to your computer.
 
 ### 3. Install dependencies
 ```bash
-cd tinybloom_app
+cd TinyBloom
 flutter pub get
 ```
 
@@ -48,28 +54,32 @@ flutter build apk --release
 
 ```
 lib/
-├── main.dart                    # App entry point
-├── utils/
-│   └── app_theme.dart           # Colors, theme, constants
+├── main.dart                       # App entry point (Supabase init + MaterialApp.router)
 ├── services/
-│   ├── supabase_service.dart    # All Supabase DB calls
-│   └── auth_provider.dart      # Auth state management
-├── widgets/
-│   └── common_widgets.dart     # Reusable UI components
+│   ├── supabase_service.dart       # All Supabase queries/mutations (data access layer)
+│   ├── auth_provider.dart          # Logged-in user + profile + role state (ChangeNotifier)
+│   ├── notification_service.dart   # In-app notification helpers
+│   └── specialist_group_cache.dart # Local cache for specialist grouping lookups
+├── utils/                          # Pure helpers: theme, date/time, availability, checklist data, etc.
+├── widgets/                        # Shared reusable widgets (cards, chat bubble, review UI, etc.)
 └── screens/
-    ├── router.dart              # GoRouter navigation
-    ├── app_shell.dart           # Bottom nav wrapper
-    ├── auth/
-    │   ├── login_screen.dart
-    │   └── register_screen.dart
-    ├── dashboard/
-    │   └── dashboard_screen.dart
-    ├── logs/
-    │   └── logs_screen.dart     # Health logs CRUD
-    ├── profile/
-    │   └── profile_screen.dart  # View/edit/deactivate
-    └── features_screens.dart    # FAQ, Education, Chatbot,
-                                 # Consultation, Subscription
+    ├── router.dart                 # GoRouter routes + auth/onboarding redirects
+    ├── app_shell.dart              # Bottom nav bar wrapper (per-role tabs)
+    ├── auth/                       # Login, forgot password
+    ├── onboarding/, dashboard/, logs/, forum/, premium/, profile/  # Legacy/simple top-level screens
+    ├── shared/                     # Screens used by more than one role (profile, FAQ, education, notifications...)
+    ├── mum/
+    │   ├── onboarding/              # Pregnancy profile setup
+    │   ├── consultation/            # Booking, browsing specialists/volunteers, chat
+    │   ├── logs/                    # Health log CRUD
+    │   ├── forum/                   # Community forum
+    │   └── rating/                  # Rate a provider after a consultation
+    ├── specialist/                 # Dashboard, consultations, article authoring/review, availability
+    ├── volunteer/                  # Dashboard, services offered, sessions, requests
+    └── next_of_kin/                # Dashboard, alerts, checklist, link-to-mum, gift subscription
+
+supabase/
+└── migrations/                     # SQL migrations for the shared Supabase project (tables, RLS policies, functions)
 ```
 
 ---
@@ -78,22 +88,21 @@ lib/
 
 | Feature | Status |
 |---------|--------|
-| Login / Register (4 roles) | ✅ |
-| Role-based plan selection | ✅ |
-| Dashboard (free & premium) | ✅ |
-| Pregnancy week tracker | ✅ |
-| Health Logs (CRUD) | ✅ |
-| View / Edit Profile | ✅ |
-| Change Password | ✅ |
-| Deactivate Account | ✅ |
-| FAQ (with categories) | ✅ |
-| Educational Articles | ✅ |
-| Search & filter articles | ✅ |
-| AI Chatbot (Premium) | ✅ |
-| Consultations | ✅ |
-| Subscription management | ✅ |
-| Premium gating | ✅ |
-| User ID (for NOK linking) | ✅ |
+| Login / role-based auth (mum, specialist, volunteer, next of kin) | ✅ |
+| Onboarding (pregnancy profile / specialist availability) | ✅ |
+| Dashboards per role | ✅ |
+| Pregnancy week & milestone tracker | ✅ |
+| Health logs (CRUD) | ✅ |
+| Consultation booking, rescheduling, cancellation | ✅ |
+| Volunteer requests & Q&A chat | ✅ |
+| Provider ratings & reviews | ✅ |
+| Community forum | ✅ |
+| Educational articles + review/approval pipeline | ✅ |
+| AI chatbot (premium) | ✅ |
+| Subscription management + gift subscription (next of kin) | ✅ |
+| Next of kin linking, alerts, shared checklist | ✅ |
+| Notifications | ✅ |
+| View / edit profile, change password | ✅ |
 
 ---
 
@@ -101,3 +110,4 @@ lib/
 Uses the same Supabase project as the website:
 - URL: https://yznzzhecpbhqtgozxpfg.supabase.co
 - All data is shared between the website and app
+- Schema changes live in `supabase/migrations/` — each file is a standalone, plain-English-commented migration (table/column changes, RLS policies, functions)

@@ -6,6 +6,8 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// Premium subscription management: shows current plan, lets a free user
+// upgrade via Stripe Checkout, and lets a premium user switch or cancel.
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
 
@@ -117,6 +119,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
+  // Calls our Supabase edge function to create a Stripe Checkout session,
+  // then hands off to the browser — the actual plan upgrade happens later
+  // via a Stripe webhook, not here.
   Future<void> _startCheckout(String plan) async {
     setState(() => _busy = true);
 
@@ -350,6 +355,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
+  // Basic / Premium / Annual feature comparison — Annual has the same
+  // features as Premium, just cheaper, so its column is really about price.
   Widget _comparisonTable() {
     final rows = [
       ('Pregnancy articles & FAQ', true, true, true),

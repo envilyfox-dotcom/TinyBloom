@@ -12,6 +12,7 @@
 -- Same scoped pattern as the other next-of-kin policies — only readable
 -- for a mum the requester is actually linked to.
 
+-- a next-of-kin can read a mum's pregnancy profile, but only if next_of_kin_profiles actually links them to her
 create policy "Next of kin can view linked mum's pregnancy profile"
 on public.pregnancy_profiles
 for select

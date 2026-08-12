@@ -18,6 +18,7 @@ const _planFeatures = {
   ],
 };
 
+// Lets a next-of-kin buy a Premium plan on behalf of their linked mum.
 class GiftSubscriptionScreen extends StatefulWidget {
   const GiftSubscriptionScreen({super.key});
   @override
@@ -47,6 +48,8 @@ class _GiftSubscriptionScreenState extends State<GiftSubscriptionScreen> {
 
   bool get _mumIsPremium => _linkedMum?['role'] == 'premium_user';
 
+  // Confirms with the next-of-kin, then applies the plan straight to the
+  // linked mum's account (no actual payment flow here yet).
   Future<void> _proceedToPayment() async {
     final plan = _selectedPlan;
     final mum = _linkedMum;

@@ -19,10 +19,12 @@
 -- a bare "(superseded)". Also set by trigger_emergency_pending — see
 -- add_superseded_reason_for_emergency_recall.sql.
 
+-- records why an approval got voided, for the review thread's History view
 alter table public.approvals
   add column if not exists superseded_reason text
   check (superseded_reason in ('edited', 'emergency_recall'));
 
+-- lets an author edit their article and, if it was already mid-review, voids the old approval and restarts review from scratch
 create or replace function public.edit_article_content(
   p_content_id uuid,
   p_title text,

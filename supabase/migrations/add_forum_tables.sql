@@ -1,7 +1,7 @@
--- Run in the Supabase SQL editor.
 -- Adds a basic community forum: posts, comments, and likes, with RLS so
 -- any signed-in user can read everything but only manage their own content.
 
+-- a forum post, tied to whoever wrote it
 create table if not exists public.forum_posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references public.profiles(id) on delete cascade,
@@ -9,6 +9,7 @@ create table if not exists public.forum_posts (
   created_at timestamptz not null default now()
 );
 
+-- a comment on a post
 create table if not exists public.forum_comments (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.forum_posts(id) on delete cascade,
@@ -17,6 +18,7 @@ create table if not exists public.forum_comments (
   created_at timestamptz not null default now()
 );
 
+-- a like on a post, one per user
 create table if not exists public.forum_likes (
   post_id uuid not null references public.forum_posts(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -24,6 +26,7 @@ create table if not exists public.forum_likes (
   primary key (post_id, user_id)
 );
 
+-- turn on RLS so the policies below actually apply
 alter table public.forum_posts enable row level security;
 alter table public.forum_comments enable row level security;
 alter table public.forum_likes enable row level security;

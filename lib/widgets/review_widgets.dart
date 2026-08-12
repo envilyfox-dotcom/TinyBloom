@@ -7,6 +7,9 @@ import '../screens/specialist/specialist_notifications_helpers.dart'
 import '../utils/app_theme.dart';
 import 'common_widgets.dart';
 
+// A single review card - reviewer avatar/name, star rating, and where the
+// review came from (a consultation or a chat), tappable if it links back
+// to a consultation.
 Widget providerReviewCard(BuildContext context, Map<String, dynamic> rating) {
   final mum = rating['mum'] as Map<String, dynamic>?;
   final reviewerName = (mum?['full_name'] as String?) ?? 'A mum';
@@ -85,6 +88,8 @@ Widget providerReviewCard(BuildContext context, Map<String, dynamic> rating) {
   );
 }
 
+// Shows the most recent review for a provider, with a "View All" link if
+// there are more - used on provider profile/detail screens.
 Widget providerReviewsSection(
   BuildContext context, {
   required List<Map<String, dynamic>> ratings,

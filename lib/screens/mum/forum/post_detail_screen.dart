@@ -4,6 +4,7 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'forum_shared.dart';
 
+// Single forum post with its comment thread.
 class PostDetailScreen extends StatefulWidget {
   final Map<String, dynamic> post;
   const PostDetailScreen({super.key, required this.post});

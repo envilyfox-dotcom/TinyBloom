@@ -7,6 +7,8 @@ import '../../../utils/app_theme.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 
+// Lists premium specialists a mum can book, with a specialization filter
+// and today's remaining open slots shown per provider.
 class SpecialistsListScreen extends StatefulWidget {
   const SpecialistsListScreen({super.key});
   @override
@@ -35,6 +37,8 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
     return values;
   }
 
+  // Sizes the filter dropdown to fit its longest label instead of using a
+  // fixed width that could clip or look oddly wide.
   double _specializationFilterWidth(BuildContext context) {
     const style = TextStyle(fontSize: 13);
     double longest = 0;

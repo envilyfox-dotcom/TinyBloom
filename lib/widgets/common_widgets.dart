@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 
+// Shared app button - filled or outline, with an optional loading spinner
+// that swaps in for the label.
 class TBButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -220,6 +222,7 @@ class TBEmptyState extends StatelessWidget {
   }
 }
 
+// Bell icon with a small red unread-count badge, used in app bars.
 class TBNotificationBell extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
@@ -279,6 +282,7 @@ class TBNotificationBell extends StatelessWidget {
   }
 }
 
+// Same as TBNotificationBell but with any icon, not just the bell.
 class TBIconBadgeButton extends StatelessWidget {
   final IconData icon;
   final int count;
@@ -397,6 +401,9 @@ class FreeBadge extends StatelessWidget {
   }
 }
 
+// Card shown in place of a locked feature, prompting the user to upgrade.
+// Tracks its own "navigating" flag briefly after tap so a slow screen
+// transition can't be triggered twice by a double tap.
 class PremiumGate extends StatefulWidget {
   final String feature;
   final VoidCallback? onUpgrade;

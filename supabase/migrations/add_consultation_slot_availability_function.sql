@@ -18,6 +18,9 @@
 -- the base table's row-level restrictions, so the picker can actually hide
 -- these slots instead of just erroring on submit.
 
+-- returns just the taken time slots for a specialist/date, no patient
+-- identity or booking details, so it's safe for any logged-in user to call
+-- even though they can't read other people's rows in consultations directly
 create or replace function public.get_booked_consultation_slots(
   p_specialist_ids uuid[],
   p_date date
@@ -35,5 +38,6 @@ as $$
     and c.status in ('pending', 'confirmed');
 $$;
 
+-- lock it down: nobody gets it by default, only logged-in users can call it
 revoke all on function public.get_booked_consultation_slots(uuid[], date) from public;
 grant execute on function public.get_booked_consultation_slots(uuid[], date) to authenticated;

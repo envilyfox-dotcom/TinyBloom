@@ -14,6 +14,7 @@
 -- WIDENS visibility for a linked next-of-kin — it can't narrow the mum's
 -- or specialist's own existing access.
 
+-- a next-of-kin can read consultations for a mum they're linked to, on top of the mum's/specialist's own access
 create policy "Next of kin can view the linked mum's consultations"
 on public.consultations
 for select

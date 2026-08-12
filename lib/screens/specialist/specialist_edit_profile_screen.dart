@@ -9,6 +9,8 @@ import '../../widgets/specialist_availability_picker.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'package:go_router/go_router.dart';
 
+// Edit screen for a specialist's name, email, photo, specialty display, and
+// weekly consultation availability.
 class SpecialistEditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? specialistProfile;
 
@@ -75,8 +77,9 @@ class _SpecialistEditProfileScreenState
       if (schedule.isNotEmpty) {
         setState(() => _schedule = schedule);
       } else {
-        // No new-format schedule yet - best-effort convert the old flat
-        // days/times format so the specialist just needs to review & save.
+        // Specialist hasn't set a schedule in the new weekly format yet - try
+        // converting their old flat days/times fields so they can just
+        // review and save instead of starting from scratch.
         final legacyDays = <String>{};
         final legacyTimes = <String>{};
 
@@ -177,6 +180,8 @@ class _SpecialistEditProfileScreenState
     super.dispose();
   }
 
+  // Validates the form and schedule, then saves both the profile and
+  // specialist availability.
   Future<void> _saveChanges() async {
     setState(() {
       _scheduleError =

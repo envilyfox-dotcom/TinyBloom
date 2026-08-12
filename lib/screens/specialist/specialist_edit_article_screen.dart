@@ -5,6 +5,8 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// Edits an existing article draft (or one sent back with change requests),
+// with the same markdown toolbar as the create-article screen.
 class SpecialistEditArticleScreen extends StatefulWidget {
   final Map<String, dynamic> article;
   const SpecialistEditArticleScreen({super.key, required this.article});
@@ -69,6 +71,8 @@ class _SpecialistEditArticleScreenState
     if (existingTags.isNotEmpty) {
       _selectedTags = existingTags.toSet();
     } else {
+      // Older articles were tagged with separate category/trimester fields
+      // instead of the newer tags list - fall back to those if present.
       final legacyCategory = widget.article['category'] as String?;
       final legacyTrimester = widget.article['trimester'] as int?;
       _selectedTags = {
@@ -120,6 +124,8 @@ class _SpecialistEditArticleScreenState
     }
   }
 
+  // Wraps the currently selected text in markdown markers (e.g. **bold**).
+  // If nothing is selected, it just inserts the empty markers at the cursor.
   void _wrapSelection(String left, [String? right]) {
     right ??= left;
     final text = _contentCtrl.text;
@@ -178,6 +184,7 @@ class _SpecialistEditArticleScreenState
   }
 
   Future<void> _pickImage() async {
+    // Count markdown image tags already in the content to enforce the 5-image cap.
     final existingCount = RegExp(r'!\[[^\]]*\]\([^)]*\)')
         .allMatches(_contentCtrl.text)
         .length;
@@ -252,6 +259,7 @@ class _SpecialistEditArticleScreenState
     if (mounted) setState(() => _saving = false);
   }
 
+  // Confirms, then permanently deletes this article draft.
   Future<void> _delete() async {
     final confirm = await showDialog<bool>(
       context: context,

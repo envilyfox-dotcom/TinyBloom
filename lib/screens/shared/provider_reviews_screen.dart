@@ -4,6 +4,7 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/review_widgets.dart';
 
+// Shows all ratings/reviews left for a specialist or volunteer.
 class ProviderReviewsScreen extends StatefulWidget {
   final String providerId;
   final String providerName;

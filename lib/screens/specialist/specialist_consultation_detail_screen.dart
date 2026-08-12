@@ -12,8 +12,11 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
+// The "Join Zoom" button only unlocks this many minutes before the scheduled time.
 const Duration _joinWindow = Duration(minutes: 10);
 
+// Full detail view for one consultation - lets a specialist join the call,
+// approve a pending request, or cancel it.
 class SpecialistConsultationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> consultation;
   const SpecialistConsultationDetailScreen(
@@ -100,6 +103,8 @@ class _SpecialistConsultationDetailScreenState
     super.dispose();
   }
 
+  // Combines the separate scheduled_date and scheduled_time fields from
+  // Supabase into one Singapore-time DateTime.
   DateTime? _scheduledDateTime() {
     final scheduled = widget.consultation['scheduled_date'];
     if (scheduled == null) return null;
@@ -116,6 +121,8 @@ class _SpecialistConsultationDetailScreenState
     }
   }
 
+  // If this is still "pending" but its slot has already passed, mark it
+  // expired in the background so it doesn't show up as actionable anymore.
   Future<void> _maybeMarkExpired() async {
     final status =
         (widget.consultation['status'] as String? ?? '').toLowerCase();
@@ -132,6 +139,7 @@ class _SpecialistConsultationDetailScreenState
     } catch (_) {}
   }
 
+  // Loads the specialist and patient info needed to render this screen.
   Future<void> _load() async {
     await _maybeMarkExpired();
 
@@ -203,6 +211,8 @@ class _SpecialistConsultationDetailScreenState
     }
   }
 
+  // Approves the pending request. The backend generates the Zoom link, and we
+  // update the local map right away so the UI reflects "confirmed" instantly.
   Future<void> _approve() async {
     setState(() => _approving = true);
     try {

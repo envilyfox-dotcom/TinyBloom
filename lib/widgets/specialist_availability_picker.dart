@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 import '../utils/specialist_availability.dart';
 
-/// Day-chip selector + per-day Start/End/"Available all day" cards for
-/// building a specialist's [WeeklySchedule]. Shared by the specialist
-/// onboarding flow and the specialist edit-profile flow so both stay
-/// visually and behaviourally identical.
+// Day-chip selector + per-day Start/End/"Available all day" cards for
+// building a specialist's WeeklySchedule. Shared by both the onboarding
+// flow and the edit-profile flow so they look and behave identically.
 class WeeklyAvailabilityPicker extends StatelessWidget {
   final WeeklySchedule value;
   final ValueChanged<WeeklySchedule> onChanged;

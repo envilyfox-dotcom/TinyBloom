@@ -1,19 +1,16 @@
 -- Run in the Supabase SQL editor, after add_approval_issue_resolution.sql and
 -- add_superseded_reason_for_emergency_recall.sql.
--- Backs the Review Thread redesign:
---   1. Edits no longer void approvals / reset status (edit_article_content
---      replaced below) — instead every edit that actually changes a field is
---      logged to the new article_edit_history table with full old/new text,
---      so the Checks dropdown can show "what changed" as proof instead of
---      silently discarding the prior review progress.
---   2. "Approved with suggestion" — a third reviewer action alongside
---      approve/reject. It advances the stage exactly like a plain approval
---      (approvals.has_suggestion marks it as such) but requires a comment
---      and displays/resolves like a rejection issue in the UI — except it
---      never blocks resubmit_content, which only counts unresolved
---      decision = 'reject' rows.
+-- Backs the Review Thread redesign. Edits no longer wipe out existing
+-- approvals or reset the article's status — instead every real edit gets
+-- logged to a new article_edit_history table with the old/new text, so the
+-- Checks dropdown can show "what changed" instead of silently throwing away
+-- review progress. Also adds "approved with suggestion" — a third reviewer
+-- action that advances the stage just like a normal approval, but requires
+-- a comment and shows up like a rejection issue in the UI. Unlike a real
+-- rejection it never blocks resubmit_content, which only cares about
+-- unresolved decision = 'reject' rows.
 
--- ── 1. Edit history (replaces the void-approvals-on-edit behavior) ─────────
+-- ── Edit history (replaces the void-approvals-on-edit behavior) ─────────
 create table if not exists public.article_edit_history (
   id uuid primary key default gen_random_uuid(),
   content_id uuid not null references public.articles(id) on delete cascade,
@@ -111,7 +108,8 @@ $$;
 
 grant execute on function public.edit_article_content(uuid, text, text, text, smallint) to authenticated;
 
--- ── 2. Approved with suggestion ─────────────────────────────────────────
+-- ── Approved with suggestion ─────────────────────────────────────────
+-- same stage-1/stage-2 reviewer rules as approve_content, just also requires a comment and tags has_suggestion
 alter table public.approvals
   add column if not exists has_suggestion boolean not null default false;
 
@@ -192,9 +190,10 @@ $$;
 
 grant execute on function public.approve_content_with_suggestion(uuid, smallint, text) to authenticated;
 
--- ── 3. resolve_review_issue: also accept suggestion rows ───────────────
--- Reject issues keep the existing "only while changes_requested" gate;
--- suggestion rows are advisory only, so they're resolvable at any status.
+-- ── resolve_review_issue: also accept suggestion rows ───────────────
+-- lets the author reply to and close out an issue card. Reject issues keep
+-- the existing "only while changes_requested" gate; suggestion rows are
+-- just advisory, so those are resolvable no matter what status the article is at.
 create or replace function public.resolve_review_issue(p_approval_id uuid, p_reply text)
 returns void
 language plpgsql

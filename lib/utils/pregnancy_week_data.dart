@@ -1,3 +1,5 @@
+// Fun-fact content shown on the "your baby this week" card, keyed by
+// pregnancy week (1-40).
 const pregnancyWeekData = {
   1: {
     'size': 'a poppy seed',

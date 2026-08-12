@@ -1,9 +1,8 @@
--- Run in the Supabase SQL editor, after cleanup_noisy_article_tags_2.sql.
--- Third pass — a few more tags still remaining after the first two passes.
--- Matched case-insensitively (via lower()) like the second pass.
+-- Run after cleanup_noisy_article_tags_2.sql.
+-- Third pass — a few more noisy tags still remaining after the first two
+-- passes. Matched case-insensitively (via lower()) like the second pass.
 
--- 1. Strip these tags out of every article's `tags` array, regardless of
---    which earlier article used them.
+-- strip these leftover noisy tags out of every article's `tags` array
 with removed(name) as (
   values
     ('symptoms'), ('urine test'), ('week by week'), ('fitness'),
@@ -20,9 +19,9 @@ where exists (
   where lower(t) in (select name from removed)
 );
 
--- 2. `category` (still read directly by baby_development_screen/
---    features_screens for keyword matching) falls back to another
---    remaining tag, or 'General', if it was one of the removed values.
+-- `category` (still read directly by baby_development_screen/
+-- features_screens for keyword matching) falls back to another remaining
+-- tag, or 'General', if it was one of the removed values
 with removed(name) as (
   values
     ('symptoms'), ('urine test'), ('week by week'), ('fitness'),

@@ -1,4 +1,3 @@
--- Run in the Supabase SQL editor.
 -- Consolidates the Create/Edit Article "Category" and "Relevant Trimester"
 -- pickers into a single multi-select tags list (specialists can now attach
 -- more than one category, and 1st/2nd/3rd Trimester are just ordinary tags
@@ -10,10 +9,11 @@
 -- for the mum's current trimester, and `category` is still used for
 -- lowercase keyword matching there too.
 
+-- new multi-select tags list, replaces category/trimester as the source of truth
 alter table public.articles
   add column if not exists tags text[] not null default '{}';
 
--- Backfill existing rows from their legacy single category/trimester values.
+-- backfill existing rows from their old single category/trimester values
 update public.articles
 set tags = array_remove(array[
   category,
@@ -26,12 +26,14 @@ set tags = array_remove(array[
 ], null)
 where tags = '{}';
 
+-- edit history now needs to track tag changes too, not just title/content
 alter table public.article_edit_history
   add column if not exists old_tags text[],
   add column if not exists new_tags text[];
 
 drop function if exists public.edit_article_content(uuid, text, text, text, smallint);
 
+-- saves an article edit, logs what changed, and re-derives category/trimester from the new tags
 create or replace function public.edit_article_content(
   p_content_id uuid,
   p_title text,

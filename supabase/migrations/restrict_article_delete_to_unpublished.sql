@@ -9,6 +9,7 @@
 drop policy if exists "Specialists can delete their own article links" on public.articles;
 drop policy if exists "Specialists can delete their own unpublished articles" on public.articles;
 
+-- authors can delete their own articles at any review stage, just not once it's actually live
 create policy "Specialists can delete their own unpublished articles"
 on public.articles
 for delete

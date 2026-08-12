@@ -1,23 +1,13 @@
--- Run in the Supabase SQL editor.
---
--- Backend for the next-of-kin Support Checklist (lib/screens/next_of_kin/
--- checklist_screen.dart). Two tables:
---
---   checklist_templates — the default content (same for every next-of-kin),
---     equivalent to _defaultChecklistPhases() in the Flutter code. Read-only
---     reference data, same pattern as the faqs table.
---
---   checklist_items — one row per (user, task). On a next-of-kin's first
---     visit, the app copies every checklist_templates row into
---     checklist_items for that user (template_item_id set, is_completed
---     false). From then on, all reads/writes happen against checklist_items
---     only: editing text updates item_text, deleting removes the row,
---     adding inserts a new row with template_item_id = NULL, and checking
---     a box toggles is_completed. This mirrors exactly how the mutable
---     ChecklistItem/Category/Phase classes already behave client-side, so
---     wiring the screen up to this schema later is a straight swap of the
---     in-memory seed for a Supabase fetch — no UI model changes needed.
+-- Backend for the next-of-kin Support Checklist
+-- (lib/screens/next_of_kin/checklist_screen.dart). Two tables:
+-- checklist_templates is the default content, same for every next-of-kin,
+-- read-only reference data like the faqs table. checklist_items is one row
+-- per (user, task) — on a next-of-kin's first visit the app copies every
+-- template row into checklist_items for that user, and from then on all
+-- reads/writes happen against checklist_items only (editing text, deleting,
+-- adding a custom item, checking a box).
 
+-- default checklist content, same for everyone
 create table public.checklist_templates (
   id uuid primary key default gen_random_uuid(),
   phase text not null,          -- e.g. 'First Trimester'
@@ -28,6 +18,7 @@ create table public.checklist_templates (
   created_at timestamptz not null default now()
 );
 
+-- a user's personal copy of the checklist, one row per task
 create table public.checklist_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -44,7 +35,7 @@ create table public.checklist_items (
 
 create index idx_checklist_items_user on public.checklist_items(user_id);
 
--- Keep updated_at current on every edit.
+-- keeps updated_at current on every edit
 create or replace function public.set_checklist_item_updated_at()
 returns trigger
 language plpgsql
@@ -59,18 +50,17 @@ create trigger trg_checklist_items_updated_at
 before update on public.checklist_items
 for each row execute function public.set_checklist_item_updated_at();
 
--- ── RLS ──────────────────────────────────────────────────────────────
 alter table public.checklist_templates enable row level security;
 alter table public.checklist_items enable row level security;
 
--- Templates are public reference content, same as faqs/articles.
+-- templates are public reference content, readable by any logged-in user
 create policy "Checklist templates are publicly readable"
 on public.checklist_templates
 for select
 to authenticated
 using (true);
 
--- A user can only see and manage their own checklist rows.
+-- a user can only see and manage their own checklist rows
 create policy "Users can view their own checklist items"
 on public.checklist_items
 for select
@@ -96,10 +86,9 @@ for delete
 to authenticated
 using (user_id = auth.uid());
 
--- ── Seed default content ────────────────────────────────────────────
--- Mirrors _defaultChecklistPhases() in checklist_screen.dart exactly, so
--- switching the screen from local seed data to a Supabase fetch doesn't
--- change what anyone sees.
+-- seed the default checklist content, mirrors _defaultChecklistPhases() in
+-- checklist_screen.dart exactly so nothing changes for users once the app
+-- switches from the local seed data to fetching this from Supabase
 insert into public.checklist_templates (phase, phase_emoji, category, item_text, display_order)
 values
   -- First Trimester

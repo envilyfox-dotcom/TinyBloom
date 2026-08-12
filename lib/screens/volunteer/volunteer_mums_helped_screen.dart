@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 
+// Shows a volunteer a list of mums they've had completed consultations with,
+// grouped by mum with a session count and the date of their last session.
 class VolunteerMumsHelpedScreen extends StatefulWidget {
   const VolunteerMumsHelpedScreen({super.key});
 
@@ -32,6 +34,8 @@ class _VolunteerMumsHelpedScreenState extends State<VolunteerMumsHelpedScreen> {
           .eq('status', 'completed');
       final rows = List<Map<String, dynamic>>.from(data);
 
+      // Collapse the raw consultation rows into one entry per mum, counting
+      // sessions and keeping track of the most recent one.
       final byMum = <String, Map<String, dynamic>>{};
       for (final row in rows) {
         final patientId = row['patient_id'] as String?;

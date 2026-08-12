@@ -5,6 +5,8 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:shimmer/shimmer.dart';
 import '../utils/app_theme.dart';
 
+// Markdown has no built-in underline, so this treats "++text++" as one -
+// same idea as how "**text**" gives bold.
 class _UnderlineSyntax extends md.DelimiterSyntax {
   _UnderlineSyntax()
       : super(
@@ -16,6 +18,7 @@ class _UnderlineSyntax extends md.DelimiterSyntax {
         );
 }
 
+// Renders the "u" element the syntax above produces as underlined text.
 class _UnderlineBuilder extends MarkdownElementBuilder {
   @override
   Widget visitElementAfterWithContext(
@@ -31,6 +34,8 @@ class _UnderlineBuilder extends MarkdownElementBuilder {
   }
 }
 
+// Custom renderer for markdown images so we get caching, a shimmer
+// placeholder while loading, and a fallback icon if the image fails.
 class _ImageBuilder extends MarkdownElementBuilder {
   @override
   Widget? visitElementAfterWithContext(
@@ -72,6 +77,8 @@ class _ImageBuilder extends MarkdownElementBuilder {
   }
 }
 
+// Renders an article's markdown body (used for health articles etc), with
+// our custom underline syntax and image handling wired in.
 class ArticleContent extends StatelessWidget {
   final String data;
   final TextStyle? style;

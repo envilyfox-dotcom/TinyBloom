@@ -12,6 +12,7 @@ import '../../widgets/review_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import 'specialist_notifications_helpers.dart';
 
+// Specialist home screen - today's/upcoming consultations, alerts, and review stats.
 class SpecialistDashboardScreen extends StatefulWidget {
   const SpecialistDashboardScreen({super.key});
 
@@ -34,6 +35,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     _load();
   }
 
+  // Pulls together the profile, consultations (with patient names attached),
+  // ratings, and notifications needed to render the dashboard.
   Future<void> _load() async {
     Map<String, dynamic>? profile;
     Map<String, dynamic>? specialistProfile;
@@ -110,6 +113,8 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
+  // Combines the separate scheduled_date and scheduled_time fields into one
+  // Singapore-time DateTime.
   DateTime? _scheduledDateTime(Map<String, dynamic> c) {
     final scheduled = c['scheduled_date'];
     if (scheduled == null) return null;

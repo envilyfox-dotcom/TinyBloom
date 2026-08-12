@@ -5,6 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// FAQ list scoped to next-of-kin questions, with a debounced search box.
 class NextOfKinFaqScreen extends StatefulWidget {
   const NextOfKinFaqScreen({super.key});
   @override
@@ -23,6 +24,8 @@ class _NextOfKinFaqScreenState extends State<NextOfKinFaqScreen> {
     _load();
   }
 
+  // Wait for typing to pause before actually filtering, so we're not
+  // re-filtering on every keystroke.
   void _onSearchChanged(String v) {
     _searchDebounce?.cancel();
     _searchDebounce =

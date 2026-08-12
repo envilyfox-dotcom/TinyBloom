@@ -11,6 +11,7 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
+// Community forum feed: posts, likes, and create/edit/delete for your own posts.
 class ForumScreen extends StatefulWidget {
   const ForumScreen({super.key});
   @override

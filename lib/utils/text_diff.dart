@@ -28,6 +28,8 @@ List<String> _tokenizeParagraphs(String text) => text
 List<DiffOp> _diffTokens(List<String> a, List<String> b) {
   final n = a.length, m = b.length;
   if (n == 0 && m == 0) return const [];
+  // The DP table below is O(n*m), so for very long texts just bail out and
+  // report it as one big delete + insert instead of freezing the UI.
   const maxCells = 900000;
   if (n * m > maxCells) {
     final ops = <DiffOp>[];
@@ -83,13 +85,13 @@ List<DiffOp> _collapse(List<DiffOp> ops) {
   return out;
 }
 
-/// Word-level diff of two short strings (e.g. a title).
+// Word-level diff of two short strings (e.g. a title).
 List<DiffOp> wordDiff(String oldText, String newText) =>
     _collapse(_diffTokens(_tokenizeWords(oldText), _tokenizeWords(newText)));
 
-/// Paragraph-level diff of article bodies: unchanged paragraphs are dropped
-/// entirely, and only the paragraphs that were added, removed, or edited are
-/// returned (edited ones carry a word-level diff of just that paragraph).
+// Paragraph-level diff of article bodies: unchanged paragraphs are dropped,
+// and only the ones added/removed/edited are returned (edited paragraphs
+// carry a word-level diff of just that paragraph).
 List<ParagraphChange> contentDiff(String oldText, String newText) {
   final oldParas = _tokenizeParagraphs(oldText);
   final newParas = _tokenizeParagraphs(newText);

@@ -11,6 +11,7 @@ import '../../../utils/singapore_time.dart';
 import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 
+// Full detail view for a single consultation — join/cancel/reschedule actions live here.
 class ConsultationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> consultation;
   const ConsultationDetailScreen({super.key, required this.consultation});

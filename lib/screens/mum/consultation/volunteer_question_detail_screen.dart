@@ -12,6 +12,8 @@ import '../../../widgets/common_widgets.dart';
 import 'consultation_helpers.dart';
 import '../forum/forum_shared.dart';
 
+// Chat thread for a single "ask a volunteer" question, including the
+// video-call request/accept/decline flow.
 class VolunteerQuestionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> request;
   const VolunteerQuestionDetailScreen({super.key, required this.request});
@@ -57,6 +59,8 @@ class _VolunteerQuestionDetailScreenState
     _ctrl = TextEditingController(
         text: widget.request['question'] as String? ?? '');
     _loadThread();
+    // No realtime subscription for this thread, so just poll for new
+    // messages/status changes every 5s.
     _pollTimer = Timer.periodic(
         const Duration(seconds: 5), (_) => _loadThread(silent: true));
   }
@@ -202,6 +206,8 @@ class _VolunteerQuestionDetailScreenState
     }
   }
 
+  // Accept/decline banner while a call request is pending, or a "waiting
+  // for the link" notice once accepted but before the volunteer's shared it.
   Widget _videoCallControl() {
     switch (_callStatus) {
       case 'requested':

@@ -8,9 +8,11 @@
 -- to show before it was switched from deriving tags live off `articles`
 -- to reading the admin-managed `learn_tags` table.
 
+-- drop the guessed tags that don't match real usage
 delete from public.learn_tags
 where label in ('Pregnancy', 'Wellness', 'Fitness', 'General');
 
+-- replace with the tags actually used across existing articles
 insert into public.learn_tags (label, sort_order) values
   ('Antenatal Care', 0),
   ('Antenatal Check', 1),

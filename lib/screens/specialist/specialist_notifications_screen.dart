@@ -5,6 +5,7 @@ import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'specialist_notifications_helpers.dart';
 
+// Notifications Centre - full list of specialist alerts, filterable by category tab.
 class SpecialistNotificationsScreen extends StatefulWidget {
   const SpecialistNotificationsScreen({super.key});
 

@@ -21,6 +21,7 @@ void main() async {
   runApp(const TinyBloomApp());
 }
 
+// Root widget - sets up the router and theme, and makes auth state available app-wide.
 class TinyBloomApp extends StatelessWidget {
   const TinyBloomApp({super.key});
 

@@ -11,6 +11,8 @@ const nextOfKinRelationshipOptions = [
   'Other',
 ];
 
+// Shows a dialog to pick/edit the next of kin's relationship to the mum,
+// saves it to Supabase, and returns the new value (or null if cancelled).
 Future<String?> editNextOfKinRelationship(
   BuildContext context, {
   required String? currentRelationship,

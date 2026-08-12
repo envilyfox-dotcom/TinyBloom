@@ -11,6 +11,9 @@ import '../../../widgets/common_widgets.dart';
 import '../../../widgets/quick_chat_volunteer.dart';
 import 'consultation_helpers.dart';
 
+// Consultations hub. Mums get "My Consultations" / "Book New" tabs;
+// next-of-kin get "Active" / "History" instead. Specialist consultations and
+// volunteer questions are merged into one combined, sortable list.
 class ConsultationListScreen extends StatefulWidget {
   final Set<String>? initialTypeFilters;
   const ConsultationListScreen({super.key, this.initialTypeFilters});

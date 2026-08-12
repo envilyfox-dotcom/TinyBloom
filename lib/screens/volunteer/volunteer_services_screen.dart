@@ -11,6 +11,8 @@ import '../../utils/singapore_time.dart';
 import '../../utils/availability_format.dart';
 import '../../utils/service_id.dart';
 
+// Lists the volunteer's own posted services (All / Available / Completed
+// tabs) with search, and lets them create new ones via the FAB.
 class VolunteerServicesScreen extends StatefulWidget {
   const VolunteerServicesScreen({super.key});
 
@@ -64,6 +66,8 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
     }
   }
 
+  // Flip any "available" service whose time slot has passed over to "done"
+  // so it doesn't linger in the wrong tab.
   Future<void> _autoMarkExpired(List<Map<String, dynamic>> services) async {
     for (final service in services) {
       if ((service['status'] as String? ?? 'available') != 'available') {
@@ -105,6 +109,7 @@ class _VolunteerServicesScreenState extends State<VolunteerServicesScreen>
           .from('volunteer_services')
           .delete()
           .eq('id', service['id']);
+      // Let mums who might've been watching this listing know it's gone.
       try {
         final volunteerProfile = await SupabaseService.getProfile();
         final volunteerName =
@@ -321,6 +326,7 @@ class _ServiceCard extends StatelessWidget {
     required this.onEdit,
   });
 
+  // Opens the service's Zoom link in an external app/browser.
   Future<void> _joinCall(BuildContext context) async {
     final link = (service['zoom_link'] as String? ?? '').trim();
     if (link.isEmpty) return;
@@ -484,6 +490,9 @@ class _ServiceCard extends StatelessWidget {
 
 enum ServiceMode { create, edit, delete, view }
 
+// One screen reused for creating, editing, viewing, and confirming deletion
+// of a service — the mode controls which fields are editable and what the
+// primary button does.
 class ServiceFormScreen extends StatefulWidget {
   final ServiceMode mode;
   final Map<String, dynamic>? service;
@@ -513,6 +522,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     _catCtrl = TextEditingController(text: widget.service?['category'] ?? '');
     _zoomCtrl = TextEditingController(text: widget.service?['zoom_link'] ?? '');
 
+    // availability is stored as a single string like "2024-05-01 | 2:00 PM - 3:00 PM",
+    // so split it back out into a date + start/end time for the form fields.
     final avail = widget.service?['availability'] as String?;
     if (avail != null && avail.contains(' | ')) {
       final parts = avail.split(' | ');
@@ -543,6 +554,9 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     return DateFormat('h:mm a').format(dt);
   }
 
+  // Checks whether a service's stored "date | start - end" string overlaps
+  // with the date/time range currently picked in the form, so we can stop a
+  // volunteer double-booking themselves.
   bool _availabilityOverlaps(
       String availability, DateTime date, int startMinutes, int endMinutes) {
     if (!availability.contains(' | ')) return false;
@@ -744,6 +758,8 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         return;
       }
 
+      // Block saving if this slot overlaps with another service the
+      // volunteer already has open.
       try {
         final existing = await SupabaseService.client
             .from('volunteer_services')

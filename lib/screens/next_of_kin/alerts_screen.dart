@@ -11,12 +11,15 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/quick_chat_volunteer.dart';
 
+// Notifications feed for next-of-kin: emergencies, milestones, consultations,
+// reminders and volunteer replies all get merged into one timeline here.
 class NextOfKinAlertsScreen extends StatefulWidget {
   const NextOfKinAlertsScreen({super.key});
   @override
   State<NextOfKinAlertsScreen> createState() => _NextOfKinAlertsScreenState();
 }
 
+// A single row in the alerts list, already formatted for display.
 class _AlertItem {
   final String key;
   final String type;
@@ -69,6 +72,8 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
     _load();
   }
 
+  // Pulls together everything an alert could be made from (consultations,
+  // logs, reminders, volunteer replies) and figures out which are unread.
   Future<void> _load() async {
     final previouslyReadKeys = await getReadAlertKeys();
 
@@ -179,12 +184,16 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
         .showSnackBar(SnackBar(content: Text('$feature — coming soon')));
   }
 
+  // Turns a raw alert source into something the UI can render (icon, colour,
+  // title, subtitle, tap action) — one branch per alert type.
   _AlertItem _alertItemFromSource(NextOfKinAlertSource s) {
     switch (s.type) {
       case 'emergency':
         final log = s.log!;
         final symptoms = stringListFromArray(log['symptoms']);
         final notes = (log['notes'] ?? '').toString();
+        // Re-scan the log against the danger keyword list so we can show
+        // which symptom actually triggered this alert.
         final matches = dangerSymptomMatches(cleanHealthText(symptoms, notes));
         return _AlertItem(
           key: s.key,
@@ -313,6 +322,8 @@ class _NextOfKinAlertsScreenState extends State<NextOfKinAlertsScreen> {
     }
   }
 
+  // Alerts are stored in UTC-ish timestamps but we always show them in
+  // Singapore time since that's where our users are.
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
     if (diff.inMinutes < 1) return 'Just now';

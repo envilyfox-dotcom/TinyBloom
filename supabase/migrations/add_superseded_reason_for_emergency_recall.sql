@@ -6,10 +6,12 @@
 -- `alter table ... if not exists` repeated here defensively in case this
 -- runs before add_edit_article_content.sql.
 
+-- records *why* an approval got superseded so the UI can say "edited" or "emergency recall" instead of just "(superseded)"
 alter table public.approvals
   add column if not exists superseded_reason text
   check (superseded_reason in ('edited', 'emergency_recall'));
 
+-- same emergency-recall flow as before, just also stamping superseded_reason now
 create or replace function public.trigger_emergency_pending(
   p_content_id uuid,
   p_category text,

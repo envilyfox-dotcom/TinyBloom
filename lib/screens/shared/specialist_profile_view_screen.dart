@@ -6,6 +6,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/specialist_availability.dart';
 import '../../widgets/common_widgets.dart';
 
+// Read-only public profile for a specialist — credentials, bio, hours
+// and activity stats. Viewed by mums/next-of-kin, not the specialist.
 class SpecialistProfileViewScreen extends StatefulWidget {
   final String specialistId;
   const SpecialistProfileViewScreen({super.key, required this.specialistId});
@@ -29,6 +31,8 @@ class _SpecialistProfileViewScreenState
     _load();
   }
 
+  // Profile, specialist details and article stats all come from separate
+  // queries, so fetch them together instead of one after another.
   Future<void> _load() async {
     final results = await Future.wait([
       SupabaseService.getProfileById(widget.specialistId),

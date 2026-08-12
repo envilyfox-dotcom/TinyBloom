@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_provider.dart';
 
+// Wraps every logged-in screen with the bottom nav bar. Which tabs show up
+// depends on the user's role (mum, volunteer, specialist, next of kin).
 class AppShell extends StatelessWidget {
   final Widget child;
   final int selectedIndex;
@@ -48,14 +50,12 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    // Sign-out clears the profile (and role) a frame before GoRouter's own
-    // redirect finishes swapping this whole page out for the login screen.
-    // Picking a bottom-nav layout below is keyed off the role, so without
-    // this early return that in-between frame can fall into a branch with
-    // fewer tabs than the still-stale `selectedIndex` this widget was built
-    // with — e.g. next-of-kin's Profile tab is index 5, which is out of
-    // range once the role-less fallback branch's 5-item bar takes over,
-    // throwing a BottomNavigationBar assertion for one visible frame.
+    // On sign-out, the role clears a frame before GoRouter redirects to
+    // /login. If we let the role-less fallback branch render here, it builds
+    // a bottom bar with fewer tabs than the still-stale `selectedIndex` this
+    // widget was built with (e.g. next-of-kin's Profile tab is index 5) and
+    // Flutter throws a BottomNavigationBar assertion for that one frame.
+    // Bailing out early avoids it.
     if (!auth.isLoggedIn) {
       return const Scaffold(body: SizedBox.shrink());
     }

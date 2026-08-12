@@ -16,6 +16,8 @@ import '../mum/consultation/consultation_helpers.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// Home screen for mums: pregnancy progress, a merged feed of alerts pulled
+// from several different tables, quick-chat questions, and quick links.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -35,6 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime? _lastNavTime;
   Timer? _refreshTimer;
 
+  // Simple debounce so double-tapping a card doesn't push the same route twice.
   bool _canNav() {
     final now = DateTime.now();
     if (_lastNavTime != null &&
@@ -45,6 +48,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return true;
   }
 
+  // Notifications come from several different tables that each use their own
+  // wording for "type" — this collapses all those variants down to the
+  // handful of categories the UI actually knows how to render.
   String _normaliseNotificationType(dynamic rawType) {
     final type = (rawType ?? 'general').toString().trim().toLowerCase();
     final clean = type.replaceAll(RegExp(r'[\s_-]+'), '');
@@ -152,6 +158,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         role == 'admin';
   }
 
+  // Not every alert source has an "is_read" column of its own (e.g. active
+  // alerts and generated ones), so we track read state separately, keyed by
+  // which table + row the alert came from.
   String _notificationReadReceiptKey(String sourceTable, String sourceId) {
     return '$sourceTable::$sourceId';
   }
@@ -369,6 +378,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return matches;
   }
 
+  // Turns a health log into an emergency alert if blood pressure, kick count
+  // or symptoms look dangerous. Thresholds are standard pregnancy BP
+  // guidance: 160/110+ is critical, 140/90+ is high, under 90/60 is low.
   List<Map<String, dynamic>> _dashboardEmergencyRowsFromHealthLog(
       Map<String, dynamic> item) {
     final systolic = _intFromValue(item['blood_pressure_systolic']);
@@ -872,6 +884,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return rows;
   }
 
+  // The dashboard's alert feed isn't one table — it's notifications,
+  // active_alerts, health/pregnancy log scans, consultations, volunteer
+  // call reminders, volunteer sessions, AI tips, articles and emergency
+  // rules, all merged together, filtered to unread, and sorted newest first.
   Future<List<Map<String, dynamic>>> _loadDashboardNotifications(
       Map<String, dynamic>? profile,
       Map<String, dynamic>? pregnancyProfile) async {
@@ -1350,6 +1366,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Where tapping a notification takes you depends on what kind it is —
+  // volunteer call reminders, rating requests and consultations each open
+  // their own screen; everything else falls back to the notifications list.
   Future<void> _openDashboardNotification(
       Map<String, dynamic> notification) async {
     final id = notification['id']?.toString();
@@ -1426,6 +1445,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _load();
+    // Poll every 15s so new alerts (e.g. a volunteer reply) show up without
+    // the user having to manually pull-to-refresh.
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _load());
   }
 
@@ -1546,6 +1567,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Same due-date-minus-280-days calculation as elsewhere in the app, with
+  // a fallback to a stored week value if there's no due date yet.
   int get _currentWeek {
     if (_pregnancyProfile == null) return 0;
     final dueDateStr = _pregnancyProfile!['due_date'] as String?;

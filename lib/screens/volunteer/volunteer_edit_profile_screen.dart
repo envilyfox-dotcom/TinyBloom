@@ -6,6 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 
+// Lets a volunteer edit their profile info, swap their photo, and optionally
+// change their email/password. Expertise and certification are locked here —
+// mums see those as verified, so changing them requires contacting support.
 class VolunteerEditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? profile;
   const VolunteerEditProfileScreen({super.key, this.profile});
@@ -140,6 +143,7 @@ class _VolunteerEditProfileScreenState
     final currentPassword = _currentPasswordCtrl.text;
     final newPassword = _newPasswordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
+    // Only treat this as a password change if they've typed into any of the three fields.
     final wantsPasswordChange = currentPassword.isNotEmpty ||
         newPassword.isNotEmpty ||
         confirmPassword.isNotEmpty;
@@ -189,6 +193,8 @@ class _VolunteerEditProfileScreenState
       }
 
       if (wantsPasswordChange) {
+        // Re-authenticate with the current password first — Supabase requires
+        // a fresh sign-in before it'll accept a password change.
         await SupabaseService.client.auth.signInWithPassword(
           email: SupabaseService.currentUser!.email!,
           password: currentPassword,

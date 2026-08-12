@@ -6,6 +6,8 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import 'package:intl/intl.dart';
 
+// First-time setup for mums: a 4-step form (about you, pregnancy, health,
+// interests) that saves into the pregnancy profile once completed.
 class MumOnboardingScreen extends StatefulWidget {
   const MumOnboardingScreen({super.key});
 
@@ -83,6 +85,8 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
     super.dispose();
   }
 
+  // Same trick as elsewhere in the app: pregnancy is ~280 days, so we
+  // estimate conception from the due date and count weeks from there.
   int get _pregnancyWeek {
     if (_dueDate == null) return 0;
     final conception = _dueDate!.subtract(const Duration(days: 280));
@@ -357,6 +361,7 @@ class _MumOnboardingScreenState extends State<MumOnboardingScreen> {
   }
 }
 
+// Onboarding step 1: age + pregnancy status.
 class _StepAboutYou extends StatelessWidget {
   final TextEditingController ageCtrl;
   final String pregnancyStatus;
@@ -420,6 +425,7 @@ class _StepAboutYou extends StatelessWidget {
   }
 }
 
+// Onboarding step 2: due date picker + a live "Week X" preview.
 class _StepYourPregnancy extends StatelessWidget {
   final DateTime? dueDate;
   final int pregnancyWeek;
@@ -533,6 +539,7 @@ class _StepYourPregnancy extends StatelessWidget {
   }
 }
 
+// Onboarding step 3: height/weight, medical conditions, allergies.
 class _StepHealthDetails extends StatelessWidget {
   final TextEditingController heightCtrl;
   final TextEditingController weightCtrl;
@@ -690,6 +697,7 @@ class _StepHealthDetails extends StatelessWidget {
   }
 }
 
+// Onboarding step 4: topics of interest + which specialists they'd like to consult.
 class _StepInterests extends StatelessWidget {
   final Set<String> interests;
   final List<String> interestOptions;

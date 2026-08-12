@@ -5,6 +5,8 @@ import '../../services/supabase_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
+// Form for writing a new article draft, with a small markdown toolbar
+// (bold/italic/underline), emoji picker, and inline image upload.
 class SpecialistCreateArticleScreen extends StatefulWidget {
   const SpecialistCreateArticleScreen({super.key});
   @override
@@ -89,6 +91,8 @@ class _SpecialistCreateArticleScreenState
     }
   }
 
+  // Wraps the currently selected text in markdown markers (e.g. **bold**).
+  // If nothing is selected, it just inserts the empty markers at the cursor.
   void _wrapSelection(String left, [String? right]) {
     right ??= left;
     final text = _contentCtrl.text;
@@ -147,6 +151,7 @@ class _SpecialistCreateArticleScreenState
   }
 
   Future<void> _pickImage() async {
+    // Count markdown image tags already in the content to enforce the 5-image cap.
     final existingCount = RegExp(r'!\[[^\]]*\]\([^)]*\)')
         .allMatches(_contentCtrl.text)
         .length;
@@ -186,6 +191,8 @@ class _SpecialistCreateArticleScreenState
         SnackBar(content: Text(message), backgroundColor: Colors.red));
   }
 
+  // Saves as a draft, or saves and immediately submits it into the review
+  // queue if submitForReview is true.
   Future<void> _save({required bool submitForReview}) async {
     if (!_formKey.currentState!.validate()) return;
     if (_myGroup == null) {

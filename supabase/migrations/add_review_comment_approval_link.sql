@@ -3,9 +3,11 @@
 -- non-author reviewer's reply shows up inline on that issue's card instead
 -- of only in the general Discussion feed.
 
+-- lets a comment attach to one specific rejection issue instead of just floating in the general thread
 alter table public.review_comments
   add column if not exists approval_id uuid references public.approvals(id) on delete cascade;
 
+-- any doctor in the review scope can comment, but if they tag an issue (approval_id) it has to belong to this same article
 drop policy if exists "Review-scope doctors can comment" on public.review_comments;
 create policy "Review-scope doctors can comment"
 on public.review_comments for insert to authenticated

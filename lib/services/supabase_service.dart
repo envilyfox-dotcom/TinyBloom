@@ -15,6 +15,7 @@ class SupabaseService {
 
   static SupabaseClient get client => Supabase.instance.client;
 
+  // Boots up the Supabase client with the app's project URL/key.
   static Future<void> initialize() async {
     await Supabase.initialize(
       url: AppConstants.supabaseUrl,
@@ -25,11 +26,14 @@ class SupabaseService {
   static User? get currentUser => client.auth.currentUser;
   static bool get isLoggedIn => currentUser != null;
 
+  // Signs in with email + password.
   static Future<AuthResponse> signIn(String email, String password) async {
     return await client.auth
         .signInWithPassword(email: email, password: password);
   }
 
+  // Creates a new auth account, stashing name/role in user metadata (used as
+  // a fallback until the profile row exists).
   static Future<AuthResponse> signUp({
     required String email,
     required String password,
@@ -43,14 +47,17 @@ class SupabaseService {
     );
   }
 
+  // Signs the current user out.
   static Future<void> signOut() async {
     await client.auth.signOut();
   }
 
+  // Sends a "reset your password" email.
   static Future<void> resetPassword(String email) async {
     await client.auth.resetPasswordForEmail(email);
   }
 
+  // Fetches the signed-in user's own profile row.
   static Future<Map<String, dynamic>?> getProfile() async {
     final user = currentUser;
     if (user == null) return null;
@@ -63,6 +70,7 @@ class SupabaseService {
     return res;
   }
 
+  // Fetches any user's profile row by id.
   static Future<Map<String, dynamic>?> getProfileById(String userId) async {
     final res = await client
         .from('profiles')
@@ -72,12 +80,14 @@ class SupabaseService {
     return res;
   }
 
+  // Updates fields on the signed-in user's profile row.
   static Future<void> updateProfile(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
     await client.from('profiles').update(data).eq('id', user.id);
   }
 
+  // Uploads a new avatar image to storage and saves its URL on the profile.
   static Future<String> uploadProfilePicture(
       Uint8List bytes, String fileExt) async {
     final user = currentUser;
@@ -101,6 +111,7 @@ class SupabaseService {
     return url;
   }
 
+  // Uploads an image for an article/post and returns its public URL.
   static Future<String> uploadArticleImage(
       Uint8List bytes, String fileExt) async {
     final user = currentUser;
@@ -147,6 +158,7 @@ class SupabaseService {
     }
   }
 
+  // Clears the profile picture URL and deletes the stored files.
   static Future<void> removeProfilePicture() async {
     final user = currentUser;
     if (user == null) return;
@@ -158,6 +170,7 @@ class SupabaseService {
     } catch (_) {}
   }
 
+  // Updates the subscription plan and flips role between free_user/premium_user.
   static Future<void> setSubscriptionPlan(String? plan) async {
     await updateProfile({
       'subscription_plan': plan,
@@ -165,6 +178,7 @@ class SupabaseService {
     });
   }
 
+  // Gifts a subscription plan to a linked mum (used by next-of-kin) via RPC.
   static Future<void> giftSubscriptionPlan(String mumId, String plan) async {
     await client.rpc('gift_subscription_to_linked_mum', params: {
       'mum_id': mumId,
@@ -172,6 +186,7 @@ class SupabaseService {
     });
   }
 
+  // Fetches the signed-in user's pregnancy profile.
   static Future<Map<String, dynamic>?> getPregnancyProfile() async {
     final user = currentUser;
     if (user == null) return null;
@@ -184,6 +199,7 @@ class SupabaseService {
     return res;
   }
 
+  // Fetches any user's pregnancy profile by id.
   static Future<Map<String, dynamic>?> getPregnancyProfileByUserId(
       String userId) async {
     final res = await client
@@ -195,6 +211,9 @@ class SupabaseService {
     return res;
   }
 
+  // Works out the current pregnancy week from a profile. Prefers computing
+  // it from the due date (280-day pregnancy) and falls back to whatever week
+  // value is already stored if there's no due date.
   static int pregnancyWeekFromProfile(Map<String, dynamic>? data) {
     if (data == null) return 0;
     if (data['due_date'] != null) {
@@ -213,6 +232,7 @@ class SupabaseService {
     return 0;
   }
 
+  // Convenience wrapper: looks up a user's pregnancy profile and returns their current week.
   static Future<int> getCurrentPregnancyWeekByUserId(String userId) async {
     try {
       final data = await getPregnancyProfileByUserId(userId);
@@ -222,6 +242,8 @@ class SupabaseService {
     }
   }
 
+  // Same as above but for the signed-in user, with its own due-date math
+  // (kept separate from pregnancyWeekFromProfile for historical reasons).
   static Future<int> getCurrentPregnancyWeek() async {
     try {
       final data = await getPregnancyProfile();
@@ -240,6 +262,8 @@ class SupabaseService {
     return 0;
   }
 
+  // Upserts the pregnancy profile. Recomputes current_week from the due date
+  // whenever one is given, so it stays in sync even if the caller doesn't pass it.
   static Future<void> savePregnancyProfile(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
@@ -271,6 +295,7 @@ class SupabaseService {
     );
   }
 
+  // Updates just the due date, recalculating current_week to match.
   static Future<void> updateDueDate(DateTime dueDate) async {
     final user = currentUser;
     if (user == null) return;
@@ -287,6 +312,7 @@ class SupabaseService {
     );
   }
 
+  // Fetches the signed-in user's pregnancy logs, newest first.
   static Future<List<Map<String, dynamic>>> getLogs() async {
     final user = currentUser;
     if (user == null) return [];
@@ -302,6 +328,7 @@ class SupabaseService {
     }
   }
 
+  // Fetches another user's pregnancy logs (used by specialists/volunteers viewing a mum's history).
   static Future<List<Map<String, dynamic>>> getLogsForPatient(
       String patientId) async {
     try {
@@ -343,6 +370,7 @@ class SupabaseService {
     return {'mood': moods, 'symptom': symptoms, 'milestone': milestones};
   }
 
+  // Fetches the admin-configured medical condition/allergy options shown during onboarding.
   static Future<Map<String, dynamic>> getOnboardingOptions() async {
     final res = await client
         .from('onboarding_options')
@@ -372,6 +400,7 @@ class SupabaseService {
     };
   }
 
+  // Creates a new pregnancy log entry for the signed-in user.
   static Future<void> createLog(Map<String, dynamic> data) async {
     final user = currentUser;
     if (user == null) return;
@@ -382,14 +411,17 @@ class SupabaseService {
     });
   }
 
+  // Updates an existing pregnancy log entry.
   static Future<void> updateLog(String id, Map<String, dynamic> data) async {
     await client.from('pregnancy_logs').update(data).eq('id', id);
   }
 
+  // Deletes a pregnancy log entry.
   static Future<void> deleteLog(String id) async {
     await client.from('pregnancy_logs').delete().eq('id', id);
   }
 
+  // Fetches published FAQs, optionally filtered by category.
   static Future<List<Map<String, dynamic>>> getFaqs({String? category}) async {
     List<Map<String, dynamic>> res;
     if (category != null) {
@@ -413,6 +445,7 @@ class SupabaseService {
       '*, author:profiles!created_by(full_name, profile_picture_url, specialist_profiles(specialization)), '
       'public_comments(count), article_likes(count)';
 
+  // Fetches published articles, optionally filtered by category.
   static Future<List<Map<String, dynamic>>> getArticles(
       {String? category}) async {
     List<Map<String, dynamic>> res;
@@ -433,6 +466,7 @@ class SupabaseService {
     return res;
   }
 
+  // Fetches the approval history (who signed off, at which stage) for a piece of content.
   static Future<List<Map<String, dynamic>>> getArticleApprovals(
       String contentId) async {
     try {
@@ -451,6 +485,7 @@ class SupabaseService {
     }
   }
 
+  // Returns which of the given article ids the signed-in user has liked.
   static Future<Set<String>> getLikedArticleIds(List<String> articleIds) async {
     final user = currentUser;
     if (user == null || articleIds.isEmpty) return {};
@@ -464,6 +499,7 @@ class SupabaseService {
         .toSet();
   }
 
+  // Likes an article.
   static Future<void> likeArticle(String articleId) async {
     final user = currentUser;
     if (user == null) return;
@@ -472,6 +508,7 @@ class SupabaseService {
         .insert({'article_id': articleId, 'user_id': user.id});
   }
 
+  // Removes the signed-in user's like from an article.
   static Future<void> unlikeArticle(String articleId) async {
     final user = currentUser;
     if (user == null) return;
@@ -482,6 +519,7 @@ class SupabaseService {
         .eq('user_id', user.id);
   }
 
+  // Fetches all review groups (used for routing content to the right reviewers).
   static Future<List<Map<String, dynamic>>> getReviewGroups() async {
     final res = await client
         .from('review_groups')
@@ -490,6 +528,7 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Fetches all specialties.
   static Future<List<Map<String, dynamic>>> getSpecialties() async {
     final res = await client
         .from('specialties')
@@ -498,6 +537,7 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Fetches the review group tied to the signed-in specialist's own specialty.
   static Future<Map<String, dynamic>?> getMyPrimaryGroup() async {
     final user = currentUser;
     if (user == null) return null;
@@ -517,6 +557,7 @@ class SupabaseService {
     return rows.first['review_groups'] as Map<String, dynamic>?;
   }
 
+  // Fetches the secondary review groups linked to a primary group.
   static Future<List<Map<String, dynamic>>> getSecondaryGroupsFor(
       int primaryGroupId) async {
     final rows = await client
@@ -529,6 +570,7 @@ class SupabaseService {
         .toList();
   }
 
+  // Fetches the specialty names belonging to a review group.
   static Future<List<String>> getSpecialtiesForGroup(int groupId) async {
     final rows = await client
         .from('specialty_group_map')
@@ -548,6 +590,8 @@ class SupabaseService {
     '3rd Trimester'
   ];
 
+  // Picks the non-trimester tag as the article's category, and figures out
+  // the trimester number (1-3) from whichever trimester tag is present.
   static (String, int?) _deriveCategoryAndTrimester(List<String> tags) {
     final category = tags.firstWhere((t) => !trimesterTags.contains(t),
         orElse: () => 'General');
@@ -561,6 +605,7 @@ class SupabaseService {
     return (category, trimester);
   }
 
+  // Fetches the list of tags available for tagging articles.
   static Future<List<String>> getLearnTags() async {
     final res = await client
         .from('learn_tags')
@@ -571,6 +616,8 @@ class SupabaseService {
         .toList();
   }
 
+  // Creates a new draft article. Generates a URL slug from the title plus a
+  // timestamp (to keep it unique) and derives category/trimester from the tags.
   static Future<Map<String, dynamic>> createArticleDraft({
     required String title,
     required String content,
@@ -599,10 +646,12 @@ class SupabaseService {
     return res;
   }
 
+  // Submits a draft for review via RPC.
   static Future<void> submitContentForReview(String contentId) async {
     await client.rpc('resubmit_content', params: {'p_content_id': contentId});
   }
 
+  // Fetches the signed-in user's own article submissions (drafts + published).
   static Future<List<Map<String, dynamic>>> getMyArticleSubmissions() async {
     final user = currentUser;
     if (user == null) return [];
@@ -615,6 +664,7 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(res);
   }
 
+  // Counts how many published articles a user has authored.
   static Future<int> getPublishedArticlesCountForUser(String userId) async {
     try {
       final res = await client
@@ -628,12 +678,14 @@ class SupabaseService {
     }
   }
 
+  // Same as above but for the signed-in user.
   static Future<int> getMyPublishedArticlesCount() async {
     final user = currentUser;
     if (user == null) return 0;
     return getPublishedArticlesCountForUser(user.id);
   }
 
+  // Counts how many distinct pieces of content a user has reviewed.
   static Future<int> getReviewActionsCountForUser(String userId) async {
     try {
       final res = await client
@@ -650,16 +702,19 @@ class SupabaseService {
     }
   }
 
+  // Same as above but for the signed-in user.
   static Future<int> getMyReviewActionsCount() async {
     final user = currentUser;
     if (user == null) return 0;
     return getReviewActionsCountForUser(user.id);
   }
 
+  // Deletes an article draft.
   static Future<void> deleteArticleDraft(String id) async {
     await client.from('articles').delete().eq('id', id);
   }
 
+  // Edits an article's content via RPC (keeps an edit history entry).
   static Future<void> updateArticleDraft(
     String id, {
     required String title,

@@ -31,6 +31,8 @@ int _embeddedCount(Map<String, dynamic> row, String key) {
   return (list.first as Map)['count'] as int? ?? 0;
 }
 
+// Matches markdown image syntax ![alt](url) so we can pull out image URLs
+// to preview, since articles are stored as markdown.
 final _imagePattern = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
 List<String> _articleImageUrls(String content) {
   return _imagePattern
@@ -40,6 +42,8 @@ List<String> _articleImageUrls(String content) {
       .toList();
 }
 
+// Strips markdown formatting (images, links, bold/italic) down to plain
+// text so we have something short to show as a card preview.
 String _plainTextPreview(String markdown) {
   var text = markdown;
   text = text.replaceAll(RegExp(r'!\[[^\]]*\]\([^)]*\)'), '');
@@ -49,6 +53,7 @@ String _plainTextPreview(String markdown) {
   return text.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
+// Browsable, searchable feed of pregnancy articles with tag filters.
 class EducationScreen extends StatefulWidget {
   const EducationScreen({super.key});
 
@@ -420,6 +425,8 @@ class _EducationScreenState extends State<EducationScreen> {
   }
 }
 
+// One article's card in the feed — shows a preview and expands inline
+// instead of navigating away, unless it's a link-out or "Show more" is tapped.
 class _ArticleCard extends StatefulWidget {
   final Map<String, dynamic> article;
   final VoidCallback onReport;

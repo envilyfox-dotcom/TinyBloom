@@ -1,32 +1,24 @@
--- Run in the Supabase SQL editor, after add_review_groups_schema.sql,
--- seed_review_groups.sql, and add_content_status_enum_values.sql (that one
--- MUST be run by itself first — see its header comment).
--- Part 2 of the specialist article review pipeline (Article_System_specialist.md).
+-- Run after add_review_groups_schema.sql, seed_review_groups.sql, and
+-- add_content_status_enum_values.sql (that one has to run by itself first,
+-- see its own header). Part 2 of the specialist article review pipeline.
 --
--- `articles.status` is the existing `content_status` enum. This pipeline
--- reuses its existing `draft` and `published` values as-is — `published`
--- IS the doc's "live" state, so the existing public-read policies
--- (`articles_public_read`, "Everyone can read published articles") already
--- correctly gate public visibility and are left untouched. Only the 5
--- intermediate pipeline states are new (added by
--- add_content_status_enum_values.sql).
+-- Reuses the existing `draft`/`published` values on the `content_status`
+-- enum as-is (published = live, and the existing public-read policies
+-- already handle that) and just adds the 5 in-between pipeline states.
 --
--- This migration also DROPS two pre-existing policies —
--- "Specialists can insert articles" and "Specialists can update own
--- articles" — because they had no restriction on `status` at all. Since
--- Postgres OR's every permissive policy for the same command together,
--- leaving them in place would let a specialist insert/update straight to
--- `published` and completely bypass peer review, regardless of the
--- draft-only policies added here. Their replacements below fold in the same
--- "approved, active specialist" check the originals had, plus the missing
--- status restriction.
+-- Also drops two old policies ("Specialists can insert articles" and
+-- "Specialists can update own articles") since they had no status check at
+-- all — left in place, they'd let a specialist publish straight through and
+-- skip review entirely, since Postgres OR's every matching policy together.
+-- The replacements below keep their original "approved, active specialist"
+-- check and add the missing status restriction.
 
--- 1. Extend articles with review-pipeline fields.
+-- which review group owns this article, and when it entered the publish buffer
 alter table public.articles
   add column if not exists primary_group_id integer references public.review_groups(id),
   add column if not exists buffer_started_at timestamptz;
 
--- 2. Review pipeline tables.
+-- one row per stage-1/stage-2 review decision made on a piece of content
 create table if not exists public.approvals (
   id uuid primary key default gen_random_uuid(),
   content_id uuid not null references public.articles(id) on delete cascade,
@@ -43,6 +35,7 @@ create table if not exists public.approvals (
   )
 );
 
+-- logs when someone flags a pending article as urgent, with why
 create table if not exists public.emergency_pending_clicks (
   id uuid primary key default gen_random_uuid(),
   content_id uuid not null references public.articles(id) on delete cascade,
@@ -53,6 +46,7 @@ create table if not exists public.emergency_pending_clicks (
   created_at timestamptz not null default now()
 );
 
+-- internal discussion thread between reviewers on a piece of content (not shown to the public)
 create table if not exists public.review_comments (
   id uuid primary key default gen_random_uuid(),
   content_id uuid not null references public.articles(id) on delete cascade,
@@ -65,6 +59,7 @@ create table if not exists public.review_comments (
   created_at timestamptz not null default now()
 );
 
+-- public-facing comments readers leave on published articles
 create table if not exists public.public_comments (
   id uuid primary key default gen_random_uuid(),
   content_id uuid not null references public.articles(id) on delete cascade,
@@ -73,15 +68,14 @@ create table if not exists public.public_comments (
   created_at timestamptz not null default now()
 );
 
+-- link a review comment back to the public comment that triggered it (needs public_comments to exist first, hence added down here)
 alter table public.review_comments
   drop constraint if exists review_comments_flagged_from_comment_id_fkey;
 alter table public.review_comments
   add constraint review_comments_flagged_from_comment_id_fkey
   foreign key (flagged_from_comment_id) references public.public_comments(id) on delete set null;
 
--- 3. Helper functions — derive a doctor's review-group membership and a
--- piece of content's visible groups from the formal specialty tables, never
--- from name-matching (doc §7.6).
+-- which review groups a doctor belongs to, based on their specialty (not name-matching)
 create or replace function public.doctor_group_ids(uid uuid)
 returns setof integer
 language sql
@@ -95,6 +89,7 @@ as $$
   where sp.user_id = uid;
 $$;
 
+-- which review groups can see a given piece of content (its primary group plus any secondary groups)
 create or replace function public.content_visible_group_ids(cid uuid)
 returns setof integer
 language sql
@@ -110,6 +105,7 @@ as $$
   where a.id = cid;
 $$;
 
+-- true if this user is the article's author, or a reviewer whose group can see it
 create or replace function public.can_view_review_thread(cid uuid, uid uuid)
 returns boolean
 language sql
@@ -125,42 +121,48 @@ as $$
     );
 $$;
 
--- 4. RLS.
+-- turn on RLS for all the new tables
 alter table public.approvals enable row level security;
 alter table public.emergency_pending_clicks enable row level security;
 alter table public.review_comments enable row level security;
 alter table public.public_comments enable row level security;
 
--- Approvals / emergency-pending clicks are written exclusively through the
--- security-definer RPC functions in add_review_pipeline_functions.sql (owned
--- by a role that bypasses RLS) — no insert policy is granted here, so a
--- client can never write these rows directly and skip the business-rule
--- checks those functions enforce.
+-- Approvals and emergency-pending clicks only get written through the
+-- security-definer RPC functions in add_review_pipeline_functions.sql, so
+-- there's no insert policy here on purpose — clients can't write these rows
+-- directly and skip the checks those functions do.
+
+-- reviewers who can see a piece of content's thread can see its approval decisions
 drop policy if exists "Review-scope doctors can view approvals" on public.approvals;
 create policy "Review-scope doctors can view approvals"
 on public.approvals for select to authenticated
 using (public.can_view_review_thread(content_id, auth.uid()));
 
+-- same, for the emergency-flag records
 drop policy if exists "Review-scope doctors can view emergency clicks" on public.emergency_pending_clicks;
 create policy "Review-scope doctors can view emergency clicks"
 on public.emergency_pending_clicks for select to authenticated
 using (public.can_view_review_thread(content_id, auth.uid()));
 
+-- same, for the internal review discussion
 drop policy if exists "Review-scope doctors can view review comments" on public.review_comments;
 create policy "Review-scope doctors can view review comments"
 on public.review_comments for select to authenticated
 using (public.can_view_review_thread(content_id, auth.uid()));
 
+-- a reviewer can post in the thread for content their group can see
 drop policy if exists "Review-scope doctors can comment" on public.review_comments;
 create policy "Review-scope doctors can comment"
 on public.review_comments for insert to authenticated
 with check (author_id = auth.uid() and public.can_view_review_thread(content_id, auth.uid()));
 
+-- anyone signed in can read public comments, but only on published articles
 drop policy if exists "Authenticated users can view public comments on live articles" on public.public_comments;
 create policy "Authenticated users can view public comments on live articles"
 on public.public_comments for select to authenticated
 using (exists (select 1 from public.articles a where a.id = content_id and a.status = 'published'));
 
+-- anyone signed in can comment, but only on published articles
 drop policy if exists "Authenticated users can comment on live articles" on public.public_comments;
 create policy "Authenticated users can comment on live articles"
 on public.public_comments for insert to authenticated
@@ -169,21 +171,21 @@ with check (
   and exists (select 1 from public.articles a where a.id = content_id and a.status = 'published')
 );
 
+-- can only delete your own comment
 drop policy if exists "Users can delete their own public comments" on public.public_comments;
 create policy "Users can delete their own public comments"
 on public.public_comments for delete to authenticated
 using (user_id = auth.uid());
 
--- 5. Articles: replace the old unrestricted-status insert/update policies
--- with ones that also enforce the review pipeline's status rules, and scope
--- pre-publish visibility to the author + primary/secondary group (doc
--- §7.5, §7.6). Public visibility for `status = 'published'` is already
--- handled by the pre-existing `articles_public_read` / "Everyone can read
--- published articles" policies — nothing to add there.
+-- Replace the old insert/update policies on articles — they had no status
+-- check at all, which meant a specialist could publish straight through and
+-- skip review entirely. Public read access for published articles is
+-- already handled elsewhere, so nothing to add for that here.
 drop policy if exists "Specialists can submit article links" on public.articles;
 drop policy if exists "Specialists can insert articles" on public.articles;
 drop policy if exists "Specialists can update own articles" on public.articles;
 
+-- an approved, active specialist can create a new article as a draft or straight into stage-1 review
 drop policy if exists "Specialists can create draft submissions" on public.articles;
 create policy "Specialists can create draft submissions"
 on public.articles for insert to authenticated
@@ -200,6 +202,7 @@ with check (
   )
 );
 
+-- an author can edit their own article while it's still a draft or was kicked back for changes
 drop policy if exists "Authors can edit and resubmit their own draft or rejected content" on public.articles;
 create policy "Authors can edit and resubmit their own draft or rejected content"
 on public.articles for update to authenticated
@@ -217,6 +220,7 @@ using (
 )
 with check (created_by = auth.uid());
 
+-- the author, or reviewers whose group covers it, can see an article before it's published
 drop policy if exists "Review-scope doctors can view pre-live content" on public.articles;
 create policy "Review-scope doctors can view pre-live content"
 on public.articles for select to authenticated

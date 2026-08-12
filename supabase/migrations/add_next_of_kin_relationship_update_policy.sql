@@ -11,6 +11,7 @@
 -- re-linking to a different mum still goes through linkToMum's
 -- delete+insert flow).
 
+-- a next-of-kin can edit the relationship label on their own link, nothing else
 create policy "Next of kin can update their own link's relationship"
 on public.next_of_kin_profiles
 for update

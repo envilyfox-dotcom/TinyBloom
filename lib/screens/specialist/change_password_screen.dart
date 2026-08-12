@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/common_widgets.dart';
 
+// Lets a logged-in specialist change their password, re-checking the current one first.
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -38,6 +39,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     });
 
     try {
+      // Supabase doesn't have a "verify current password" call, so we just
+      // sign in again with it to confirm it's correct before changing anything.
       await Supabase.instance.client.auth.signInWithPassword(
         email: Supabase.instance.client.auth.currentUser!.email!,
         password: _currentPasswordCtrl.text,

@@ -11,8 +11,11 @@ import '../../utils/singapore_time.dart';
 import '../../widgets/common_widgets.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
+// Sessions only become startable this many minutes before the scheduled time.
 const Duration _joinWindow = Duration(minutes: 10);
 
+// List of a specialist's consultations with search + tag filtering, and a
+// timer that keeps join-window/status checks fresh without a manual refresh.
 class SpecialistConsultationsScreen extends StatefulWidget {
   const SpecialistConsultationsScreen({super.key});
 
@@ -68,6 +71,7 @@ class _SpecialistConsultationsScreenState
     super.dispose();
   }
 
+  // Applies the selected tag chip and the search box on top of the loaded list.
   List<Map<String, dynamic>> get _filteredConsultations {
     final query = _searchQuery.value.trim().toLowerCase();
 
@@ -95,6 +99,8 @@ class _SpecialistConsultationsScreenState
     }).toList();
   }
 
+  // Fetches consultations plus each patient's profile/pregnancy info, then
+  // sorts so active ones come first (soonest first) and inactive ones last.
   Future<void> _load() async {
     setState(() => _loading = true);
 
@@ -153,6 +159,8 @@ class _SpecialistConsultationsScreenState
     }
   }
 
+  // Combines the separate scheduled_date and scheduled_time fields into one
+  // Singapore-time DateTime.
   DateTime? _scheduledDateTime(Map<String, dynamic> c) {
     final scheduled = c['scheduled_date'];
     if (scheduled == null) return null;
@@ -169,6 +177,8 @@ class _SpecialistConsultationsScreenState
     }
   }
 
+  // Derives the status actually shown to the user - flips "pending" to
+  // "expired" and "confirmed" to "completed" once the slot time has passed.
   String _effectiveStatusKey(Map<String, dynamic> consultation) {
     final status =
         (consultation['status'] as String? ?? 'pending').toLowerCase();
@@ -383,6 +393,8 @@ class _SpecialistConsultationsScreenState
     }
   }
 
+  // Shows a before/after popup comparing the old and new slot when a booking
+  // was rescheduled (the "!" badge on the patient avatar).
   Future<void> _showRescheduleDetails(
     Map<String, dynamic> consultation,
     String patientName,

@@ -18,6 +18,8 @@ String _timeAgo(DateTime date) {
   return DateFormat('d MMM').format(toSingaporeTime(date));
 }
 
+// One entry in the merged "History" timeline - either an approval/rejection
+// or an edit, so both kinds can be sorted together by time.
 class _TimelineItem {
   final DateTime time;
   final bool isEdit;
@@ -25,6 +27,8 @@ class _TimelineItem {
   _TimelineItem({required this.time, required this.isEdit, required this.data});
 }
 
+// Full review thread for one article: approvals/rejections, flagged issues,
+// edit history, and a discussion comment section.
 class SpecialistReviewThreadScreen extends StatefulWidget {
   final String contentId;
   const SpecialistReviewThreadScreen({super.key, required this.contentId});
@@ -123,6 +127,7 @@ class _SpecialistReviewThreadScreenState
     if (mounted) setState(() => _acting = false);
   }
 
+  // Stage 1 = needs a first approval, stage 2 = needs a second approval.
   int get _stage {
     final status = _content?['status'] as String? ?? '';
     return status == 'pending_approval_1' ? 1 : 2;
@@ -139,6 +144,8 @@ class _SpecialistReviewThreadScreenState
 
   Color get _checksColor => _checksCount >= 2 ? AppColors.teal : AppColors.gold;
 
+  // Who gave the current (non-superseded) stage-1 approval - used to stop
+  // that same reviewer from also approving stage 2.
   String? get _stage1ApproverId {
     final active = List<Map<String, dynamic>>.from(_content?['approvals'] ?? [])
         .where((a) =>
@@ -353,6 +360,7 @@ class _SpecialistReviewThreadScreenState
     _issueReplyCtrl.clear();
     setState(() => _replyingToApprovalId = null);
     if (isAuthor) {
+      // The author's reply resolves the flagged issue outright.
       await _run(() => SupabaseService.resolveReviewIssue(approvalId, reply));
     } else {
       await _run(() => SupabaseService.postReviewComment(
@@ -404,6 +412,8 @@ class _SpecialistReviewThreadScreenState
     }
   }
 
+  // Picks which action panel to show based on the article's status and
+  // whether the viewer is the author, a stage-1 reviewer, or a stage-2 one.
   Widget _actionsForStatus(String status) {
     if (_isAuthor) {
       if (status == 'published') {
@@ -463,6 +473,8 @@ class _SpecialistReviewThreadScreenState
                   fontWeight: FontWeight.w600)),
         );
       }
+      // Stage 1 can only be approved by someone in the article's own primary
+      // group; everyone else has to wait until it reaches stage 2.
       if (status == 'pending_approval_1' &&
           _myGroupId != _content!['primary_group_id']) {
         return Container(
@@ -1124,6 +1136,8 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
+  // Rejections and "approved with suggestion" comments, shown as a feed
+  // above the plain approval/edit history.
   Widget _flaggedFeed() {
     final approvals = List<Map<String, dynamic>>.from(
             _content!['approvals'] ?? [])
@@ -1138,6 +1152,8 @@ class _SpecialistReviewThreadScreenState
     );
   }
 
+  // Merges approvals/rejections and edit-history entries into one
+  // chronological timeline for the collapsible "History" section.
   Widget _historySection() {
     final approvals =
         List<Map<String, dynamic>>.from(_content!['approvals'] ?? []);

@@ -1,15 +1,12 @@
--- Run this in the Supabase SQL editor (Project → SQL Editor → New query).
 -- Adds support for specialists submitting external article links with a title.
 
--- 1. New columns on the existing `articles` table.
---    `url`        — the external link a specialist submits (null for in-app articles).
---    `created_by` — who submitted it, so specialists can see/manage their own links.
+-- `url` is the external link a specialist submits (null for in-app articles);
+-- `created_by` tracks who submitted it so they can manage their own links
 alter table public.articles
   add column if not exists url text,
   add column if not exists created_by uuid references public.profiles(id);
 
--- 2. Allow authenticated specialists to insert new article links.
---    (Published immediately — there's no admin moderation screen yet.)
+-- lets any specialist submit a new article link — goes live right away, no moderation step yet
 create policy "Specialists can submit article links"
 on public.articles
 for insert
@@ -21,7 +18,7 @@ with check (
   )
 );
 
--- 3. Allow specialists to delete only the links they submitted.
+-- specialists can only delete the links they submitted themselves
 create policy "Specialists can delete their own article links"
 on public.articles
 for delete

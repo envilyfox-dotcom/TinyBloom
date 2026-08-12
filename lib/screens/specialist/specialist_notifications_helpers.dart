@@ -2,6 +2,9 @@ import 'package:intl/intl.dart';
 import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
+// Builds the specialist's notification feed from consultations that need
+// action (new booking, reschedule, about to start) plus articles awaiting
+// their review, newest first.
 List<Map<String, dynamic>> buildSpecialistNotifications({
   required List<Map<String, dynamic>> consultations,
   required List<Map<String, dynamic>> reviewQueue,
@@ -50,6 +53,7 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
         appointmentIdLabel(c['id'], c['consultation_type'] as String?);
     final previousScheduledDate = c['previous_scheduled_date'];
 
+    // Reschedule notice takes priority over the plain "needs confirmation" one.
     if (status == 'pending' && previousScheduledDate != null) {
       final fromLabel = formatDateTimeLabel(
           previousScheduledDate, c['previous_scheduled_time']);
@@ -76,6 +80,7 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
         'consultation': c,
       });
     } else if (status == 'confirmed' && scheduled != null) {
+      // Only nudge within a 15-minute window before the call starts.
       final minutesUntil = scheduled.difference(now).inMinutes;
       if (minutesUntil >= 0 && minutesUntil <= 15) {
         final timeLabel = c['scheduled_time'] as String? ?? '';
@@ -95,6 +100,9 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
     if (item['needs_action'] != true) continue;
     final status = item['status'] as String? ?? '';
     final isAuthor = item['created_by']?.toString() == userId;
+
+    // Authors get notified when their article needs edits; other reviewers
+    // get notified when there's something in the queue for them to approve.
 
     String title;
     if (isAuthor && status == 'changes_requested') {
@@ -128,6 +136,7 @@ List<Map<String, dynamic>> buildSpecialistNotifications({
   return items;
 }
 
+// Relative time label like "5m ago" for notification cards.
 String timeAgoLabel(DateTime date) {
   final diff = DateTime.now().difference(date);
   if (diff.inMinutes < 1) return 'Just now';

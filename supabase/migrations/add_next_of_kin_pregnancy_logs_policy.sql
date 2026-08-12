@@ -10,6 +10,7 @@
 -- scoped the same way as the earlier gift-subscription policy — via an
 -- exists() check against next_of_kin_profiles, not a blanket grant.
 
+-- a next-of-kin can read a mum's logs, but only if next_of_kin_profiles actually links them to her
 create policy "Next of kin can view linked mum's pregnancy logs"
 on public.pregnancy_logs
 for select

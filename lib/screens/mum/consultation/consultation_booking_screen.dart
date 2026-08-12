@@ -7,6 +7,9 @@ import '../../../utils/singapore_time.dart';
 import '../../../utils/specialist_availability.dart';
 import 'consultation_helpers.dart';
 
+// Lets a mum pick a date and time slot for a specialist/volunteer, only
+// showing slots the provider is actually available for and that aren't
+// already booked.
 class ConsultationBookingScreen extends StatefulWidget {
   final Map<String, dynamic> provider;
   final String type;
@@ -93,6 +96,9 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     return dateStart.isBefore(todayStart);
   }
 
+  // Times can come in as "Today 9:00 AM", "9am", "09:00", etc. — this
+  // squashes them all into a consistent "h:mm a" string so slots can be
+  // compared and deduped.
   String _normaliseTime(String? value) {
     if (value == null || value.trim().isEmpty) return '';
 
@@ -133,6 +139,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     return clean;
   }
 
+  // Combines the selected date with a time-slot string into a concrete SGT
+  // DateTime, so it can be compared against sgtNow().
   DateTime? _slotDateTime(DateTime date, String time) {
     final clean = _normaliseTime(time);
 
@@ -225,6 +233,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     }
   }
 
+  // Slots for the selected date, minus anything already booked and, if
+  // today's selected, minus times that have already passed.
   List<String> get _visibleTimeSlots {
     if (_isPastDate(_selectedDate)) return [];
     if (!_isProviderAvailableOnDate(_selectedDate)) return [];
@@ -246,6 +256,8 @@ class _ConsultationBookingScreenState extends State<ConsultationBookingScreen> {
     }).toList();
   }
 
+  // Greys out a slot once it's inside the minimum-notice window (see
+  // consultation_helpers.dart) so the provider always gets fair warning.
   bool _isTooCloseToBook(String normalisedTime) {
     final now = sgtNow();
     if (!_isSameDay(_selectedDate, now)) return false;

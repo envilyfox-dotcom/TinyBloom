@@ -11,6 +11,8 @@ import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import '../mum/forum/forum_shared.dart';
 
+// Shows all mums' questions to volunteers, split into Available / Ongoing /
+// Completed tabs. Any volunteer can see and claim an open question.
 class VolunteerRequestsScreen extends StatefulWidget {
   const VolunteerRequestsScreen({super.key});
 
@@ -51,6 +53,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
           .select()
           .order('created_at', ascending: false);
       final rows = List<Map<String, dynamic>>.from(data);
+      // Sweep for requests that have gone quiet or call offers that expired.
       await SupabaseService.autoCloseStaleRequests(rows);
       await SupabaseService.expireStaleCallRequests(rows);
 
@@ -81,6 +84,7 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
                 },
               })
           .toList();
+      // Available requests first, then ongoing, then completed; newest first within each group.
       requests.sort((a, b) {
         final priorityCompare = _priority(a).compareTo(_priority(b));
         if (priorityCompare != 0) return priorityCompare;
@@ -359,6 +363,9 @@ class _RequestCard extends StatelessWidget {
   }
 }
 
+// The chat thread for a single mum's request. An unclaimed request is open
+// to any volunteer to reply to (which claims it); once claimed, only that
+// volunteer can keep chatting, offer a video call, or close the chat.
 class RequestDetailScreen extends StatefulWidget {
   final Map<String, dynamic> request;
   const RequestDetailScreen({super.key, required this.request});
@@ -386,6 +393,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   bool get _isMine => _volunteerId != null && _volunteerId == _myId;
   bool get _isOpen => _volunteerId == null;
   bool get _isClosed => widget.request['status'] == 'closed';
+  // Can reply if it's still unclaimed (anyone may claim it by replying) or
+  // it's already claimed by me — but not if it's closed or someone beat us to it.
   bool get _canReply => !_lockedOut && !_isClosed && (_isOpen || _isMine);
   String get _callStatus => widget.request['call_status'] as String? ?? 'none';
   String? get _meetingLink => widget.request['meeting_link'] as String?;
@@ -417,6 +426,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   Future<void> _load() async {
     final previousMessageCount = _messages.length;
+    // Remember if the user was already scrolled to the bottom, so a refresh
+    // that brings in new messages doesn't yank the view if they've scrolled up to read history.
     final wasNearBottom = !_scrollCtrl.hasClients ||
         _scrollCtrl.position.maxScrollExtent - _scrollCtrl.position.pixels <
             80;
@@ -481,6 +492,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     setState(() => _sending = true);
     try {
       if (_isOpen) {
+        // Claiming and replying happen together atomically on the backend,
+        // so two volunteers can't both grab the same open request.
         final claimed = await SupabaseService.claimAndReplyToRequest(
             widget.request['id'].toString(), text);
         if (!claimed) {
@@ -741,6 +754,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     }
   }
 
+  // Renders the right UI for wherever the call request currently is: not
+  // requested yet, waiting on the mum, or accepted (share the Zoom link).
   Widget _videoCallControl() {
     switch (_callStatus) {
       case 'requested':

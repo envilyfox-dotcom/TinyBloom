@@ -7,6 +7,9 @@ import '../services/supabase_service.dart';
 /// Provider tree above the widget tree observe the same object.
 final authProvider = AuthProvider();
 
+// Holds the signed-in user + their profile row, and notifies listeners
+// (router, widget tree) whenever either changes. Also figures out whether
+// the user still needs to go through onboarding.
 class AuthProvider extends ChangeNotifier {
   User? _user;
   Map<String, dynamic>? _profile;
@@ -63,6 +66,9 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  // If we couldn't load a profile row (e.g. still being created by a
+  // trigger), fall back to the name/role stored on the auth user itself so
+  // the UI has something to show instead of nothing.
   void _applyMetaFallback() {
     if (_profile == null && _user != null) {
       final meta = _user!.userMetadata;
@@ -84,6 +90,8 @@ class AuthProvider extends ChangeNotifier {
         _profile = {'full_name': meta['full_name'], 'role': meta['role']};
       }
     }
+    // Onboarding is role-specific: mums need a pregnancy profile, specialists
+    // need to have set an availability schedule. Everyone else skips it.
     try {
       if (isMum) {
         final pp = await SupabaseService.getPregnancyProfile();

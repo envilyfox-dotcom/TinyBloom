@@ -11,6 +11,9 @@ import '../../utils/service_id.dart';
 import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 
+// Merges several different Supabase tables (notifications, active_alerts,
+// consultations, health logs, articles, etc.) into one unified notification
+// feed, since there's no single "notifications" table that covers everything.
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -40,6 +43,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _loadNotifications();
   }
 
+  // Different source tables use different words for the same category
+  // (e.g. "booking" vs "consultation"), so this maps all the raw values
+  // down to the handful of filter tabs shown in the UI.
   String _normaliseType(dynamic rawType) {
     final type = (rawType ?? 'general').toString().trim().toLowerCase();
     final clean = type.replaceAll(RegExp(r'[\s_-]+'), '');
@@ -198,6 +204,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return '$sourceTable::$sourceId';
   }
 
+  // Rows pulled from consultations/articles/etc. aren't real notification
+  // rows, so "read" state for them is tracked separately in this table
+  // instead of an is_read column.
   Future<Set<String>> _loadNotificationReadReceiptKeys(String userId) async {
     try {
       final data = await SupabaseService.client
@@ -448,6 +457,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .join(' • ');
   }
 
+  // Turns each consultation booking into a notification-shaped row so it
+  // can be merged into the same feed as everything else.
   Future<List<Map<String, dynamic>>> _loadRowsFromConsultationsTable(
       String userId) async {
     final data = await SupabaseService.client
@@ -537,6 +548,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return rows;
   }
 
+  // Only show upcoming/accepted volunteer video calls, and drop ones that
+  // already started more than 2 hours ago.
   Future<List<Map<String, dynamic>>> _loadVolunteerCallReminderRows(
       String userId) async {
     final data = await SupabaseService.client
@@ -776,6 +789,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
   }
 
+  // Used when we don't have real baby_development data for the current
+  // week — nudges the mum to set a due date, or shows a generic message.
   List<Map<String, dynamic>> _fallbackMilestoneRows(
       Map<String, dynamic>? pregnancyProfile) {
     final week = _currentPregnancyWeek(pregnancyProfile);
@@ -976,6 +991,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return parts.join(' ').toLowerCase();
   }
 
+  // Simple keyword scan over a mum's logged symptoms/notes to flag
+  // anything that could be a medical emergency worth surfacing loudly.
   List<String> _dangerSymptomMatches(String combinedText) {
     final checks = <String, String>{
       'heavy bleeding': 'Heavy bleeding reported',
@@ -1008,6 +1025,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return matches;
   }
 
+  // Checks the latest health log for danger signs (extreme blood pressure,
+  // zero kick count, flagged symptoms) and turns them into emergency alerts.
   List<Map<String, dynamic>> _emergencyRowsFromHealthLog(
       Map<String, dynamic> item) {
     final systolic = _intFromValue(item['blood_pressure_systolic']);
@@ -1157,6 +1176,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }).toList();
   }
 
+  // Pulls from every source table in parallel, merges the results, applies
+  // read-receipt state, and sorts newest-first. Each source is wrapped in
+  // its own try/catch so one failing table doesn't blank out the whole feed.
   Future<void> _loadNotifications() async {
     final userId = SupabaseService.currentUser?.id;
 
@@ -2196,6 +2218,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // Routes a tapped notification to the right detail sheet/screen based on
+  // its type and source table.
   Future<void> _openNotification(Map<String, dynamic> item) async {
     await _markAsRead(item);
 
