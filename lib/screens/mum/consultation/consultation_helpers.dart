@@ -263,9 +263,10 @@ DateTime? consultationScheduledDateTime(Map<String, dynamic> c) {
 
 // Nothing server-side ever flips a consultation's status to 'completed' once
 // its slot passes, so we derive that here instead: a confirmed appointment
-// whose time has passed shows as completed rather than staying "Confirmed"
-// with a dead join button forever. Likewise a 'pending' request whose slot
-// has passed means the specialist never responded, so it reads as cancelled.
+// whose one-hour appointment window has ended shows as completed rather than
+// staying "Confirmed" with a dead join button forever. Likewise a 'pending'
+// request whose slot has passed means the specialist never responded, so it
+// reads as cancelled.
 // ('expired' rows, from an older status some screens used, are folded into
 // cancelled too.)
 String effectiveConsultationStatus(Map<String, dynamic> c) {
@@ -273,7 +274,12 @@ String effectiveConsultationStatus(Map<String, dynamic> c) {
   if (status == 'expired') return 'cancelled';
   if (status != 'confirmed' && status != 'pending') return status;
   final scheduled = consultationScheduledDateTime(c);
-  if (scheduled == null || !scheduled.isBefore(sgtNow())) return status;
+  if (scheduled == null) return status;
+
+  final cutoff = status == 'confirmed'
+      ? scheduled.add(const Duration(hours: 1))
+      : scheduled;
+  if (!cutoff.isBefore(sgtNow())) return status;
   return status == 'confirmed' ? 'completed' : 'cancelled';
 }
 

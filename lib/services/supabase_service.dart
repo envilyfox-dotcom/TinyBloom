@@ -610,7 +610,9 @@ class SupabaseService {
     final res = await client
         .from('learn_tags')
         .select('label')
-        .order('sort_order');
+        // Keep the original/oldest tag at the top; newly added tags belong
+        // at the bottom of the Create/Edit Article picker.
+        .order('sort_order', ascending: true);
     return List<Map<String, dynamic>>.from(res)
         .map((r) => r['label'] as String)
         .toList();
@@ -854,6 +856,9 @@ class SupabaseService {
     required String sourceType,
     required String sourceId,
   }) async {
+    // Volunteer chats no longer participate in the rating flow. Keep this
+    // guard here so any future caller cannot recreate volunteer prompts.
+    if (providerType != 'specialist') return;
     try {
       final alreadyRated = await client
           .from('provider_ratings')
@@ -908,7 +913,7 @@ class SupabaseService {
     String? notificationId,
   }) async {
     final user = currentUser;
-    if (user == null) return;
+    if (user == null || providerType != 'specialist') return;
     await client.from('provider_ratings').insert({
       'mum_id': user.id,
       'provider_id': providerId,
@@ -1061,21 +1066,6 @@ class SupabaseService {
     await client
         .from('volunteer_requests')
         .update({'status': 'closed'}).eq('id', requestId);
-
-    final mumId = request['patient_id']?.toString();
-    final volunteerId = request['volunteer_id']?.toString();
-    if (mumId == null || volunteerId == null) return;
-    final volunteerProfile = await getProfileById(volunteerId);
-    final volunteerName =
-        volunteerProfile?['full_name'] as String? ?? 'Volunteer';
-    await ensureRatingNotification(
-      mumId: mumId,
-      providerId: volunteerId,
-      providerType: 'volunteer',
-      providerName: volunteerName,
-      sourceType: 'chat',
-      sourceId: requestId,
-    );
   }
 
   static Future<void> requestVideoCall(
@@ -1169,39 +1159,48 @@ class SupabaseService {
 
   static Future<void> autoCloseStaleRequests(
       List<Map<String, dynamic>> requests) async {
-    final cutoff = DateTime.now().subtract(const Duration(hours: 48));
-    final stale = requests.where((r) {
+    final cutoff = DateTime.now().toUtc().subtract(const Duration(hours: 48));
+    final staleUnanswered = requests.where((r) {
+      final status = (r['status'] ?? '').toString().toLowerCase();
+      if (status != 'pending' && status != 'open' && status != 'waiting') {
+        return false;
+      }
+      if (r['volunteer_id'] != null) return false;
+      final last = DateTime.tryParse(r['last_activity_at']?.toString() ??
+          r['created_at']?.toString() ??
+          '');
+      return last != null && last.isBefore(cutoff);
+    }).toList();
+    final staleOngoing = requests.where((r) {
       if (r['status'] != 'responded') return false;
       final last = DateTime.tryParse(r['last_activity_at']?.toString() ??
           r['created_at']?.toString() ??
           '');
       return last != null && last.isBefore(cutoff);
     }).toList();
-    if (stale.isEmpty) return;
-    final staleIds = stale.map((r) => r['id'].toString()).toList();
+
+    if (staleUnanswered.isEmpty && staleOngoing.isEmpty) return;
     try {
-      await client
-          .from('volunteer_requests')
-          .update({'status': 'closed'}).inFilter('id', staleIds);
-      for (final r in stale) {
+      if (staleUnanswered.isNotEmpty) {
+        final unansweredIds =
+            staleUnanswered.map((r) => r['id'].toString()).toList();
+        await client
+            .from('volunteer_requests')
+            .update({'status': 'cancelled'}).inFilter('id', unansweredIds);
+      }
+      if (staleOngoing.isNotEmpty) {
+        final ongoingIds =
+            staleOngoing.map((r) => r['id'].toString()).toList();
+        await client
+            .from('volunteer_requests')
+            .update({'status': 'closed'}).inFilter('id', ongoingIds);
+      }
+      for (final r in staleUnanswered) {
+        r['status'] = 'cancelled';
+      }
+      for (final r in staleOngoing) {
         r['status'] = 'closed';
       }
-      await Future.wait(stale.map((r) async {
-        final mumId = r['patient_id']?.toString();
-        final volunteerId = r['volunteer_id']?.toString();
-        if (mumId == null || volunteerId == null) return;
-        final volunteerProfile = await getProfileById(volunteerId);
-        final volunteerName =
-            volunteerProfile?['full_name'] as String? ?? 'Volunteer';
-        await ensureRatingNotification(
-          mumId: mumId,
-          providerId: volunteerId,
-          providerType: 'volunteer',
-          providerName: volunteerName,
-          sourceType: 'chat',
-          sourceId: r['id'].toString(),
-        );
-      }));
     } catch (_) {}
   }
 

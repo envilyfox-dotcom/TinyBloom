@@ -38,7 +38,9 @@ class _VolunteerQuestionDetailScreenState
   bool _respondingToCall = false;
   Timer? _pollTimer;
 
-  bool get _isClosed => widget.request['status'] == 'closed';
+  bool get _isClosed =>
+      widget.request['status'] == 'closed' ||
+      widget.request['status'] == 'cancelled';
   String get _callStatus => widget.request['call_status'] as String? ?? 'none';
   String? get _meetingLink => widget.request['meeting_link'] as String?;
   DateTime? get _scheduledDate =>
@@ -209,6 +211,8 @@ class _VolunteerQuestionDetailScreenState
   // Accept/decline banner while a call request is pending, or a "waiting
   // for the link" notice once accepted but before the volunteer's shared it.
   Widget _videoCallControl() {
+    if (_isClosed) return const SizedBox.shrink();
+
     switch (_callStatus) {
       case 'requested':
         return Padding(
@@ -362,7 +366,7 @@ class _VolunteerQuestionDetailScreenState
           SelectableText(text,
               textAlign: mine ? TextAlign.right : TextAlign.left,
               style: const TextStyle(color: AppColors.textMid, fontSize: 13)),
-          if (messageLink != null) ...[
+          if (messageLink != null && !_isClosed) ...[
             const SizedBox(height: 6),
             OutlinedButton.icon(
               onPressed: () => _openMeetingLink(messageLink),
@@ -449,17 +453,24 @@ class _VolunteerQuestionDetailScreenState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color:
-                                (isCompleted ? AppColors.sage : AppColors.gold)
-                                    .withValues(alpha: 0.18),
+                            color: (widget.request['status'] == 'cancelled'
+                                    ? AppColors.textMid
+                                    : (isCompleted
+                                        ? AppColors.sage
+                                        : AppColors.gold))
+                                .withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            isCompleted ? 'Completed' : 'Ongoing',
+                            widget.request['status'] == 'cancelled'
+                                ? 'Cancelled'
+                                : (isCompleted ? 'Completed' : 'Ongoing'),
                             style: TextStyle(
-                                color: isCompleted
-                                    ? AppColors.sage
-                                    : AppColors.gold,
+                                color: widget.request['status'] == 'cancelled'
+                                    ? AppColors.textMid
+                                    : (isCompleted
+                                        ? AppColors.sage
+                                        : AppColors.gold),
                                 fontWeight: FontWeight.w700,
                                 fontSize: 11),
                           ),
@@ -531,8 +542,12 @@ class _VolunteerQuestionDetailScreenState
             padding: EdgeInsets.fromLTRB(
                 20, 0, 20, 20 + MediaQuery.paddingOf(context).bottom),
             child: _isClosed
-                ? const Text('This chat has been closed.',
-                    style: TextStyle(color: AppColors.textLight, fontSize: 12))
+                ? Text(
+                    status == 'cancelled'
+                        ? 'This chat was cancelled because no volunteer replied within 48 hours.'
+                        : 'This chat has been closed.',
+                    style: const TextStyle(
+                        color: AppColors.textLight, fontSize: 12))
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

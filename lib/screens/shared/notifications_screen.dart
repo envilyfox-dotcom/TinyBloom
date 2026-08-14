@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +28,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _selectedFilter = 'All';
   List<Map<String, dynamic>> _notifications = [];
   Map<String, dynamic>? _profile;
+  Timer? _statusTimer;
 
   List<String> get filters => [
         'All',
@@ -41,6 +44,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _loadNotifications();
+    // Consultation status is derived from the scheduled time, so refresh
+    // the visible notification cards while this screen remains open.
+    _statusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _statusTimer?.cancel();
+    super.dispose();
   }
 
   // Different source tables use different words for the same category
@@ -274,7 +288,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .order('created_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(data)
-        .where((item) => !isStaleServiceNotification(item))
+        .where((item) =>
+            !isStaleServiceNotification(item) &&
+            item['rating_provider_type'] != 'volunteer')
         .map((item) {
       return {
         ...item,
@@ -485,7 +501,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     final rows = <Map<String, dynamic>>[];
     for (final item in kept) {
-      final status = (item['status'] ?? 'booked').toString();
+      final status = effectiveConsultationStatus(item);
       final consultationType =
           (item['consultation_type'] ?? 'consultation').toString();
       final purpose = (item['purpose'] ?? '').toString().trim();
@@ -1938,7 +1954,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             .toString();
     final scheduled = (item['scheduled_display'] ?? '').toString().trim();
     final purpose = (item['purpose'] ?? '').toString().trim();
-    final status = (item['status'] ?? '').toString().trim();
+    final status = _consultationStatusForNotification(item);
     final platform = (item['platform'] ?? '').toString().trim();
     final meetingLink = (item['meeting_link'] ?? '').toString().trim();
     final notes = (item['notes'] ?? '').toString().trim();
@@ -2066,7 +2082,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        if (meetingLink.isNotEmpty)
+        if (meetingLink.isNotEmpty && status != 'completed')
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -2096,6 +2112,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       ],
     );
+  }
+
+  String _consultationStatusForNotification(Map<String, dynamic> item) {
+    if (item['source_table'] == 'consultations') {
+      return effectiveConsultationStatus(item);
+    }
+    return (item['status'] ?? '').toString().trim().toLowerCase();
   }
 
   Future<void> _showSessionDetails(Map<String, dynamic> item) async {
@@ -2238,6 +2261,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     if (item['rating_provider_id'] != null) {
+      if (item['rating_provider_type'] == 'volunteer') return;
       final rated = await context.push<bool>('/rate-provider', extra: item);
       if (rated == true && mounted) await _loadNotifications();
       return;
@@ -2575,7 +2599,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (type == 'consultation') {
       final scheduled = (item['scheduled_display'] ?? '').toString().trim();
       final purpose = (item['purpose'] ?? '').toString().trim();
-      final status = (item['status'] ?? '').toString().trim();
+      final status = _consultationStatusForNotification(item);
       final platform = (item['platform'] ?? '').toString().trim();
       final consultationLabel =
           (item['consultation_label'] ?? item['consultation_type'] ?? '')

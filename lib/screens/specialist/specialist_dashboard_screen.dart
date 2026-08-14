@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,11 +30,22 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
   List<Map<String, dynamic>> _providerRatings = [];
   List<Map<String, dynamic>> _notifications = [];
   bool _loading = true;
+  Timer? _tickTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // Keep time-derived statuses in sync while the dashboard is open.
+    _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tickTimer?.cancel();
+    super.dispose();
   }
 
   // Pulls together the profile, consultations (with patient names attached),
@@ -131,13 +144,6 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
-  bool _isExpiredPending(Map<String, dynamic> c) {
-    final status = (c['status'] as String? ?? '').toLowerCase();
-    if (status != 'pending') return false;
-    final scheduled = _scheduledDateTime(c);
-    return scheduled != null && scheduled.isBefore(sgtNow());
-  }
-
   List<Map<String, dynamic>> _sortedByTime(List<Map<String, dynamic>> list) {
     final sorted = [...list];
     sorted.sort((a, b) {
@@ -161,10 +167,9 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       try {
         final date = DateTime.parse(scheduled);
         final consultationDate = sgtWallClock(date.year, date.month, date.day);
-        final status = (c['status'] as String? ?? '').toLowerCase();
+        final status = effectiveConsultationStatus(c);
         return consultationDate == today &&
-            (status == 'pending' || status == 'confirmed') &&
-            !_isExpiredPending(c);
+            (status == 'pending' || status == 'confirmed');
       } catch (_) {
         return false;
       }
@@ -183,7 +188,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
       try {
         final date = DateTime.parse(scheduled);
         final consultationDate = sgtWallClock(date.year, date.month, date.day);
-        final status = (c['status'] as String? ?? '').toLowerCase();
+        final status = effectiveConsultationStatus(c);
         return consultationDate.isAfter(today) &&
             (status == 'pending' || status == 'confirmed');
       } catch (_) {
@@ -213,7 +218,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     final scheduledDate = consultation['scheduled_date'] as String?;
     final scheduledTime = consultation['scheduled_time'] as String?;
     final purpose = consultation['purpose'] as String? ?? 'Consultation';
-    final status = (consultation['status'] as String?) ?? 'pending';
+    final status = effectiveConsultationStatus(consultation);
 
     String formattedTime = '';
     if (scheduledTime != null) {

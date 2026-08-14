@@ -235,7 +235,8 @@ class _VideoCallSessionCard extends StatelessWidget {
     final photoUrl = session['_mumPhoto'] as String?;
     final age = session['_mumAge'] as String?;
     final week = session['_mumWeek'] as int? ?? 0;
-    final isClosed = session['status'] == 'closed';
+    final isClosed = session['status'] == 'closed' ||
+        session['status'] == 'cancelled';
     final meetingLink = session['meeting_link'] as String?;
     final hasLink = meetingLink != null && meetingLink.trim().isNotEmpty;
     final scheduledDate =

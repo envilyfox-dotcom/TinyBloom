@@ -185,6 +185,8 @@ String quickChatStatusText(Map<String, dynamic> q) {
     return 'Waiting for volunteer reply';
   }
 
+  if (status == 'cancelled') return 'Cancelled';
+
   if (status == 'closed' || status == 'completed' || status == 'resolved') {
     return 'Chat completed';
   }
@@ -199,7 +201,10 @@ String quickChatStatusText(Map<String, dynamic> q) {
 
 bool quickChatIsEnded(Map<String, dynamic> q) {
   final status = (q['status'] ?? '').toString().trim().toLowerCase();
-  return status == 'closed' || status == 'completed' || status == 'resolved';
+  return status == 'cancelled' ||
+      status == 'closed' ||
+      status == 'completed' ||
+      status == 'resolved';
 }
 
 // Colour to match quickChatStatusText - keep the two in sync if you change
@@ -212,7 +217,10 @@ Color quickChatStatusColor(Map<String, dynamic> q) {
     return AppColors.gold;
   }
 
-  if (status == 'closed' || status == 'completed' || status == 'resolved') {
+  if (status == 'cancelled' ||
+      status == 'closed' ||
+      status == 'completed' ||
+      status == 'resolved') {
     return AppColors.textMid;
   }
 

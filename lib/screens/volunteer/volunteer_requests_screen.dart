@@ -11,6 +11,35 @@ import '../../utils/singapore_time.dart';
 import '../mum/consultation/consultation_helpers.dart';
 import '../mum/forum/forum_shared.dart';
 
+// Volunteer video calls can be proposed at any hour of the selected day.
+// Same-day slots that have already passed are filtered out below.
+const List<String> _videoCallTimes = [
+  '12:00 AM',
+  '1:00 AM',
+  '2:00 AM',
+  '3:00 AM',
+  '4:00 AM',
+  '5:00 AM',
+  '6:00 AM',
+  '7:00 AM',
+  '8:00 AM',
+  '9:00 AM',
+  '10:00 AM',
+  '11:00 AM',
+  '12:00 PM',
+  '1:00 PM',
+  '2:00 PM',
+  '3:00 PM',
+  '4:00 PM',
+  '5:00 PM',
+  '6:00 PM',
+  '7:00 PM',
+  '8:00 PM',
+  '9:00 PM',
+  '10:00 PM',
+  '11:00 PM',
+];
+
 // Shows all mums' questions to volunteers, split into Available / Ongoing /
 // Completed tabs. Any volunteer can see and claim an open question.
 class VolunteerRequestsScreen extends StatefulWidget {
@@ -106,7 +135,8 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
   }
 
   String _category(Map<String, dynamic> r) {
-    if ((r['status'] as String? ?? 'pending') == 'closed') return 'completed';
+    final status = (r['status'] as String? ?? 'pending').toLowerCase();
+    if (status == 'closed' || status == 'cancelled') return 'completed';
     return r['volunteer_id'] == null ? 'available' : 'ongoing';
   }
 
@@ -280,10 +310,11 @@ class _RequestCard extends StatelessWidget {
     final mumName = profile?['full_name'] as String? ?? 'A mum';
     final roleLabel = forumRoleLabel(profile?['role'] as String?);
     final status = request['status'] as String? ?? 'pending';
-    final isCompleted = status == 'closed';
+    final isCompleted = status == 'closed' || status == 'cancelled';
     final isAvailable = !isCompleted && request['volunteer_id'] == null;
-    final badgeLabel =
-        isCompleted ? 'Completed' : (isAvailable ? 'Available' : 'Ongoing');
+    final badgeLabel = status == 'cancelled'
+        ? 'Cancelled'
+        : (isCompleted ? 'Completed' : (isAvailable ? 'Available' : 'Ongoing'));
     final badgeColor = isCompleted
         ? AppColors.sage
         : (isAvailable ? AppColors.infoBlue : AppColors.gold);
@@ -392,7 +423,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   String? get _volunteerId => widget.request['volunteer_id'] as String?;
   bool get _isMine => _volunteerId != null && _volunteerId == _myId;
   bool get _isOpen => _volunteerId == null;
-  bool get _isClosed => widget.request['status'] == 'closed';
+  bool get _isClosed =>
+      widget.request['status'] == 'closed' ||
+      widget.request['status'] == 'cancelled';
   // Can reply if it's still unclaimed (anyone may claim it by replying) or
   // it's already claimed by me — but not if it's closed or someone beat us to it.
   bool get _canReply => !_lockedOut && !_isClosed && (_isOpen || _isMine);
@@ -556,7 +589,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           final times =
-              futureTimesForDate(defaultConsultationTimes, selectedDate)
+              futureTimesForDate(_videoCallTimes, selectedDate)
                   .where((t) => !heldTimes.contains(t))
                   .toList();
           return Padding(
@@ -571,10 +604,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Text('Propose a call time',
                       style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w700, fontSize: 16)),
@@ -655,7 +688,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       child: const Text('Request This Time'),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -757,6 +791,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   // Renders the right UI for wherever the call request currently is: not
   // requested yet, waiting on the mum, or accepted (share the Zoom link).
   Widget _videoCallControl() {
+    if (_isClosed) return const SizedBox.shrink();
+
     switch (_callStatus) {
       case 'requested':
         return Container(
@@ -975,7 +1011,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               textAlign: mine ? TextAlign.right : TextAlign.left,
               style:
                   GoogleFonts.poppins(color: AppColors.textMid, fontSize: 13)),
-          if (messageLink != null) ...[
+          if (messageLink != null && !_isClosed) ...[
             const SizedBox(height: 6),
             OutlinedButton.icon(
               onPressed: () => _openMeetingLink(messageLink),
@@ -1199,7 +1235,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                         _isClosed
-                            ? 'This chat has been closed.'
+                            ? (widget.request['status'] == 'cancelled'
+                                ? 'This chat was cancelled because no volunteer replied within 48 hours.'
+                                : 'This chat has been closed.')
                             : (_lockedOut
                                 ? 'Another volunteer already answered this question.'
                                 : 'This question was claimed by another volunteer.'),

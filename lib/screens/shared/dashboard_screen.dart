@@ -908,7 +908,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .limit(12);
 
         merged.addAll(List<Map<String, dynamic>>.from(data)
-            .where((item) => !isStaleServiceNotification(item))
+            .where((item) =>
+                !isStaleServiceNotification(item) &&
+                item['rating_provider_type'] != 'volunteer')
             .map((item) {
           return {
             ...item,
@@ -1420,6 +1422,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     if (notification['rating_provider_id'] != null) {
+      if (notification['rating_provider_type'] == 'volunteer') return;
       await context.push('/rate-provider', extra: notification);
       return;
     }

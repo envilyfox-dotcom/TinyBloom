@@ -178,14 +178,19 @@ class _SpecialistConsultationsScreenState
   }
 
   // Derives the status actually shown to the user - flips "pending" to
-  // "expired" and "confirmed" to "completed" once the slot time has passed.
+  // "expired" after its slot, and "confirmed" to "completed" after the
+  // one-hour appointment window has ended.
   String _effectiveStatusKey(Map<String, dynamic> consultation) {
     final status =
         (consultation['status'] as String? ?? 'pending').toLowerCase();
     if (status == 'cancelled') return 'cancelled';
 
     final scheduled = _scheduledDateTime(consultation);
-    final isPast = scheduled != null && scheduled.isBefore(sgtNow());
+    if (scheduled == null) return status;
+    final cutoff = status == 'confirmed'
+        ? scheduled.add(const Duration(hours: 1))
+        : scheduled;
+    final isPast = cutoff.isBefore(sgtNow());
     if (status == 'pending' && isPast) return 'expired';
     if (status == 'confirmed' && isPast) return 'completed';
     return status;

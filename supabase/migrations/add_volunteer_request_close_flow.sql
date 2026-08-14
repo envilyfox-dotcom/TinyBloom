@@ -3,9 +3,10 @@
 --
 -- Adds a third state to the thread lifecycle: 'closed' ("Completed" in the
 -- UI), reached either by the assigned volunteer tapping "Close Chat" or
--- automatically once 48 hours pass with no new message. 'pending'
--- (unclaimed) and 'responded' (claimed, actively chatting) both display as
--- "Ongoing" in the app — only 'closed' shows as "Completed".
+-- automatically once 48 hours pass with no new message. An unanswered
+-- 'pending' request is cancelled after 48 hours by a follow-up migration.
+-- 'pending' (unclaimed) and 'responded' (claimed, actively chatting) both
+-- display as "Ongoing" in the app until one of those timeouts applies.
 --
 -- last_activity_at tracks the most recent message so the 48h auto-close
 -- check has something to compare against; a trigger keeps it current

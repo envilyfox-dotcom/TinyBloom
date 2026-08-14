@@ -108,57 +108,29 @@ class _EducationScreenState extends State<EducationScreen> {
     }
   }
 
-  Future<void> _showReportDialog(Map<String, dynamic> article) async {
-    String category = 'clinical';
+  Future<void> _showReportDialog() async {
     final reasonCtrl = TextEditingController();
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Report post'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Category',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              Wrap(spacing: 8, children: [
-                ChoiceChip(
-                  label: const Text('Clinical'),
-                  selected: category == 'clinical',
-                  onSelected: (_) =>
-                      setDialogState(() => category = 'clinical'),
-                ),
-                ChoiceChip(
-                  label: const Text('Non-clinical'),
-                  selected: category == 'non_clinical',
-                  onSelected: (_) =>
-                      setDialogState(() => category = 'non_clinical'),
-                ),
-              ]),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonCtrl,
-                maxLines: 3,
-                decoration:
-                    const InputDecoration(labelText: 'Reason (required)'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                if (reasonCtrl.text.trim().isEmpty) return;
-                Navigator.pop(ctx, true);
-              },
-              child: const Text('Report'),
-            ),
-          ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report post'),
+        content: TextField(
+          controller: reasonCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Reason (required)'),
         ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonCtrl.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Report'),
+          ),
+        ],
       ),
     );
     if (result == true && mounted) {
@@ -410,7 +382,7 @@ class _EducationScreenState extends State<EducationScreen> {
                                 const SizedBox(height: 12),
                             itemBuilder: (ctx, i) => _ArticleCard(
                               article: filtered[i],
-                              onReport: () => _showReportDialog(filtered[i]),
+                              onReport: _showReportDialog,
                               onReturn: _load,
                             ),
                           ),
