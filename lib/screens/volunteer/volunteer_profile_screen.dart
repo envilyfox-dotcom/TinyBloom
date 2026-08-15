@@ -97,11 +97,6 @@ class _VolunteerProfileScreenState extends State<VolunteerProfileScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left,
-              color: AppColors.textDark, size: 28),
-          onPressed: () => context.go('/home'),
-        ),
       ),
       body: _loading
           ? const Center(

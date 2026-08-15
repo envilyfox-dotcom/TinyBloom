@@ -173,16 +173,6 @@ class _VolunteerRequestsScreenState extends State<VolunteerRequestsScreen>
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textDark),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go('/home');
-            }
-          },
-        ),
         title: Text('Requests',
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600, color: AppColors.textDark)),
