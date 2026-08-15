@@ -17,6 +17,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _loading = true;
   bool _sending = false;
   final _commentCtrl = TextEditingController();
+  Map<String, dynamic>? _replyingTo;
 
   @override
   void initState() {
@@ -46,9 +47,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     try {
-      await SupabaseService.createForumComment(
-          widget.post['id'] as String, text);
+      final parentId = _replyingTo?['parent_comment_id'] as String? ??
+          _replyingTo?['id'] as String?;
+      if (parentId == null) {
+        await SupabaseService.createForumComment(widget.post['id'] as String, text);
+      } else {
+        await SupabaseService.createForumCommentReply(
+            widget.post['id'] as String, text, parentId);
+      }
       _commentCtrl.clear();
+      setState(() => _replyingTo = null);
       await _load();
     } catch (e) {
       if (mounted) {
@@ -60,8 +68,43 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _deleteComment(String id) async {
-    await SupabaseService.deleteForumComment(id);
-    _load();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Comment'),
+        content: const Text('Are you sure you want to delete this comment?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await SupabaseService.deleteForumComment(id);
+      await _load();
+    }
+  }
+
+  Future<void> _editComment(Map<String, dynamic> comment) async {
+    final ctrl = TextEditingController(text: comment['content'] as String? ?? '');
+    final updated = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Edit Comment'),
+        content: TextField(controller: ctrl, autofocus: true, maxLines: 4),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (updated != null && updated.isNotEmpty) {
+      await SupabaseService.updateForumComment(comment['id'] as String, updated);
+      await _load();
+    }
   }
 
   @override
@@ -161,9 +204,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               ),
                             )
                           : SliverList.builder(
-                              itemCount: _comments.length,
-                              itemBuilder: (context, i) =>
-                                  _commentTile(_comments[i], myId),
+                              itemCount: _comments
+                                  .where((c) => c['parent_comment_id'] == null)
+                                  .length,
+                              itemBuilder: (context, i) {
+                                final topLevel = _comments
+                                    .where((c) => c['parent_comment_id'] == null)
+                                    .toList();
+                                final replies = _comments
+                                    .where((c) => c['parent_comment_id'] == topLevel[i]['id'])
+                                    .toList()
+                                  ..sort((a, b) => (b['created_at'] as String)
+                                      .compareTo(a['created_at'] as String));
+                                return _commentTile(topLevel[i], replies, myId);
+                              },
                             ),
                 ),
               ],
@@ -182,22 +236,29 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
             child: SafeArea(
               top: false,
-              child: Row(children: [
-                Expanded(
-                    child: TextFormField(
-                  controller: _commentCtrl,
-                  decoration: const InputDecoration(
-                      hintText: 'Add a comment...', border: InputBorder.none),
-                )),
-                IconButton(
-                  icon: _sending
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.send, color: AppColors.rose),
-                  onPressed: _sending ? null : _send,
-                ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (_replyingTo != null)
+                  Row(children: [
+                    Expanded(child: Text('Replying to ${_replyingTo!['profiles']?['full_name'] ?? 'comment'}',
+                        style: const TextStyle(color: AppColors.textLight, fontSize: 12))),
+                    IconButton(onPressed: () => setState(() => _replyingTo = null),
+                        icon: const Icon(Icons.close, size: 16)),
+                  ]),
+                Row(children: [
+                  Expanded(child: TextFormField(
+                    controller: _commentCtrl,
+                    decoration: InputDecoration(
+                        hintText: _replyingTo == null ? 'Add a comment...' : 'Write a reply...',
+                        border: InputBorder.none),
+                  )),
+                  IconButton(
+                    icon: _sending
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send, color: AppColors.rose),
+                    onPressed: _sending ? null : _send,
+                  ),
+                ]),
               ]),
             ),
           ),
@@ -206,15 +267,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Widget _commentTile(Map<String, dynamic> c, String? myId) {
+  Widget _commentTile(Map<String, dynamic> c,
+      List<Map<String, dynamic>> replies, String? myId) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _commentRow(c, myId),
+        for (final reply in replies)
+          Padding(
+              padding: const EdgeInsets.only(left: 38, top: 10),
+              child: _commentRow(reply, myId)),
+      ]),
+    );
+  }
+
+  Widget _commentRow(Map<String, dynamic> c, String? myId) {
     final profile = c['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name'] as String? ?? 'Member';
     final roleLabel = forumRoleLabel(profile?['role'] as String?);
     final createdAt = DateTime.tryParse(c['created_at'] as String? ?? '');
     final isMine = c['author_id'] == myId;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
+    return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           forumAvatar(
@@ -226,11 +299,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             fontSize: 11,
           ),
           const SizedBox(width: 10),
-          Expanded(
-              child: Column(
+          Flexible(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.textLight.withValues(alpha: 0.3)),
+            ),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
                 Text(name,
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 13)),
@@ -255,16 +334,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               Text(c['content'] as String? ?? '',
                   style:
                       const TextStyle(color: AppColors.textMid, fontSize: 13)),
+              Padding(padding: const EdgeInsets.only(top: 4), child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(onTap: () => setState(() => _replyingTo = c),
+                      child: const Text('Reply', style: TextStyle(color: AppColors.teal,
+                          fontSize: 12, fontWeight: FontWeight.w700))),
+                  if (isMine) ...[
+                    const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('•',
+                        style: TextStyle(color: AppColors.textLight, fontSize: 12))),
+                    GestureDetector(onTap: () => _editComment(c), child: const Text('Edit',
+                        style: TextStyle(color: AppColors.teal, fontSize: 12, fontWeight: FontWeight.w700))),
+                    const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('•',
+                        style: TextStyle(color: AppColors.textLight, fontSize: 12))),
+                    GestureDetector(onTap: () => _deleteComment(c['id'] as String), child: const Text('Delete',
+                        style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w700))),
+                  ],
+                ],
+              )),
             ],
-          )),
-          if (isMine)
-            GestureDetector(
-              onTap: () => _deleteComment(c['id'] as String),
-              child:
-                  const Icon(Icons.close, size: 16, color: AppColors.textLight),
-            ),
+          ))),
         ],
-      ),
-    );
+      );
   }
 }

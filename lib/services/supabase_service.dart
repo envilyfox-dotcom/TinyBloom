@@ -1679,6 +1679,25 @@ class SupabaseService {
     });
   }
 
+  static Future<void> updateForumComment(String id, String content) async {
+    await client
+        .from('forum_comments')
+        .update({'content': content})
+        .eq('id', id);
+  }
+
+  static Future<void> createForumCommentReply(
+      String postId, String content, String parentCommentId) async {
+    final user = currentUser;
+    if (user == null) return;
+    await client.from('forum_comments').insert({
+      'post_id': postId,
+      'author_id': user.id,
+      'content': content,
+      'parent_comment_id': parentCommentId,
+    });
+  }
+
   static Future<void> deleteForumComment(String id) async {
     await client.from('forum_comments').delete().eq('id', id);
   }

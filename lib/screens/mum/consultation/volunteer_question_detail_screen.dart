@@ -523,11 +523,14 @@ class _VolunteerQuestionDetailScreenState
                 : _messages.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(20),
-                        child: TBEmptyState(
-                          emoji: statusEmoji(status),
-                          title: 'Waiting for a response',
-                          subtitle:
-                              'A community volunteer will reply here once they\'ve seen your question. You can still edit it until then.',
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: TBEmptyState(
+                            emoji: statusEmoji(status),
+                            title: 'Waiting for a response',
+                            subtitle:
+                                'A community volunteer will reply here once they\'ve seen your question. You can still edit it until then.',
+                          ),
                         ),
                       )
                     : ListView.builder(

@@ -186,9 +186,11 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
         ),
         title: Text(isEdit ? 'Edit Log' : 'Symptoms & Milestones'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionCard('😊 Mood', [
@@ -374,6 +376,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
             ),
             const SizedBox(height: 16),
           ],
+          ),
         ),
       ),
     );
